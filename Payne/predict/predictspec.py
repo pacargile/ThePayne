@@ -92,7 +92,7 @@ class PaynePredict(object):
 
 		'''
 
-		inputdict = {}
+		self.inputdict = {}
 
 		if 'Teff' in kwargs:
 			self.inputdict['Teff'] = kwargs['Teff']
@@ -126,20 +126,22 @@ class PaynePredict(object):
 
 		if 'rot_vel' in kwargs:
 			# use BJ's smoothspec to convolve with rotational broadening
-			modspec = self.smoothspec(self.NN['wavelength'],modspec,outwave=outwave,
-				smoothtype='vel',resolution=kwargs['rot_vel'],fftsmooth=True)
+			modspec = self.smoothspec(self.NN['wavelength'],modspec,kwargs['rot_vel'],
+				outwave=outwave,smoothtype='vel',fftsmooth=True)
 
 		if 'rad_vel' in kwargs:
 			# kwargs['radial_velocity']: RV in km/s
-			modwave = self.NN['wavelength']*(1.0-(kwargs['rad_vel']/speedoflight))
+			modwave = self.NN['wavelength'].copy()*(1.0-(kwargs['rad_vel']/speedoflight))
 		else:
 			modwave = self.NN['wavelength']
 
-
 		if 'inst_R' in kwargs:
 			# instrumental broadening
-			modspec = self.smoothspec(modwave,modspec,outwave=outwave,
-				smoothtype='R',resolution=kwargs['inst_R'],fftsmooth=True)
+			modspec = self.smoothspec(modwave,modspec,kwargs['inst_R'],
+				outwave=outwave,smoothtype='R',fftsmooth=True)
 
 		return modwave, modspec
 
+	def smoothspec(self, wave, spec, sigma, outwave=None, **kwargs):
+		outspec = smoothspec(wave, spec, sigma, outwave=outwave, **kwargs)
+		return outspec
