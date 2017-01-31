@@ -14,7 +14,6 @@ class PaynePredict(object):
 	Class for taking a Payne-learned NN and predicting spectrum.
 	"""
 	def __init__(self, NNfilename):
-		super(PaynePredict, self).__init__()
 		self.NN = {}
 		# name of file that contains the neural-net output
 		self.NN['filename'] = NNfilename
