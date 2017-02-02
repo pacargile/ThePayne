@@ -16,7 +16,7 @@ class TrainSpec(object):
 	"""docstring for TrainSpec"""
 	def __init__(self, **kwargs):
 
-		# how many portions will we splot the training data to 
+		# how many portions will we split the training data to 
 		# perform stochastic gradient descent. Smaller batch 
 		# size (i.e., larger number ) will take longer to converge.
 		if 'mini_batch_size' in kwargs:
@@ -164,7 +164,7 @@ class TrainSpec(object):
 			for i in range(numtrainedpixles)]
 			)
 		self.b_array_0 = np.array(
-			[net_array[i].layers[0].b.get_value().T
+			[net_array[i].layers[0].b.get_value()
 			for i in range(numtrainedpixles)]
 			)
 		# the second layer
