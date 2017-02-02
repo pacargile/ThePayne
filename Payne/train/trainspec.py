@@ -331,7 +331,7 @@ class TrainSpec(object):
 		note we create individual neural network for each pixel
 		'''
 
-		print 'Training pixel:{0} (wavelength: {1})'.format(pixel_no,self.wavelength[pixel_no])
+		print 'Training pixel:{0}/{1} (wavelength: {2})'.format(pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no])
 
 		# extract flux of a wavelength pixel
 		training_y = theano.shared(np.asarray(np.array([self.spectra[pixel_no,:]]).T, dtype='float64'))
