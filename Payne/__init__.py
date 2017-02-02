@@ -5,4 +5,5 @@ except(ImportError):
 
 from . import fitting
 from . import predict
+from . import train
 from . import utils

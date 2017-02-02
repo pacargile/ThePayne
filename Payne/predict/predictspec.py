@@ -23,7 +23,7 @@ class PaynePredict(object):
 		self.NN['wavelength']  = np.array(self.NN['file']['wavelength'])
 		# labels for which the NN was trained on, useful to make
 		# sure prediction is within the trained grid.
-		self.NN['labels']   = np.array(self.NN['file']['labels_array'])
+		self.NN['labels']   = np.array(self.NN['file']['labels'])
 		# NN coefficents for action function
 		self.NN['w0'] = np.array(self.NN['file']['w_array_0'])
 		self.NN['w1'] = np.array(self.NN['file']['w_array_1'])

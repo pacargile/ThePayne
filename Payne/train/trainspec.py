@@ -2,11 +2,15 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import h5py
 from multiprocessing import Pool
+from scipy.interpolate import NearestNDInterpolator
 
 import theano
 import theano.tensor as T
 from theano.tensor.nnet import sigmoid
+
+
 
 class TrainSpec(object):
 	"""docstring for TrainSpec"""
@@ -66,10 +70,33 @@ class TrainSpec(object):
 		if 'num_train' in kwargs:
 			self.num_train = kwargs['num_train']
 		else:
-			self.num_train = 200
+			self.num_train = 150
+
+		# wavelength range to train on in angstroms
+		if 'waverange' in kwargs:
+			self.waverange = kwargs['waverange']
+		else:
+			self.waverange = [5150.0,5200.0]
+
+		# check for user defined ranges for C3K spectra
+		if 'Teff' in kwargs:
+			Teffrange = kwargs['Teff']
+		if 'logg' in kwargs:
+			loggrange = kwargs['logg']
+		if 'FeH' in kwargs:
+			FeHrange = kwargs['FeH']
+
 
 		# pull C3K spectra for training
-		self.spectra,self.labels = pullspectra(self.num_train)
+		self.spectra_o,self.labels_o,self.wavelength = self.pullspectra(self.num_train)
+
+		self.labels_o = self.labels_o.T
+
+		# trim spectra using the user defined wavelength range
+		wavecond = (self.wavelength >= self.waverange[0]) & (self.wavelength <= self.waverange[1])
+		wavecond = np.array(wavecond,dtype=bool)
+		self.spectra_o = self.spectra_o[:,wavecond]
+		self.wavelength = self.wavelength[wavecond]
 
 		# neural-nets typically train a function mapping from 
 		# [0,1] -> [0,1], so here we scale both input (labels) 
@@ -77,24 +104,101 @@ class TrainSpec(object):
 
 		# record the min,max for the labels so that we can 
 		# scale any labels to our training set
-		self.x_min = np.min(self.labels,axis=1)
-		self.x_max = np.max(self.labels,axis=1)
+		self.x_min = np.min(self.labels_o,axis=1)
+		self.x_max = np.max(self.labels_o,axis=1)
 
 		# scale labels
-		self.labels = ( (((self.labels.T - self.x_min)*0.8) / (self.x_max-self.x_min)) + 0.1).T
+		self.labels = ( (((self.labels_o.T - self.x_min)*0.8) / (self.x_max-self.x_min)) + 0.1).T
 
 		# scale the fluxes, we assume model fluxes are already normalized
-		self.spectra = self.spectra.T*0.8 + 0.1
+		self.spectra = self.spectra_o.T*0.8 + 0.1
 
 		# Theano is a very powerful package to train neural nets
 		# it performs "auto diff", i.e., provides analytic differentiation 
 		# of any cost function
 
-		# convert labels into a theano variable
-		self.training_x = theano.shared(np.asarray(self.labels.T,dtype='float64'))
 
+		# # make local instances of the neural-net layers and main network class
+		# self.Network = Network
+		# self.FullyConnectedLayer = FullyConnectedLayer
+		# self.act_func = act_func
 
-	def pullspectra(num, **kwargs):
+	def __call__(self,pixel_no):
+		'''
+		call instance so that train_pixel can be called with multiprocessing
+		and still have all of the class instance variables
+	
+		:params pixel_no:
+			Pixel number that is going to be trained
+
+		'''
+		return self.train_pixel(pixel_no)
+
+	def run(self,mp=False):
+		'''
+		function to actually run the training on pixels
+
+		:param mp (optional):
+			boolean that turns on multiprocessing to run 
+			training in parallel
+
+		'''
+
+		# turn on multiprocessing if desired
+		if mp:
+			pool = Pool(processes=6)
+			mapfunc = pool.map
+		else:
+			mapfunc = map
+
+		# number of pixels to train
+		numtrainedpixles = self.spectra.shape[0]
+
+		# map out the pixel training
+		net_array = mapfunc(self,range(numtrainedpixles))
+
+		# extract neural-net parameters
+		# the first layer
+		self.w_array_0 = np.array(
+			[net_array[i].layers[0].w.get_value().T
+			for i in range(numtrainedpixles)]
+			)
+		self.b_array_0 = np.array(
+			[net_array[i].layers[0].b.get_value().T
+			for i in range(numtrainedpixles)]
+			)
+		# the second layer
+		self.w_array_1 = np.array(
+			[net_array[i].layers[1].w.get_value()[:,0]
+			for i in range(numtrainedpixles)]
+			)
+		self.b_array_1 = np.array(
+			[net_array[i].layers[1].b.get_value()[0]
+			for i in range(numtrainedpixles)]
+			)
+
+		self.saveout()
+
+	def saveout(self):
+		'''
+		function to save all of the information into 
+		a single HDF5 file
+		'''
+
+		outfile = h5py.File('TESTOUT.h5',format='hdf5')
+
+		outfile.create_dataset('wavelength',data=self.wavelength,compression='gzip')
+		outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
+		outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
+		outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
+		outfile.create_dataset('w_array_0', data=self.w_array_0, compression='gzip')
+		outfile.create_dataset('w_array_1', data=self.w_array_1, compression='gzip')
+		outfile.create_dataset('b_array_0', data=self.b_array_0, compression='gzip')
+		outfile.create_dataset('b_array_1', data=self.b_array_1, compression='gzip')
+
+		outfile.close()
+
+	def pullspectra(self, num, **kwargs):
 		'''
 		Randomly draw 2*num spectra from C3K based on 
 		the MIST isochrones.
@@ -117,35 +221,214 @@ class TrainSpec(object):
 
 		'''
 
-		### LOAD C3K SPECTRA ####
-		### LOAD MIST MODELS ####
-		### RANDOMLY SELECT STARS FROM MIST ###
-		### DO NEAREST NEIGHBOR INTERPOLATION ON C3K TO FIND SPECTRA & LABELS ###
+		if 'Teff' in kwargs:
+			Teffrange = kwargs['Teff']
+		else:
+			Teffrange = [3500.0,10000.0]
 
-		spectra = None # spectra -> structured array: wave, spectra1, spectra2, spectra3, ...
-		labels = None # labels -> array of [labels1,labels2,labels3,...]
+		if 'logg' in kwargs:
+			loggrange = kwargs['logg']
+		else:
+			loggrange = [-1.0,5.0]
 
-		return spectra, labels
+		if 'FeH' in kwargs:
+			fehrange = kwargs['FeH']
+		else:
+			fehrange = [-2.0,0.5]
+
+		# define the [Fe/H] array, this is the values that the MIST 
+		# and C3K grids are built
+		FeHarr = [-2.0,-1.75,-1.5,-1.25,-1.0,-0.75,-0.5,-0.25,0.0,0.25,0.5]
+
+		# define aliases for the MIST isochrones and C3K/CKC files
+		MISTpath = '/Users/pcargile/Astro/SteEvoMod/'
+		C3Kpath  = '/Users/bjohnson/code/ckc/ckc/h5/'
+
+		# load MIST models
+		MIST = h5py.File(MISTpath+'MIST_full.h5','r')
+		MIST_EAF = np.array(MIST['EAF'])
+		MIST_BSP = np.array(MIST['BSP'])
+
+		# parse down the MIST models to just be EEP = 202-605
+		EEPcond = (MIST_EAF['EEP'] > 202) & (MIST_EAF['EEP'] < 605)
+		EEPcond = np.array(EEPcond,dtype=bool)
+		MIST_EAF = MIST_EAF[EEPcond]
+		MIST_BSP = MIST_BSP[EEPcond]
+
+		# create a dictionary for the C3K models and populate it for different
+		# metallicities
+		C3K = {}
+
+		for mm in FeHarr:
+			C3K[mm] = h5py.File(C3Kpath+'ckc_feh={0:+4.2f}.full.h5'.format(mm),'r')
+
+		# randomly select num number of MIST isochrone grid points, currently only 
+		# using dwarfs, subgiants, and giants (EEP = 202-605)
+
+		labels = []
+		spectra = []
+
+		for ii in range(num):
+			while True:
+				# first randomly draw a [Fe/H]
+				while True:
+					FeH_i = np.random.choice(FeHarr)
+
+					# check to make sure FeH_i isn't in user defined 
+					# [Fe/H] limits
+					if (FeH_i >= fehrange[0]) & (FeH_i <= fehrange[1]):
+						break
+
+				# select the C3K spectra at that [Fe/H]
+				C3K_i = C3K[FeH_i]
+
+				# store a wavelength array as an instance, all of C3K has 
+				# the same wavelength sampling
+				if ii == 0:
+					wavelength = np.array(C3K_i['wavelengths'])
+
+				# select the range of MIST isochrones with that [Fe/H]
+				FeHcond = (MIST_EAF['initial_[Fe/H]'] == FeH_i)
+				MIST_BSP_i = MIST_BSP[np.array(FeHcond,dtype=bool)]
+
+				while True:
+					# randomly select a EEP, log(age) combination
+					MISTsel = np.random.randint(0,len(MIST_BSP_i))
+
+					# get MIST Teff and log(g) for this selection
+					logt_MIST,logg_MIST = MIST_BSP_i['log_Teff'][MISTsel], MIST_BSP_i['log_g'][MISTsel]
+
+					# do a nearest neighbor interpolation on Teff and log(g) in the C3K grid
+					C3Kpars = np.array(C3K_i['parameters'])
+
+					# check to make sure MIST log(g) and log(Teff) have a spectrum in the C3K grid
+					# if not draw again
+					if (
+						(logt_MIST >= np.log10(Teffrange[0])) and (logt_MIST <= np.log10(Teffrange[1])) and
+						(logg_MIST >= loggrange[0]) and (logg_MIST <= loggrange[1])
+						):
+						break
+				C3KNN = NearestNDInterpolator(np.array([C3Kpars['logt'],C3Kpars['logg']]).T,range(0,len(C3Kpars)))((logt_MIST,logg_MIST))
+
+				# determine the labels for the selected C3K spectrum
+				label_i = list(C3Kpars[C3KNN])[:-1]
+
+				# calculate the normalized spectrum
+				spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
+
+				# check to see if labels are already in training set, if not store labels/spectrum
+				if (label_i not in labels) and (not np.any(np.isnan(spectra_i))):
+					labels.append(label_i)
+					spectra.append(spectra_i)
+					break
+
+		return np.array(spectra), np.array(labels), wavelength
 
 
-	def act_func(z):
+	def train_pixel(self,pixel_no):
 		'''
-		Define action function that we will use in the 
-		validation step. Make sure this function is 
-		consistent with the training function.
-		
-		:params z:
-		label that goes into the sigmoid
-	
+		define training function for each wavelength pixel to run in parallel
+		note we create individual neural network for each pixel
 		'''
-		return 1.0/(1.0+np.exp(-z))
+
+		print 'Training pixel:{0} (wavelength: {1})'.format(pixel_no,self.wavelength[pixel_no])
+
+		# extract flux of a wavelength pixel
+		training_y = theano.shared(np.asarray(np.array([self.spectra[pixel_no,:]]).T, dtype='float64'))
+
+		# convert labels into a theano variable
+		training_x = theano.shared(np.asarray(self.labels.T,dtype='float64'))
+
+		# define the network
+		net = Network([
+			FullyConnectedLayer(
+				n_in=training_x.get_value().shape[1],
+				n_out=self.n_neurons),
+			FullyConnectedLayer(
+				n_in=self.n_neurons,
+				n_out=training_y.get_value().shape[1]),
+			], self.mini_batch_size)
+
+		# initiate loop counter and step size
+		loop_count = 0
+		step_divide = 1.0
+
+		# sometimes the network can get stuck at the initial point
+		# so we first train for 1000 steps
+		net.SGD(training_x,training_y,1000,self.eta_choice)
+
+		# we evaluate if the cost has improved
+		while (
+			np.abs(np.mean(net.cost_train[:100])
+			-np.mean(net.cost_train[-100:]))/(np.mean(net.cost_train[:100])) 
+			< 0.1) and (loop_count < self.max_iter):
+
+			# if not we reset the network (and hence the initial point)
+			# and loop until it finds a valid initial point
+			net = Network([
+				FullyConnectedLayer(
+					n_in=training_x.get_value().shape[1],
+					n_out=self.n_neurons),
+				FullyConnectedLayer(
+					n_in=self.n_neurons,
+					n_out=training_y.get_value().shape[1]),
+				], self.mini_batch_size)
+			net.SGD(training_x,training_y,1000,self.eta_choice)
+
+			# increase counter
+			loop_count += 1
+
+		# after a good initial point is found, we proceed to the extensive training
+
+		# initiate the deviation trunction criterion
+		med_deviate = 1000.0
+
+		# loop until the deviation is smaller than the chosen trunction criterion
+		# we also truncate if the step size has become too small
+		while (
+			(med_deviate > self.trunc_diff) and (loop_count < self.max_iter) and (self.eta_choice/step_divide > self.min_eta)
+			):
+
+			# continue to train the network if it has not converged yet
+			net.SGD(training_x,training_y,self.num_epochs_choice,self.eta_choice/step_divide)
+
+			# increase counter to avoid infinite loop
+			loop_count += 1
+
+			# check if the current stepsize is too large, i.e., cost does not change much
+			if (
+				np.abs(np.mean(net.cost_train[:100])-np.mean(net.cost_train[-100:])) / (np.mean(net.cost_train[:100]))
+				 < 0.01
+				 ):
+
+				# if so, we make the step size smaller
+				step_divide = step_divide*2.0
+
+			# this is the validation step
+			# calculate the deviation between the analytic approximation vs. the training models
+			# in principle, we should consider validation models here
+			w_array_0 = net.layers[0].w.get_value().T
+			b_array_0 = net.layers[0].b.get_value()
+			w_array_1 = net.layers[1].w.get_value()[:,0]
+			b_array_1 = net.layers[1].b.get_value()[0]
+
+			predict_flux = act_func(
+				np.sum(w_array_1*(act_func(np.dot(w_array_0,self.labels).T + b_array_0)), axis=1)
+				+ b_array_1)
+
+			# remember to scale back the fluxes to the normal metric
+			### here we choose the maximum absolute deviation to be the truncation criteria ###
+			med_deviate = np.max(np.abs((predict_flux-self.spectra[pixel_no,:])/0.8))
+
+		# return the trained network for this pixel
+		return net
 
 class Network(object):
 	"""
 	Main Network Class
 	"""
 	def __init__(self, layers, mini_batch_size):
-		self.arg = layers
+		self.layers = layers
 		self.mini_batch_size = mini_batch_size
 		self.params = [param for layer in self.layers for param in layer.params]
 		
@@ -187,7 +470,7 @@ class Network(object):
 		ind = theano.shared(ind)
 
 		# define function to train a mini-batch
-		train_mb - theano.function(
+		train_mb = theano.function(
 			[i],cost, updates=updates,
 			givens={
 				self.x:training_x[ind[i*self.mini_batch_size:(i+1)*self.mini_batch_size]],
@@ -249,97 +532,14 @@ class FullyConnectedLayer(object):
 		'''
 		return T.sum(T.abs_(net.y-self.output))
 
-def train_pixel(pixel_no):
+def act_func(z):
 	'''
-	define training function for each wavelength pixel to run in parallel
-	note we create individual neural network for each pixel
+	Define action function that we will use in the 
+	validation step. Make sure this function is 
+	consistent with the training function.
+
+	:params z:
+	label that goes into the sigmoid
+
 	'''
-
-	# extract flux of a wavelength pixel
-	training_y = theano.shared(np.asarray(np.array([spectra[pixel_no,:]]).T, dtype='float64'))
-
-	# define the network
-	net = Network([
-		FullyConnectedLayer(
-			n_in=training_x.get_value().shape[1],
-			n_out=n_neurons),
-		FullyConnectedLayer(
-			n_in=n_neurons,
-			n_out=training_y.get_value().shape[1]),
-		], mini_batch_size)
-
-	# initiate loop counter and step size
-	loop_count = 0
-	step_divide = 1.0
-
-	# sometimes the network can get stuck at the initial point
-	# so we first train for 1000 steps
-	net.SGD(training_x,training_y,1000,eta_choice)
-
-	# we evaluate if the cost has improved
-	while (
-		np.abs(np.mean(net.cost_train[:100])
-		-np.mean(net.cost_train[-100:]))/(np.mean(net.cost_train[:100])) 
-		< 0.1) and (loop_count < max_iter):
-
-		# if not we reset the network (and hence the initial point)
-		# and loop until it finds a valid initial point
-		net = Network([
-			FullyConnectedLayer(
-				n_in=training_x.get_value().shape[1],
-				n_out=n_neurons),
-			FullyConnectedLayer(
-				n_in=n_neurons,
-				n_out=training_y.get_value().shape[1]),
-			], mini_batch_size)
-		net.SGD(training_x,training_y,1000,eta_choice)
-
-		# increase counter
-		loop_count += 1
-
-	# after a good initial point is found, we proceed to the extensive training
-
-	# initiate the deviation trunction criterion
-	med_deviate = 1000.0
-
-	# loop until the deviation is smaller than the chosen trunction criterion
-	# we also truncate if the step size has become too small
-	while (
-		(med_deviate > trunc_diff) and (loop_count < max_iter) and (eta_choice/step_divide > min_eta)
-		):
-
-		# continue to train the network if it has not converged yet
-		net.SGD(training_x,training_y,num_epochs_choice,eta_choice/step_divide)
-
-		# increase counter to avoid infinite loop
-		loop_count += 1
-
-		# check if the current stepsize is too large, i.e., cost does not change much
-		if (
-			np.abs(np.mean(net.cost_train[:100])-np.mean(np.cost_train[-100:])) / (np.mean(net.cost_train[:100]))
-			 < 0.01
-			 ):
-
-			# if so, we make the step size smaller
-			step_divide = step_divide*2.0
-
-		# this is the validation step
-		# calculate the deviation between the analytic approximation vs. the training models
-		# in principle, we should consider validation models here
-		w_array_0 = net.layers[0].w.get_value().T
-		b_array_0 = net.layers[0].b.get_value()
-		w_array_1 = net.layers[1].w.get_value()[:,0]
-		b_array_1 = net.layers[1].b.get_value()[0]
-
-		predict_flux = act_func(
-			np.sum(
-				w_array_1*act_func(np.dot(w_array_0,labels).T + b_array_0)
-				,axis=1)
-			+ b_array_1)
-
-		# remember to scale back the fluxes to the normal metric
-		### here we choose the maximum absolute deviation to be the truncation criteria ###
-		med_deviate = np.max(np.abs((predict_flux-spectra[pixel_no,:])/0.8))
-
-	# return the trained network for this pixel
-	return net
+	return 1.0/(1.0+np.exp(-z))
