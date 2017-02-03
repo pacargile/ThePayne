@@ -6,10 +6,15 @@ import h5py
 from multiprocessing import Pool
 from scipy.interpolate import NearestNDInterpolator
 
+# Theano is a very powerful package to train neural nets
+# it performs "auto diff", i.e., provides analytic differentiation 
+# of any cost function
+
 import theano
 import theano.tensor as T
 from theano.tensor.nnet import sigmoid
 
+from datetime import datetime
 
 
 class TrainSpec(object):
@@ -113,15 +118,6 @@ class TrainSpec(object):
 		# scale the fluxes, we assume model fluxes are already normalized
 		self.spectra = self.spectra_o.T*0.8 + 0.1
 
-		# Theano is a very powerful package to train neural nets
-		# it performs "auto diff", i.e., provides analytic differentiation 
-		# of any cost function
-
-
-		# # make local instances of the neural-net layers and main network class
-		# self.Network = Network
-		# self.FullyConnectedLayer = FullyConnectedLayer
-		# self.act_func = act_func
 
 	def __call__(self,pixel_no):
 		'''
@@ -331,7 +327,8 @@ class TrainSpec(object):
 		note we create individual neural network for each pixel
 		'''
 
-		print 'Training pixel:{0}/{1} (wavelength: {2})'.format(pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no])
+		# start a timer
+		starttime = datetime.now()
 
 		# extract flux of a wavelength pixel
 		training_y = theano.shared(np.asarray(np.array([self.spectra[pixel_no,:]]).T, dtype='float64'))
@@ -419,6 +416,9 @@ class TrainSpec(object):
 			# remember to scale back the fluxes to the normal metric
 			### here we choose the maximum absolute deviation to be the truncation criteria ###
 			med_deviate = np.max(np.abs((predict_flux-self.spectra[pixel_no,:])/0.8))
+
+		print 'Trained pixel:{0}/{1} (wavelength: {2}), took: {3}'.format(
+			pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no],datetime.now()-starttime)
 
 		# return the trained network for this pixel
 		return net

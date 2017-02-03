@@ -124,9 +124,11 @@ class PaynePredict(object):
 			outwave = self.NN['wavelength']
 
 		if 'rot_vel' in kwargs:
-			# use BJ's smoothspec to convolve with rotational broadening
-			modspec = self.smoothspec(self.NN['wavelength'],modspec,kwargs['rot_vel'],
-				outwave=outwave,smoothtype='vel',fftsmooth=True)
+			# check to make sure rot_vel isn't 0.0, this will cause the convol. to crash
+			if kwargs['rot_vel'] != 0.0:
+				# use BJ's smoothspec to convolve with rotational broadening
+				modspec = self.smoothspec(self.NN['wavelength'],modspec,kwargs['rot_vel'],
+					outwave=outwave,smoothtype='vel',fftsmooth=True)
 
 		if 'rad_vel' in kwargs:
 			# kwargs['radial_velocity']: RV in km/s

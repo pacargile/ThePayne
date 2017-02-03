@@ -67,13 +67,16 @@ class FitSpec(object):
 			return np.nan_to_num(np.inf)
 
 		# predict model flux at model wavelengths
-		modwave_i,modflux_i = self.PP.getspec(Teff=Teff,logg=logg,feh=FeH,rad_vel=radvel,rot_vel=rotvel,inst_R=self.fitargs['inst_R'])
+		modwave_i,modflux_i = self.PP.getspec(
+			Teff=Teff,logg=logg,feh=FeH,rad_vel=radvel,rot_vel=rotvel,inst_R=self.fitargs['inst_R'])
 
 		# linearly interpolate model fluxes onto observed wavelengths
 		modflux = UnivariateSpline(modwave_i,modflux_i,k=1,s=0)(self.fitargs['obs_wave_fit'])
 
 		# calc chi-square
-		chi2 = np.sum( [((m-o)**2.0)/(s**2.0) for m,o,s in zip(modflux,self.fitargs['obs_flux_fit'],self.fitargs['obs_eflux_fit'])])
+		chi2 = np.sum( 
+			[((m-o)**2.0)/(s**2.0) for m,o,s in zip(
+				modflux,self.fitargs['obs_flux_fit'],self.fitargs['obs_eflux_fit'])])
 
 		return chi2
 
