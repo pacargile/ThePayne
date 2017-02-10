@@ -5,6 +5,7 @@ import numpy as np
 import h5py
 from multiprocessing import Pool
 from scipy.interpolate import NearestNDInterpolator
+import os
 
 # Theano is a very powerful package to train neural nets
 # it performs "auto diff", i.e., provides analytic differentiation 
@@ -147,12 +148,10 @@ class TrainSpec(object):
 
 		# turn on multiprocessing if desired
 		if mp:
-	##### multiprocessing stuff #######
-			try:
-				numcpus = open('/proc/cpuinfo').read().count('processor\t:')
-				os.system("taskset -p -c 0-{NCPUS} {PID}".format(NCPUS=numcpus-1,PID=os.getpid()))
-			except:
-				pass
+			##### multiprocessing stuff #######
+			numcpus = open('/proc/cpuinfo').read().count('processor\t:')
+			os.system("taskset -p -c 0-{NCPUS} {PID}".format(NCPUS=numcpus-1,PID=os.getpid()))
+
 			pool = Pool(processes=6)
 			mapfunc = pool.map
 		else:
