@@ -147,6 +147,12 @@ class TrainSpec(object):
 
 		# turn on multiprocessing if desired
 		if mp:
+	##### multiprocessing stuff #######
+			try:
+				numcpus = open('/proc/cpuinfo').read().count('processor\t:')
+				os.system("taskset -p -c 0-{NCPUS} {PID}".format(NCPUS=numcpus-1,PID=os.getpid()))
+			except:
+				pass
 			pool = Pool(processes=6)
 			mapfunc = pool.map
 		else:
