@@ -91,6 +91,11 @@ class TrainSpec(object):
 		if 'FeH' in kwargs:
 			FeHrange = kwargs['FeH']
 
+		# output hdf5 file name
+		if 'output' in kwargs:
+			self.outfilename = kwargs['output']
+		else:
+			self.outfilename = 'TESTOUT.h5'
 
 		# pull C3K spectra for training
 		self.spectra_o,self.labels_o,self.wavelength = self.pullspectra(self.num_train)
@@ -150,8 +155,14 @@ class TrainSpec(object):
 		# number of pixels to train
 		numtrainedpixles = self.spectra.shape[0]
 
+		# start total timer
+		tottimestart = datetime.now()
+
 		# map out the pixel training
 		net_array = mapfunc(self,range(numtrainedpixles))
+
+		# print out total time
+		print 'Total time to train network: {0}'.format(datetime.now()-tottimestart)
 
 		# extract neural-net parameters
 		# the first layer
@@ -181,7 +192,7 @@ class TrainSpec(object):
 		a single HDF5 file
 		'''
 
-		outfile = h5py.File('TESTOUT.h5',format='hdf5')
+		outfile = h5py.File(self.outfilename,'w')
 
 		outfile.create_dataset('wavelength',data=self.wavelength,compression='gzip')
 		outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
@@ -237,8 +248,8 @@ class TrainSpec(object):
 		FeHarr = [-2.0,-1.75,-1.5,-1.25,-1.0,-0.75,-0.5,-0.25,0.0,0.25,0.5]
 
 		# define aliases for the MIST isochrones and C3K/CKC files
-		MISTpath = '/Users/pcargile/Astro/SteEvoMod/'
-		C3Kpath  = '/Users/bjohnson/code/ckc/ckc/h5/'
+		MISTpath = '/n/regal/conroy_lab/pac/ThePayne/models/MIST/'
+		C3Kpath  = '/n/regal/conroy_lab/pac/ThePayne/models/CKC/'
 
 		# load MIST models
 		MIST = h5py.File(MISTpath+'MIST_full.h5','r')
@@ -331,10 +342,11 @@ class TrainSpec(object):
 		starttime = datetime.now()
 
 		# extract flux of a wavelength pixel
-		training_y = theano.shared(np.asarray(np.array([self.spectra[pixel_no,:]]).T, dtype='float64'))
+		training_y = theano.shared(np.asarray(np.array([self.spectra[pixel_no,:]]).T, 
+			dtype=theano.config.floatX))
 
 		# convert labels into a theano variable
-		training_x = theano.shared(np.asarray(self.labels.T,dtype='float64'))
+		training_x = theano.shared(np.asarray(self.labels.T,dtype=theano.config.floatX))
 
 		# define the network
 		net = Network([

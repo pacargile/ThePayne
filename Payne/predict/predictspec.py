@@ -62,6 +62,11 @@ class PaynePredict(object):
 
 		# assume that the labels are not scaled to the NN, must 
 		# rescale them according to xmin, xmax
+
+		# first check if labels are within the trained network, warn if outside
+		if any(labels-self.NN['xmin'] < 0.0) or any(self.NN['xmax']-labels < 0.0):
+			print 'WARNING: user labels are outside the trained network!!!'
+
 		slabels = ((labels-self.NN['xmin'])*0.8)/(self.NN['xmax']-self.NN['xmin']) + 0.1
 
 		predict_flux = self.act_func(
@@ -94,11 +99,11 @@ class PaynePredict(object):
 		self.inputdict = {}
 
 		if 'Teff' in kwargs:
-			self.inputdict['Teff'] = kwargs['Teff']
+			self.inputdict['logt'] = np.log10(kwargs['Teff'])
 		elif 'logt' in kwargs:
-			self.inputdict['Teff'] = 10.0**kwargs['logt']
+			self.inputdict['logt'] = kwargs['logt']
 		else:
-			self.inputdict['Teff'] = 5770.0
+			self.inputdict['logt'] = np.log10(5770.0)
 
 		if 'log(g)' in kwargs:
 			self.inputdict['logg'] = kwargs['log(g)']
@@ -115,7 +120,7 @@ class PaynePredict(object):
 			self.inputdict['feh'] = 0.0
 		
 		# calculate model spectrum at the native C3K resolution
-		modspec = self.predictspec([self.inputdict[kk] for kk in ['Teff','logg','feh']])
+		modspec = self.predictspec([self.inputdict[kk] for kk in ['logt','logg','feh']])
 
 		if 'outwave' in kwargs:
 			# define array of output wavelength values
@@ -137,9 +142,11 @@ class PaynePredict(object):
 			modwave = self.NN['wavelength']
 
 		if 'inst_R' in kwargs:
-			# instrumental broadening
-			modspec = self.smoothspec(modwave,modspec,kwargs['inst_R'],
-				outwave=outwave,smoothtype='R',fftsmooth=True)
+			# check to make sure inst_R != 0.0
+			if kwargs['inst_R'] != 0.0:
+				# instrumental broadening
+				modspec = self.smoothspec(modwave,modspec,kwargs['inst_R'],
+					outwave=outwave,smoothtype='R',fftsmooth=True)
 
 		return modwave, modspec
 
