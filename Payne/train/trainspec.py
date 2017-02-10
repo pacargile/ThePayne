@@ -152,7 +152,7 @@ class TrainSpec(object):
 			numcpus = open('/proc/cpuinfo').read().count('processor\t:')
 			os.system("taskset -p -c 0-{NCPUS} {PID}".format(NCPUS=numcpus-1,PID=os.getpid()))
 
-			pool = Pool(processes=6)
+			pool = Pool(processes=40)
 			mapfunc = pool.map
 		else:
 			mapfunc = map
