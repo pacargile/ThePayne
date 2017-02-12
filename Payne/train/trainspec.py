@@ -167,7 +167,7 @@ class TrainSpec(object):
 		net_array = mapfunc(self,range(numtrainedpixles))
 
 		# print out total time
-		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
+		print('Total time to train network: {0}'.format(datetime.now()-tottimestart),flush=True)
 
 		# extract neural-net parameters
 		# the first layer
@@ -437,7 +437,7 @@ class TrainSpec(object):
 			med_deviate = np.max(np.abs((predict_flux-self.spectra[pixel_no,:])/0.8))
 
 		print('Trained pixel:{0}/{1} (wavelength: {2}), took: {3}'.format(
-			pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no],datetime.now()-starttime))
+			pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no],datetime.now()-starttime),flush=True)
 
 		# return the trained network for this pixel
 		return net
