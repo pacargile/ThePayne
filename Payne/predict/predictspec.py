@@ -1,5 +1,6 @@
 # #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 
 import numpy as np
 import h5py
@@ -65,7 +66,7 @@ class PaynePredict(object):
 
 		# first check if labels are within the trained network, warn if outside
 		if any(labels-self.NN['xmin'] < 0.0) or any(self.NN['xmax']-labels < 0.0):
-			print 'WARNING: user labels are outside the trained network!!!'
+			print('WARNING: user labels are outside the trained network!!!')
 
 		slabels = ((labels-self.NN['xmin'])*0.8)/(self.NN['xmax']-self.NN['xmin']) + 0.1
 

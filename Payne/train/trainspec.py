@@ -1,6 +1,6 @@
 # #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+from __future__ import print_function
 import numpy as np
 import h5py
 from multiprocessing import Pool
@@ -167,7 +167,7 @@ class TrainSpec(object):
 		net_array = mapfunc(self,range(numtrainedpixles))
 
 		# print out total time
-		print 'Total time to train network: {0}'.format(datetime.now()-tottimestart)
+		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
 
 		# extract neural-net parameters
 		# the first layer
@@ -320,7 +320,9 @@ class TrainSpec(object):
 						(logg_MIST >= loggrange[0]) and (logg_MIST <= loggrange[1])
 						):
 						break
-				C3KNN = NearestNDInterpolator(np.array([C3Kpars['logt'],C3Kpars['logg']]).T,range(0,len(C3Kpars)))((logt_MIST,logg_MIST))
+				C3KNN = NearestNDInterpolator(
+					np.array([C3Kpars['logt'],C3Kpars['logg']]).T,range(0,len(C3Kpars))
+					)((logt_MIST,logg_MIST))
 
 				# determine the labels for the selected C3K spectrum
 				label_i = list(C3Kpars[C3KNN])[:-1]
@@ -434,8 +436,8 @@ class TrainSpec(object):
 			### here we choose the maximum absolute deviation to be the truncation criteria ###
 			med_deviate = np.max(np.abs((predict_flux-self.spectra[pixel_no,:])/0.8))
 
-		print 'Trained pixel:{0}/{1} (wavelength: {2}), took: {3}'.format(
-			pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no],datetime.now()-starttime)
+		print('Trained pixel:{0}/{1} (wavelength: {2}), took: {3}'.format(
+			pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no],datetime.now()-starttime))
 
 		# return the trained network for this pixel
 		return net
