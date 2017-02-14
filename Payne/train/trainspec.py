@@ -124,6 +124,9 @@ class TrainSpec(object):
 		# scale the fluxes, we assume model fluxes are already normalized
 		self.spectra = self.spectra_o.T*0.8 + 0.1
 
+		# initialize the output HDf5 file
+		self.initout()
+
 
 	def __call__(self,pixel_no):
 		'''
@@ -164,51 +167,55 @@ class TrainSpec(object):
 		tottimestart = datetime.now()
 
 		# map out the pixel training
-		net_array = mapfunc(self,range(numtrainedpixles))
+		mapfunc(self,range(numtrainedpixles))
 
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart),flush=True)
 
-		# extract neural-net parameters
-		# the first layer
-		self.w_array_0 = np.array(
-			[net_array[i].layers[0].w.get_value().T
-			for i in range(numtrainedpixles)]
-			)
-		self.b_array_0 = np.array(
-			[net_array[i].layers[0].b.get_value()
-			for i in range(numtrainedpixles)]
-			)
-		# the second layer
-		self.w_array_1 = np.array(
-			[net_array[i].layers[1].w.get_value()[:,0]
-			for i in range(numtrainedpixles)]
-			)
-		self.b_array_1 = np.array(
-			[net_array[i].layers[1].b.get_value()[0]
-			for i in range(numtrainedpixles)]
-			)
+		# # extract neural-net parameters
+		# # the first layer
+		# self.w_array_0 = np.array(
+		# 	[net_array[i].layers[0].w.get_value().T
+		# 	for i in range(numtrainedpixles)]
+		# 	)
+		# self.b_array_0 = np.array(
+		# 	[net_array[i].layers[0].b.get_value()
+		# 	for i in range(numtrainedpixles)]
+		# 	)
+		# # the second layer
+		# self.w_array_1 = np.array(
+		# 	[net_array[i].layers[1].w.get_value()[:,0]
+		# 	for i in range(numtrainedpixles)]
+		# 	)
+		# self.b_array_1 = np.array(
+		# 	[net_array[i].layers[1].b.get_value()[0]
+		# 	for i in range(numtrainedpixles)]
+		# 	)
 
-		self.saveout()
+		# formally close the output file
+		self.outfile.close()
 
-	def saveout(self):
+	def initout(self):
 		'''
 		function to save all of the information into 
 		a single HDF5 file
 		'''
 
+		# create output HDF5 file
 		self.outfile = h5py.File(self.outfilename,'w')
 
+		# add datesets for values that are already defined
 		self.wave_h5  = self.outfile.create_dataset('wavelength',data=self.wavelength,compression='gzip')
 		self.label_h5 = self.outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
 		self.xmin_h5  = self.outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
 		self.xmax_h5  = self.outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
-		self.w0_h5    = self.outfile.create_dataset('w_array_0', data=self.w_array_0, compression='gzip')
-		self.w1_h5    = self.outfile.create_dataset('w_array_1', data=self.w_array_1, compression='gzip')
-		self.b0_h5    = self.outfile.create_dataset('b_array_0', data=self.b_array_0, compression='gzip')
-		self.b1_h5    = self.outfile.create_dataset('b_array_1', data=self.b_array_1, compression='gzip')
 
-		self.outfile.close()
+		# create vectorized datasets for the netweork results to be added
+		self.w0_h5    = self.outfile.create_dataset('w_array_0', (len(self.wavelength),10,3), compression='gzip')
+		self.w1_h5    = self.outfile.create_dataset('w_array_1', (len(self.wavelength),10),   compression='gzip')
+		self.b0_h5    = self.outfile.create_dataset('b_array_0', (len(self.wavelength),10),   compression='gzip')
+		self.b1_h5    = self.outfile.create_dataset('b_array_1', (len(self.wavelength),),     compression='gzip')
+
 
 	def pullspectra(self, num, **kwargs):
 		'''
@@ -440,10 +447,15 @@ class TrainSpec(object):
 			pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no],datetime.now()-starttime),flush=True)
 
 		# store and flush the network parameters into the HDF5 file
+		self.w0_h5[pixel_no,...] = net.layers[0].w.get_value().T
+		self.b0_h5[pixel_no,...] = net.layers[0].b.get_value()
+		self.w1_h5[pixel_no,...] = net.layers[1].w.get_value()[:,0]
+		self.b1_h5[pixel_no,...] = net.layers[1].b.get_value()[0]
 
+		# flush the HDF5 file to store the output
+		self.outfile.flush()
 
-		# return the trained network for this pixel
-		return net
+		return
 
 class Network(object):
 	"""
