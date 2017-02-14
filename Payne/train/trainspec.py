@@ -239,7 +239,7 @@ class TrainSpec(object):
 		b0_h5    = outfile.create_dataset('b_array_0', (len(self.wavelength),10),   compression='gzip')
 		b1_h5    = outfile.create_dataset('b_array_1', (len(self.wavelength),),     compression='gzip')
 
-		self.outfile.flush()
+		outfile.flush()
 
 		return outfile,w0_h5,w1_h5,b0_h5,b1_h5
 
