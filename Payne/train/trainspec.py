@@ -160,10 +160,9 @@ class TrainSpec(object):
 			# map out the pixel training
 			# pool.map(self,range(numtrainedpixles))
 			netout = pool.imap(self,range(numtrainedpixles))
-			for ii,inarr in enumerate(netout):
-				pixel_no,net = inarr
-				print(ii,pixel_no)
-
+			for ii,net in enumerate(netout):
+				print(ii)
+				sys.stdout.flush()
 				# store and flush the network parameters into the HDF5 file
 				self.w0_h5[ii,...] = net.layers[0].w.get_value().T
 				self.b0_h5[ii,...] = net.layers[0].b.get_value()
@@ -470,7 +469,7 @@ class TrainSpec(object):
 		# # flush the HDF5 file to store the output
 		# self.outfile.flush()
 
-		return [pixel_no,net]
+		return net
 
 class Network(object):
 	"""
