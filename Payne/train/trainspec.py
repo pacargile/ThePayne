@@ -6,6 +6,7 @@ import h5py
 from multiprocessing import Pool
 from scipy.interpolate import NearestNDInterpolator
 import os,sys
+from itertools import imap
 
 # Theano is a very powerful package to train neural nets
 # it performs "auto diff", i.e., provides analytic differentiation 
