@@ -174,7 +174,18 @@ class TrainSpec(object):
 
 		else:
 			# map out the pixel training
-			map(self,range(numtrainedpixles))
+			netout = imap(self,range(numtrainedpixles))
+			for ii,net in enumerate(netout):
+				print(ii)
+				sys.stdout.flush()
+				# store and flush the network parameters into the HDF5 file
+				self.w0_h5[ii,...] = net.layers[0].w.get_value().T
+				self.b0_h5[ii,...] = net.layers[0].b.get_value()
+				self.w1_h5[ii,...] = net.layers[1].w.get_value()[:,0]
+				self.b1_h5[ii,...] = net.layers[1].b.get_value()[0]
+
+				# flush the HDF5 file to store the output
+				self.outfile.flush()
 
 		# start total timer
 		tottimestart = datetime.now()
