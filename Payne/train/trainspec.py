@@ -160,14 +160,14 @@ class TrainSpec(object):
 			# map out the pixel training
 			# pool.map(self,range(numtrainedpixles))
 			netout = pool.imap(self,range(numtrainedpixles))
-			for inarr in netout:
+			for ii,inarr in enumerate(netout):
 				pixel_no,net = inarr
 
 				# store and flush the network parameters into the HDF5 file
-				self.w0_h5[pixel_no,...] = net.layers[0].w.get_value().T
-				self.b0_h5[pixel_no,...] = net.layers[0].b.get_value()
-				self.w1_h5[pixel_no,...] = net.layers[1].w.get_value()[:,0]
-				self.b1_h5[pixel_no,...] = net.layers[1].b.get_value()[0]
+				self.w0_h5[ii,...] = net.layers[0].w.get_value().T
+				self.b0_h5[ii,...] = net.layers[0].b.get_value()
+				self.w1_h5[ii,...] = net.layers[1].w.get_value()[:,0]
+				self.b1_h5[ii,...] = net.layers[1].b.get_value()[0]
 
 				# flush the HDF5 file to store the output
 				self.outfile.flush()
