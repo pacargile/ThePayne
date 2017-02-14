@@ -177,7 +177,6 @@ class TrainSpec(object):
 			# map out the pixel training
 			netout = imap(self,range(numtrainedpixles))
 			for ii,net in enumerate(netout):
-				print(ii)
 				sys.stdout.flush()
 				# store and flush the network parameters into the HDF5 file
 				self.w0_h5[ii,...] = net.layers[0].w.get_value().T
