@@ -125,8 +125,6 @@ class TrainSpec(object):
 		# scale the fluxes, we assume model fluxes are already normalized
 		self.spectra = self.spectra_o.T*0.8 + 0.1
 
-		# initialize the output HDf5 file
-		self.initout()
 
 	def __call__(self,pixel_no):
 		'''
@@ -148,6 +146,9 @@ class TrainSpec(object):
 			training in parallel
 
 		'''
+		# initialize the output HDf5 file
+		outfile,w0_h5,w1_h5,b0_h5,b1_h5 = self.initout()
+
 		# number of pixels to train
 		numtrainedpixles = self.spectra.shape[0]
 
@@ -165,13 +166,13 @@ class TrainSpec(object):
 				print(ii)
 				sys.stdout.flush()
 				# store and flush the network parameters into the HDF5 file
-				self.w0_h5[ii,...] = net.layers[0].w.get_value().T
-				self.b0_h5[ii,...] = net.layers[0].b.get_value()
-				self.w1_h5[ii,...] = net.layers[1].w.get_value()[:,0]
-				self.b1_h5[ii,...] = net.layers[1].b.get_value()[0]
+				w0_h5[ii,...] = net.layers[0].w.get_value().T
+				b0_h5[ii,...] = net.layers[0].b.get_value()
+				w1_h5[ii,...] = net.layers[1].w.get_value()[:,0]
+				b1_h5[ii,...] = net.layers[1].b.get_value()[0]
 
 				# flush the HDF5 file to store the output
-				self.outfile.flush()
+				outfile.flush()
 
 		else:
 			# map out the pixel training
@@ -179,13 +180,13 @@ class TrainSpec(object):
 			for ii,net in enumerate(netout):
 				sys.stdout.flush()
 				# store and flush the network parameters into the HDF5 file
-				self.w0_h5[ii,...] = net.layers[0].w.get_value().T
-				self.b0_h5[ii,...] = net.layers[0].b.get_value()
-				self.w1_h5[ii,...] = net.layers[1].w.get_value()[:,0]
-				self.b1_h5[ii,...] = net.layers[1].b.get_value()[0]
+				w0_h5[ii,...] = net.layers[0].w.get_value().T
+				b0_h5[ii,...] = net.layers[0].b.get_value()
+				w1_h5[ii,...] = net.layers[1].w.get_value()[:,0]
+				b1_h5[ii,...] = net.layers[1].b.get_value()[0]
 
 				# flush the HDF5 file to store the output
-				self.outfile.flush()
+				outfile.flush()
 
 		# start total timer
 		tottimestart = datetime.now()
@@ -215,7 +216,7 @@ class TrainSpec(object):
 		# 	)
 
 		# formally close the output file
-		self.outfile.close()
+		outfile.close()
 
 	def initout(self):
 		'''
@@ -224,21 +225,23 @@ class TrainSpec(object):
 		'''
 
 		# create output HDF5 file
-		self.outfile = h5py.File(self.outfilename,'w')
+		outfile = h5py.File(self.outfilename,'w')
 
 		# add datesets for values that are already defined
-		self.wave_h5  = self.outfile.create_dataset('wavelength',data=self.wavelength,compression='gzip')
-		self.label_h5 = self.outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
-		self.xmin_h5  = self.outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
-		self.xmax_h5  = self.outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
+		wave_h5  = outfile.create_dataset('wavelength',data=self.wavelength,compression='gzip')
+		label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
+		xmin_h5  = outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
+		xmax_h5  = outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
 
 		# create vectorized datasets for the netweork results to be added
-		self.w0_h5    = self.outfile.create_dataset('w_array_0', (len(self.wavelength),10,3), compression='gzip')
-		self.w1_h5    = self.outfile.create_dataset('w_array_1', (len(self.wavelength),10),   compression='gzip')
-		self.b0_h5    = self.outfile.create_dataset('b_array_0', (len(self.wavelength),10),   compression='gzip')
-		self.b1_h5    = self.outfile.create_dataset('b_array_1', (len(self.wavelength),),     compression='gzip')
+		w0_h5    = outfile.create_dataset('w_array_0', (len(self.wavelength),10,3), compression='gzip')
+		w1_h5    = outfile.create_dataset('w_array_1', (len(self.wavelength),10),   compression='gzip')
+		b0_h5    = outfile.create_dataset('b_array_0', (len(self.wavelength),10),   compression='gzip')
+		b1_h5    = outfile.create_dataset('b_array_1', (len(self.wavelength),),     compression='gzip')
 
 		self.outfile.flush()
+
+		return outfile,w0_h5,w1_h5,b0_h5,b1_h5
 
 
 	def pullspectra(self, num, **kwargs):
