@@ -161,8 +161,8 @@ class TrainSpec(object):
 			# pool.map(self,range(numtrainedpixles))
 			netout = pool.imap(self,range(numtrainedpixles))
 			for inarr in netout:
-				pixel,net = inarr
-				
+				pixel_no,net = inarr
+
 				# store and flush the network parameters into the HDF5 file
 				self.w0_h5[pixel_no,...] = net.layers[0].w.get_value().T
 				self.b0_h5[pixel_no,...] = net.layers[0].b.get_value()
