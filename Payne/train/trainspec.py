@@ -139,7 +139,7 @@ class TrainSpec(object):
 		'''
 		return self.train_pixel(pixel_no)
 
-	def run(self,mp=False):
+	def run(self,mp=False,ncpus=1):
 		'''
 		function to actually run the training on pixels
 
@@ -155,7 +155,7 @@ class TrainSpec(object):
 			numcpus = open('/proc/cpuinfo').read().count('processor\t:')
 			os.system("taskset -p -c 0-{NCPUS} {PID}".format(NCPUS=numcpus-1,PID=os.getpid()))
 
-			pool = Pool(processes=40)
+			pool = Pool(processes=ncpus)
 			mapfunc = pool.map
 		else:
 			mapfunc = map
