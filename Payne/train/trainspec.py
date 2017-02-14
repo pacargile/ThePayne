@@ -5,7 +5,7 @@ import numpy as np
 import h5py
 from multiprocessing import Pool
 from scipy.interpolate import NearestNDInterpolator
-import os
+import os,sys
 
 # Theano is a very powerful package to train neural nets
 # it performs "auto diff", i.e., provides analytic differentiation 
@@ -170,7 +170,8 @@ class TrainSpec(object):
 		mapfunc(self,range(numtrainedpixles))
 
 		# print out total time
-		print('Total time to train network: {0}'.format(datetime.now()-tottimestart),flush=True)
+		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
+		sys.stdout.flush()
 
 		# # extract neural-net parameters
 		# # the first layer
@@ -445,7 +446,8 @@ class TrainSpec(object):
 			med_deviate = np.max(np.abs((predict_flux-self.spectra[pixel_no,:])/0.8))
 
 		print('Trained pixel:{0}/{1} (wavelength: {2}), took: {3}'.format(
-			pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no],datetime.now()-starttime),flush=True)
+			pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no],datetime.now()-starttime))
+		sys.stdout.flush()
 
 		# store and flush the network parameters into the HDF5 file
 		self.w0_h5[pixel_no,...] = net.layers[0].w.get_value().T
