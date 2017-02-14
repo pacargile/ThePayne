@@ -216,6 +216,7 @@ class TrainSpec(object):
 		self.b0_h5    = self.outfile.create_dataset('b_array_0', (len(self.wavelength),10),   compression='gzip')
 		self.b1_h5    = self.outfile.create_dataset('b_array_1', (len(self.wavelength),),     compression='gzip')
 
+		self.outfile.flush()
 
 	def pullspectra(self, num, **kwargs):
 		'''
