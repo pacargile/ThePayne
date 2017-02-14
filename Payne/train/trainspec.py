@@ -197,18 +197,18 @@ class TrainSpec(object):
 		a single HDF5 file
 		'''
 
-		outfile = h5py.File(self.outfilename,'w')
+		self.outfile = h5py.File(self.outfilename,'w')
 
-		outfile.create_dataset('wavelength',data=self.wavelength,compression='gzip')
-		outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
-		outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
-		outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
-		outfile.create_dataset('w_array_0', data=self.w_array_0, compression='gzip')
-		outfile.create_dataset('w_array_1', data=self.w_array_1, compression='gzip')
-		outfile.create_dataset('b_array_0', data=self.b_array_0, compression='gzip')
-		outfile.create_dataset('b_array_1', data=self.b_array_1, compression='gzip')
+		self.wave_h5  = self.outfile.create_dataset('wavelength',data=self.wavelength,compression='gzip')
+		self.label_h5 = self.outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
+		self.xmin_h5  = self.outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
+		self.xmax_h5  = self.outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
+		self.w0_h5    = self.outfile.create_dataset('w_array_0', data=self.w_array_0, compression='gzip')
+		self.w1_h5    = self.outfile.create_dataset('w_array_1', data=self.w_array_1, compression='gzip')
+		self.b0_h5    = self.outfile.create_dataset('b_array_0', data=self.b_array_0, compression='gzip')
+		self.b1_h5    = self.outfile.create_dataset('b_array_1', data=self.b_array_1, compression='gzip')
 
-		outfile.close()
+		self.outfile.close()
 
 	def pullspectra(self, num, **kwargs):
 		'''
@@ -438,6 +438,9 @@ class TrainSpec(object):
 
 		print('Trained pixel:{0}/{1} (wavelength: {2}), took: {3}'.format(
 			pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no],datetime.now()-starttime),flush=True)
+
+		# store and flush the network parameters into the HDF5 file
+
 
 		# return the trained network for this pixel
 		return net
