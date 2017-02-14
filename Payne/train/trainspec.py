@@ -126,7 +126,7 @@ class TrainSpec(object):
 
 		# initialize the output HDf5 file
 		self.initout()
-		
+
 	def __call__(self,pixel_no):
 		'''
 		call instance so that train_pixel can be called with multiprocessing
@@ -147,6 +147,8 @@ class TrainSpec(object):
 			training in parallel
 
 		'''
+		# number of pixels to train
+		numtrainedpixles = self.spectra.shape[0]
 
 		# turn on multiprocessing if desired
 		if mp:
@@ -155,18 +157,15 @@ class TrainSpec(object):
 			os.system("taskset -p -c 0-{NCPUS} {PID}".format(NCPUS=numcpus-1,PID=os.getpid()))
 
 			pool = Pool(processes=ncpus)
-			mapfunc = pool.map
+			# map out the pixel training
+			# pool.map(self,range(numtrainedpixles))
+			netout = pool.map_async(self,range(numtrainedpixles),callback=self.callback)
 		else:
-			mapfunc = map
-
-		# number of pixels to train
-		numtrainedpixles = self.spectra.shape[0]
+			# map out the pixel training
+			map(self,range(numtrainedpixles))
 
 		# start total timer
 		tottimestart = datetime.now()
-
-		# map out the pixel training
-		mapfunc(self,range(numtrainedpixles))
 
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
@@ -216,6 +215,18 @@ class TrainSpec(object):
 		self.b0_h5    = self.outfile.create_dataset('b_array_0', (len(self.wavelength),10),   compression='gzip')
 		self.b1_h5    = self.outfile.create_dataset('b_array_1', (len(self.wavelength),),     compression='gzip')
 
+		self.outfile.flush()
+
+	def callback(self,inarr):
+		pixel_no,net = inarr
+
+		# store and flush the network parameters into the HDF5 file
+		self.w0_h5[pixel_no,...] = net.layers[0].w.get_value().T
+		self.b0_h5[pixel_no,...] = net.layers[0].b.get_value()
+		self.w1_h5[pixel_no,...] = net.layers[1].w.get_value()[:,0]
+		self.b1_h5[pixel_no,...] = net.layers[1].b.get_value()[0]
+
+		# flush the HDF5 file to store the output
 		self.outfile.flush()
 
 	def pullspectra(self, num, **kwargs):
@@ -448,16 +459,16 @@ class TrainSpec(object):
 			pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no],datetime.now()-starttime))
 		sys.stdout.flush()
 
-		# store and flush the network parameters into the HDF5 file
-		self.w0_h5[pixel_no,...] = net.layers[0].w.get_value().T
-		self.b0_h5[pixel_no,...] = net.layers[0].b.get_value()
-		self.w1_h5[pixel_no,...] = net.layers[1].w.get_value()[:,0]
-		self.b1_h5[pixel_no,...] = net.layers[1].b.get_value()[0]
+		# # store and flush the network parameters into the HDF5 file
+		# self.w0_h5[pixel_no,...] = net.layers[0].w.get_value().T
+		# self.b0_h5[pixel_no,...] = net.layers[0].b.get_value()
+		# self.w1_h5[pixel_no,...] = net.layers[1].w.get_value()[:,0]
+		# self.b1_h5[pixel_no,...] = net.layers[1].b.get_value()[0]
 
-		# flush the HDF5 file to store the output
-		self.outfile.flush()
+		# # flush the HDF5 file to store the output
+		# self.outfile.flush()
 
-		return
+		return [pixel_no,net]
 
 class Network(object):
 	"""
