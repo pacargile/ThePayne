@@ -127,6 +127,7 @@ class TrainSpec(object):
 		# initialize the output HDf5 file
 		self.initout()
 
+		print('Finished Init...')
 
 	def __call__(self,pixel_no):
 		'''
