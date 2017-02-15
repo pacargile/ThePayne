@@ -161,7 +161,7 @@ class TrainSpec(object):
 			pool = Pool(processes=ncpus)
 			# map out the pixel training
 			# pool.map(self,range(numtrainedpixles))
-			netout = pool.imap(self,range(numtrainedpixles))
+			netout = pool.imap_unordered(self,range(numtrainedpixles))
 
 		else:
 			# map out the pixel training
@@ -184,7 +184,7 @@ class TrainSpec(object):
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
 		sys.stdout.flush()
-		
+
 		# formally close the output file
 		outfile.close()
 
