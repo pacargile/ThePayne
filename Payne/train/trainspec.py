@@ -146,7 +146,7 @@ class TrainSpec(object):
 			training in parallel
 
 		'''
-		# initialize the output HDf5 file
+		# initialize the output HDf5 file, return the datasets to populate
 		outfile,w0_h5,w1_h5,b0_h5,b1_h5 = self.initout()
 
 		# number of pixels to train
@@ -167,6 +167,9 @@ class TrainSpec(object):
 			# map out the pixel training
 			netout = imap(self,range(numtrainedpixles))
 
+		# start total timer
+		tottimestart = datetime.now()
+
 		for ii,net in enumerate(netout):
 			sys.stdout.flush()
 			# store and flush the network parameters into the HDF5 file
@@ -178,34 +181,10 @@ class TrainSpec(object):
 			# flush the HDF5 file to store the output
 			outfile.flush()
 
-
-		# start total timer
-		tottimestart = datetime.now()
-
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
 		sys.stdout.flush()
-
-		# # extract neural-net parameters
-		# # the first layer
-		# self.w_array_0 = np.array(
-		# 	[net_array[i].layers[0].w.get_value().T
-		# 	for i in range(numtrainedpixles)]
-		# 	)
-		# self.b_array_0 = np.array(
-		# 	[net_array[i].layers[0].b.get_value()
-		# 	for i in range(numtrainedpixles)]
-		# 	)
-		# # the second layer
-		# self.w_array_1 = np.array(
-		# 	[net_array[i].layers[1].w.get_value()[:,0]
-		# 	for i in range(numtrainedpixles)]
-		# 	)
-		# self.b_array_1 = np.array(
-		# 	[net_array[i].layers[1].b.get_value()[0]
-		# 	for i in range(numtrainedpixles)]
-		# 	)
-
+		
 		# formally close the output file
 		outfile.close()
 
