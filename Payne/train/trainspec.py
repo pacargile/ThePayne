@@ -163,7 +163,6 @@ class TrainSpec(object):
 			# pool.map(self,range(numtrainedpixles))
 			netout = pool.imap(self,range(numtrainedpixles))
 			for ii,net in enumerate(netout):
-				print(ii)
 				sys.stdout.flush()
 				# store and flush the network parameters into the HDF5 file
 				w0_h5[ii,...] = net.layers[0].w.get_value().T
@@ -381,6 +380,8 @@ class TrainSpec(object):
 
 		# start a timer
 		starttime = datetime.now()
+
+		print('Training Pixel {0}'.format(pixel_no))
 
 		# extract flux of a wavelength pixel
 		training_y = theano.shared(np.asarray(np.array([self.spectra[pixel_no,:]]).T, 
