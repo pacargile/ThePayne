@@ -161,7 +161,7 @@ class TrainSpec(object):
 			pool = Pool(processes=ncpus)
 			# map out the pixel training
 			# pool.map(self,range(numtrainedpixles))
-			netout = pool.imap_unordered(self,range(numtrainedpixles))
+			netout = pool.imap(self,range(numtrainedpixles))
 
 		else:
 			# map out the pixel training
