@@ -16,8 +16,9 @@ import theano
 import theano.tensor as T
 from theano.tensor.nnet import sigmoid
 
-from datetime import datetime
+from ..utils.smoothing import smoothspec
 
+from datetime import datetime
 
 class TrainSpec(object):
 	"""docstring for TrainSpec"""
@@ -105,10 +106,8 @@ class TrainSpec(object):
 		self.labels_o = self.labels_o.T
 
 		# trim spectra using the user defined wavelength range
-		wavecond = (self.wavelength >= self.waverange[0]) & (self.wavelength <= self.waverange[1])
-		wavecond = np.array(wavecond,dtype=bool)
-		self.spectra_o = self.spectra_o[:,wavecond]
-		self.wavelength = self.wavelength[wavecond]
+		# self.spectra_o = self.spectra_o[:,wavecond]
+		# self.wavelength = self.wavelength[wavecond]
 
 		# neural-nets typically train a function mapping from 
 		# [0,1] -> [0,1], so here we scale both input (labels) 
@@ -147,7 +146,7 @@ class TrainSpec(object):
 
 		'''
 		# initialize the output HDf5 file, return the datasets to populate
-		outfile,w0_h5,w1_h5,b0_h5,b1_h5 = self.initout()
+		outfile,w0_h5,w1_h5,b0_h5,b1_h5,wave_h5 = self.initout()
 
 		# number of pixels to train
 		numtrainedpixles = self.spectra.shape[0]
@@ -159,12 +158,11 @@ class TrainSpec(object):
 			os.system("taskset -p -c 0-{NCPUS} {PID}".format(NCPUS=numcpus-1,PID=os.getpid()))
 
 			pool = Pool(processes=ncpus)
-			# map out the pixel training
-			# pool.map(self,range(numtrainedpixles))
+			# init the map for the pixel training using the pool imap
 			netout = pool.imap(self,range(numtrainedpixles))
 
 		else:
-			# map out the pixel training
+			# init the map for the pixel training using the standard imap
 			netout = imap(self,range(numtrainedpixles))
 
 		# start total timer
@@ -177,6 +175,10 @@ class TrainSpec(object):
 			b0_h5[ii,...] = net.layers[0].b.get_value()
 			w1_h5[ii,...] = net.layers[1].w.get_value()[:,0]
 			b1_h5[ii,...] = net.layers[1].b.get_value()[0]
+
+			# store wavelength value into h5py. This is useful to tell you which pixels 
+			# were actually fit
+			wave_h5[ii] = self.wavelength[ii]
 
 			# flush the HDF5 file to store the output
 			outfile.flush()
@@ -198,12 +200,12 @@ class TrainSpec(object):
 		outfile = h5py.File(self.outfilename,'w')
 
 		# add datesets for values that are already defined
-		wave_h5  = outfile.create_dataset('wavelength',data=self.wavelength,compression='gzip')
 		label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
 		xmin_h5  = outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
 		xmax_h5  = outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
 
 		# create vectorized datasets for the netweork results to be added
+		wave_h5  = outfile.create_dataset('wavelength',(len(self.wavelength)),      compression='gzip')
 		w0_h5    = outfile.create_dataset('w_array_0', (len(self.wavelength),10,3), compression='gzip')
 		w1_h5    = outfile.create_dataset('w_array_1', (len(self.wavelength),10),   compression='gzip')
 		b0_h5    = outfile.create_dataset('b_array_0', (len(self.wavelength),10),   compression='gzip')
@@ -211,7 +213,7 @@ class TrainSpec(object):
 
 		outfile.flush()
 
-		return outfile,w0_h5,w1_h5,b0_h5,b1_h5
+		return outfile,w0_h5,w1_h5,b0_h5,b1_h5,wave_h5
 
 
 	def pullspectra(self, num, **kwargs):
@@ -251,6 +253,11 @@ class TrainSpec(object):
 			fehrange = kwargs['FeH']
 		else:
 			fehrange = [-2.0,0.5]
+
+		if 'R' in kwargs:
+			resolution = kwargs['R']
+		else:
+			resolution = None
 
 		# define the [Fe/H] array, this is the values that the MIST 
 		# and C3K grids are built
@@ -301,7 +308,24 @@ class TrainSpec(object):
 				# store a wavelength array as an instance, all of C3K has 
 				# the same wavelength sampling
 				if ii == 0:
-					wavelength = np.array(C3K_i['wavelengths'])
+					wavelength_i = np.array(C3K_i['wavelengths'])
+					if resolution != None:
+						# define new wavelength array with 3*resolution element sampling
+						wavelength_o = []
+						i = 1
+						while True:
+							wave_i = self.waverange[0]*(1.0 + 1.0/(3.0*resolution))**(i-1.0)
+							if wave_i <= self.waverange[1]:
+								wavelength_o.append(wave_i)
+								i += 1
+							else:
+								break
+						wavelength_o = np.array(wavelength_o)
+					else:
+						wavecond = (wavelength_o >= self.waverange[0]) & (wavelength_o <= self.waverange[1])
+						wavecond = np.array(wavecond,dtype=bool)
+						wavelength_o = wavelength_i[wavecond]
+
 
 				# select the range of MIST isochrones with that [Fe/H]
 				FeHcond = (MIST_EAF['initial_[Fe/H]'] == FeH_i)
@@ -334,13 +358,20 @@ class TrainSpec(object):
 				# calculate the normalized spectrum
 				spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
 
+				# if user defined resolution to train at, the smooth C3K to that resolution
+				if resolution != None:
+					spectra_i = self.smoothspec(wavelength_i,spectra_i,resolution,
+						outwave=wavelength_o,smoothtype='R',fftsmooth=True)
+				else:
+					spectra_i = spectra_i[wavecond]
+
 				# check to see if labels are already in training set, if not store labels/spectrum
 				if (label_i not in labels) and (not np.any(np.isnan(spectra_i))):
 					labels.append(label_i)
 					spectra.append(spectra_i)
 					break
 
-		return np.array(spectra), np.array(labels), wavelength
+		return np.array(spectra), np.array(labels), wavelength_o
 
 
 	def train_pixel(self,pixel_no):
@@ -456,6 +487,10 @@ class TrainSpec(object):
 		# self.outfile.flush()
 
 		return net
+
+	def smoothspec(self, wave, spec, sigma, outwave=None, **kwargs):
+		outspec = smoothspec(wave, spec, sigma, outwave=outwave, **kwargs)
+		return outspec
 
 class Network(object):
 	"""

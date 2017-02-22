@@ -120,7 +120,7 @@ class PaynePredict(object):
 		else:
 			self.inputdict['feh'] = 0.0
 		
-		# calculate model spectrum at the native C3K resolution
+		# calculate model spectrum at the native network resolution
 		modspec = self.predictspec([self.inputdict[kk] for kk in ['logt','logg','feh']])
 
 		if 'outwave' in kwargs:
