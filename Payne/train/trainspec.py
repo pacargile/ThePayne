@@ -99,6 +99,11 @@ class TrainSpec(object):
 		else:
 			resolution = None
 
+		if 'verbose' in kwargs:
+			self.verbose = kwargs['verbose']
+		else:
+			self.verbose = False
+
 		# output hdf5 file name
 		if 'output' in kwargs:
 			self.outfilename = kwargs['output']
