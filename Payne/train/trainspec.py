@@ -94,6 +94,11 @@ class TrainSpec(object):
 		if 'FeH' in kwargs:
 			FeHrange = kwargs['FeH']
 
+		if 'resolution' in kwargs:
+			resolution = kwargs['resolution']
+		else:
+			resolution = None
+
 		# output hdf5 file name
 		if 'output' in kwargs:
 			self.outfilename = kwargs['output']
@@ -101,13 +106,9 @@ class TrainSpec(object):
 			self.outfilename = 'TESTOUT.h5'
 
 		# pull C3K spectra for training
-		self.spectra_o,self.labels_o,self.wavelength = self.pullspectra(self.num_train)
+		self.spectra_o,self.labels_o,self.wavelength = self.pullspectra(self.num_train,resolution=resolution)
 
 		self.labels_o = self.labels_o.T
-
-		# trim spectra using the user defined wavelength range
-		# self.spectra_o = self.spectra_o[:,wavecond]
-		# self.wavelength = self.wavelength[wavecond]
 
 		# neural-nets typically train a function mapping from 
 		# [0,1] -> [0,1], so here we scale both input (labels) 
@@ -254,8 +255,8 @@ class TrainSpec(object):
 		else:
 			fehrange = [-2.0,0.5]
 
-		if 'R' in kwargs:
-			resolution = kwargs['R']
+		if 'resolution' in kwargs:
+			resolution = kwargs['resolution']
 		else:
 			resolution = None
 
