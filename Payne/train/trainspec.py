@@ -328,7 +328,7 @@ class TrainSpec(object):
 								break
 						wavelength_o = np.array(wavelength_o)
 					else:
-						wavecond = (wavelength_o >= self.waverange[0]) & (wavelength_o <= self.waverange[1])
+						wavecond = (wavelength_i >= self.waverange[0]) & (wavelength_i <= self.waverange[1])
 						wavecond = np.array(wavecond,dtype=bool)
 						wavelength_o = wavelength_i[wavecond]
 
