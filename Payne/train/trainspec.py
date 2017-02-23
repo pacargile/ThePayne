@@ -203,13 +203,16 @@ class TrainSpec(object):
 		'''
 
 		# create output HDF5 file
+		print('Init file')
 		outfile = h5py.File(self.outfilename,'w')
 
+		print('ADD DATA')
 		# add datesets for values that are already defined
 		label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
 		xmin_h5  = outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
 		xmax_h5  = outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
 
+		print('CREATE VEC')
 		# create vectorized datasets for the netweork results to be added
 		wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)),      compression='gzip')
 		w0_h5    = outfile.create_dataset('w_array_0', (len(self.wavelength),10,3), compression='gzip')
@@ -217,6 +220,7 @@ class TrainSpec(object):
 		b0_h5    = outfile.create_dataset('b_array_0', (len(self.wavelength),10),   compression='gzip')
 		b1_h5    = outfile.create_dataset('b_array_1', (len(self.wavelength),),     compression='gzip')
 
+		print('FLUSH')
 		outfile.flush()
 
 		return outfile,w0_h5,w1_h5,b0_h5,b1_h5,wave_h5
