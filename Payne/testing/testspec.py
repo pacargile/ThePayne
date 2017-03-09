@@ -81,7 +81,7 @@ class TestSpec(object):
 		C3Kpath  = os.path.dirname(Payne.__file__[:-19]+'/data/')
 
 		# load MIST models
-		MIST = h5py.File(MISTpath+'MIST_full.h5','r')
+		MIST = h5py.File(MISTpath+'/MIST_full.h5','r')
 		MIST_EAF = np.array(MIST['EAF'])
 		MIST_BSP = np.array(MIST['BSP'])
 
@@ -96,7 +96,7 @@ class TestSpec(object):
 		C3K = {}
 
 		for mm in FeHarr:
-			C3K[mm] = h5py.File(C3Kpath+'ckc_feh={0:+4.2f}.full.h5'.format(mm),'r')
+			C3K[mm] = h5py.File(C3Kpath+'/ckc_feh={0:+4.2f}.full.h5'.format(mm),'r')
 
 		# randomly select num number of MIST isochrone grid points, currently only 
 		# using dwarfs, subgiants, and giants (EEP = 202-605)
