@@ -222,6 +222,7 @@ class TestSpec(object):
 		testspecdict = {}
 		testspecdict['WAVE'] = self.wavelength_test
 		for ii,pars,testspec in zip(range(len(self.labels_test)),self.labels_test,self.spectra_test):
+			print pars[0],pars[1],pars[2]
 			modwave_i,modflux_i = self.PP.getspec(
 				Teff=pars[0],logg=pars[1],feh=pars[2],rad_vel=0.0,rot_vel=0.0,
 				inst_R=resolution)
