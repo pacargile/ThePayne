@@ -1,1 +1,1 @@
-from .trainspec import *
+from .testspec import *
