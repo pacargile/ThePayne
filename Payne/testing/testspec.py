@@ -72,8 +72,11 @@ class TestSpec(object):
 		FeHarr = [-2.0,-1.75,-1.5,-1.25,-1.0,-0.75,-0.5,-0.25,0.0,0.25,0.5]
 
 		# define aliases for the MIST isochrones and C3K/CKC files
-		MISTpath = '/n/regal/conroy_lab/pac/ThePayne/models/MIST/'
-		C3Kpath  = '/n/regal/conroy_lab/pac/ThePayne/models/CKC/'
+		# MISTpath = '/n/regal/conroy_lab/pac/ThePayne/models/MIST/'
+		# C3Kpath  = '/n/regal/conroy_lab/pac/ThePayne/models/CKC/'
+
+		MISTpath = os.path.dirname(Payne.__file__[:-19]+'/data/')
+		C3Kpath  = os.path.dirname(Payne.__file__[:-19]+'/data/')
 
 		# load MIST models
 		MIST = h5py.File(MISTpath+'MIST_full.h5','r')
