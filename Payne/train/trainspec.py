@@ -95,9 +95,9 @@ class TrainSpec(object):
 			FeHrange = kwargs['FeH']
 
 		if 'resolution' in kwargs:
-			resolution = kwargs['resolution']
+			self.resolution = kwargs['resolution']
 		else:
-			resolution = None
+			self.resolution = None
 
 		if 'verbose' in kwargs:
 			self.verbose = kwargs['verbose']
@@ -209,6 +209,9 @@ class TrainSpec(object):
 		label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
 		xmin_h5  = outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
 		xmax_h5  = outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
+		resol_h5 = outfile.create_dataset('resolution',data=self.resolution,compression='gzip')
+
+		# define vectorized wavelength array
 		wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
 
 		# create vectorized datasets for the netweork results to be added
@@ -363,6 +366,12 @@ class TrainSpec(object):
 
 				# calculate the normalized spectrum
 				spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
+
+				# check to see if label_i in labels, or spectra_i is nan's
+				# if so, then skip the append and go to next step in while loop
+				# do this before the smoothing to reduce run time
+				if (label_i in labels) or (np.any(np.isnan(spectra_i))):
+					continue
 
 				# if user defined resolution to train at, the smooth C3K to that resolution
 				if resolution != None:

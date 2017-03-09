@@ -12,12 +12,12 @@ from .fitters import SpecMinimize,SpecEmcee
 
 class FitSpec(object):
 	"""docstring for FitSpec"""
-	def __init__(self, NN):
+	def __init__(self, NNfilename):
 		# user inputed neural-net output file
-		self.NN = NN
+		self.NNfilename = NNfilename
 
 		# initialize the Payne Predictor
-		self.PP = PaynePredict(self.NN)
+		self.PP = PaynePredict(self.NNfilename)
 
 
 	def run(self,obsdict,pinit,method='minimize'):
