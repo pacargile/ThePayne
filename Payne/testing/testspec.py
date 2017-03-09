@@ -25,7 +25,7 @@ class TestSpec(object):
 		self.PP = PaynePredict(self.NNfilename)
 
 		# define wavelength range of trained network
-		self.waverange = [self.PP.NN['wavelengths'].min(),self.PP.NN['wavelengths'].max()]
+		self.waverange = [self.PP.NN['wavelength'].min(),self.PP.NN['wavelength'].max()]
 
 	def pulltestspectra(self,testnum,**kwargs):
 		'''
