@@ -213,6 +213,12 @@ class TestSpec(object):
 			testnum,resolution=resolution)
 
 		# generate predicted spectra at each of the testing spectra labels
-		modwave_i,modflux_i = self.PP.getspec(
-			Teff=Teff,logg=logg,feh=FeH,rad_vel=radvel,rot_vel=rotvel,
-			inst_R=resolution)
+		testspecdict = {}
+		testspecdict['WAVE'] = self.wavelength_test
+		for ii,pars,testspec in zip(range(len(self.labels_test)),self.labels_test,self.spectra_test):
+			modwave_i,modflux_i = self.PP.getspec(
+				Teff=pars[0],logg=pars[1],feh=pars[2],rad_vel=0.0,rot_vel=0.0,
+				inst_R=resolution)
+
+			testspecdict[ii] = {'test':testspec,'train':modflux_i}
+		return testspecdict
