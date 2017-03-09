@@ -185,7 +185,7 @@ class TestSpec(object):
 
 				# if user defined resolution to train at, the smooth C3K to that resolution
 				if resolution != None:
-					spectra_i = self.smoothspec(wavelength_i,spectra_i,resolution,
+					spectra_i = self.PP.smoothspec(wavelength_i,spectra_i,resolution,
 						outwave=wavelength_o,smoothtype='R',fftsmooth=True)
 				else:
 					spectra_i = spectra_i[wavecond]
