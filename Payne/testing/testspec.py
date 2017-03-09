@@ -224,8 +224,7 @@ class TestSpec(object):
 		testspecdict['LABELS'] = self.labels_test
 		for ii,pars,testspec in zip(range(len(self.labels_test)),self.labels_test,self.spectra_test):
 			modwave_i,modflux_i = self.PP.getspec(
-				logt=pars[0],logg=pars[1],feh=pars[2],rad_vel=0.0,rot_vel=0.0,
-				inst_R=resolution)
+				logt=pars[0],logg=pars[1],feh=pars[2])
 
 			testspecdict[ii] = {'test':testspec,'train':modflux_i}
 		return testspecdict
