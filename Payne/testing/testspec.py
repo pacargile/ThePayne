@@ -9,7 +9,6 @@ speedoflight = constants.c / 1000.0
 from scipy.interpolate import UnivariateSpline
 
 from ..predict.predictspec import PaynePredict
-from .fitters import SpecMinimize,SpecEmcee
 
 class TestSpec(object):
 	"""
