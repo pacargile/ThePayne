@@ -93,6 +93,8 @@ class TrainSpec(object):
 			loggrange = kwargs['logg']
 		if 'FeH' in kwargs:
 			FeHrange = kwargs['FeH']
+		if 'aFe' in kwargs:
+			aFerange = kwargs['aFe']
 
 		if 'resolution' in kwargs:
 			self.resolution = kwargs['resolution']
@@ -263,6 +265,11 @@ class TrainSpec(object):
 		else:
 			fehrange = [-2.0,0.5]
 
+		if 'aFe' in kwargs:
+			aFerange = kwargs['aFe']
+		else:
+			aFerange = [0.0,0.4]
+
 		if 'resolution' in kwargs:
 			resolution = kwargs['resolution']
 		else:
@@ -272,9 +279,12 @@ class TrainSpec(object):
 		# and C3K grids are built
 		FeHarr = [-2.0,-1.75,-1.5,-1.25,-1.0,-0.75,-0.5,-0.25,0.0,0.25,0.5]
 
+		# define the [alpha/Fe] array
+		alphaarr = [0.0,0.2,0.4]
+
 		# define aliases for the MIST isochrones and C3K/CKC files
 		MISTpath = '/n/regal/conroy_lab/pac/ThePayne/models/MIST/'
-		C3Kpath  = '/n/regal/conroy_lab/pac/ThePayne/models/CKC/'
+		C3Kpath  = '/n/regal/conroy_lab/pac/ThePayne/models/C3K/'
 
 		# load MIST models
 		MIST = h5py.File(MISTpath+'MIST_full.h5','r')
@@ -290,9 +300,12 @@ class TrainSpec(object):
 		# create a dictionary for the C3K models and populate it for different
 		# metallicities
 		C3K = {}
-
-		for mm in FeHarr:
-			C3K[mm] = h5py.File(C3Kpath+'ckc_feh={0:+4.2f}.full.h5'.format(mm),'r')
+		for aa in alphaarr:
+			C3K[aa] = {}
+			for mm in FeHarr:
+				C3K[aa][mm] = h5py.File(
+					C3Kpath+'c3k_v1.3_feh={0:+4.2f}_afe={1:+3.1f}.full.h5'.format(mm,aa),
+					'r')
 
 		# randomly select num number of MIST isochrone grid points, currently only 
 		# using dwarfs, subgiants, and giants (EEP = 202-605)
@@ -311,8 +324,11 @@ class TrainSpec(object):
 					if (FeH_i >= fehrange[0]) & (FeH_i <= fehrange[1]):
 						break
 
-				# select the C3K spectra at that [Fe/H]
-				C3K_i = C3K[FeH_i]
+				# then draw an alpha abundance
+				alpha_i = np.random.choice(alphaarr)
+
+				# select the C3K spectra at that [Fe/H] and [alpha/Fe]
+				C3K_i = C3K[alpha_i][FeH_i]
 
 				# store a wavelength array as an instance, all of C3K has 
 				# the same wavelength sampling
@@ -362,7 +378,7 @@ class TrainSpec(object):
 					)((logt_MIST,logg_MIST))
 
 				# determine the labels for the selected C3K spectrum
-				label_i = list(C3Kpars[C3KNN])[:-1]
+				label_i = list(C3Kpars[C3KNN])
 
 				# calculate the normalized spectrum
 				spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]

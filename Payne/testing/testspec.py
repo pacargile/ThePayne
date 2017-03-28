@@ -198,6 +198,8 @@ class TestSpec(object):
 
 		return np.array(spectra), np.array(labels), wavelength_o
 
+	def pulltrainspectra(self,labels):
+		pass
 
 	def runtest(self,**kwargs):
 		'''
@@ -218,13 +220,23 @@ class TestSpec(object):
 		self.spectra_test,self.labels_test,self.wavelength_test = self.pulltestspectra(
 			testnum,resolution=resolution)
 
+		self.spectra_train,self.labels_train,self.wavelength_train = self.pulltrainspectra(
+			self.PP.NN['labels'],resolution=resolution)
+
 		# generate predicted spectra at each of the testing spectra labels
-		testspecdict = {}
-		testspecdict['WAVE'] = self.wavelength_test
-		testspecdict['LABELS'] = self.labels_test
+		outspecdict = {}
+		outspecdict['WAVE'] = self.wavelength_test
+		outspecdict['TESTLABELS'] = self.labels_test
+		outspecdict['testspec'] = {}
+		outspecdict['trainspec'] = {}
 		for ii,pars,testspec in zip(range(len(self.labels_test)),self.labels_test,self.spectra_test):
 			modwave_i,modflux_i = self.PP.getspec(
 				logt=pars[0],logg=pars[1],feh=pars[2])
+			outspecdict['testspec'][ii] = {'test':testspec,'predict':modflux_i}
 
-			testspecdict[ii] = {'test':testspec,'train':modflux_i}
-		return testspecdict
+		for ii,pars,trainspec in zip(range(len(self.labels_train)),self.labels_train,self.spectra_train):
+			modwave_i,modflux_i = self.PP.getspec(
+				logt=pars[0],logg=pars[1],feh=pars[2])
+			outspecdict['trainspec'][ii] = {'train':trainspec,'predict':modflux_i}
+
+		return outspecdict

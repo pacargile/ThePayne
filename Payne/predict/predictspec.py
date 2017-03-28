@@ -55,7 +55,7 @@ class PaynePredict(object):
 
 		:params labels:
 		list of label values for the labels used to train the NN
-		ex. [Teff,log(g),[Fe/H]]
+		ex. [Teff,log(g),[Fe/H],[alpha/Fe]]
 
 		:returns predict_flux:
 		predicted flux from the NN
@@ -119,9 +119,16 @@ class PaynePredict(object):
 			self.inputdict['feh'] = kwargs['feh']
 		else:
 			self.inputdict['feh'] = 0.0
+
+		if '[alpha/Fe]' in kwargs:
+			self.inputdict['afe'] = kwargs['[alpha/Fe]']
+		elif 'afe' in kwargs:
+			self.inputdict['afe'] = kwargs['[alpha/Fe]']
+		else:
+			self.inputdict['afe'] = 0.0
 		
 		# calculate model spectrum at the native network resolution
-		modspec = self.predictspec([self.inputdict[kk] for kk in ['logt','logg','feh']])
+		modspec = self.predictspec([self.inputdict[kk] for kk in ['logt','logg','feh','afe']])
 
 		if 'outwave' in kwargs:
 			# define array of output wavelength values
