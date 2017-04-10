@@ -113,7 +113,7 @@ class TrainSpec(object):
 			self.outfilename = 'TESTOUT.h5'
 
 		# pull C3K spectra for training
-		self.spectra_o,self.labels_o,self.wavelength = self.pullspectra(self.num_train,resolution=resolution)
+		self.spectra_o,self.labels_o,self.wavelength = self.pullspectra(self.num_train,resolution=self.resolution)
 
 		self.labels_o = self.labels_o.T
 
