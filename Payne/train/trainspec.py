@@ -304,7 +304,7 @@ class TrainSpec(object):
 			C3K[aa] = {}
 			for mm in FeHarr:
 				C3K[aa][mm] = h5py.File(
-					C3Kpath+'c3k_v1.3_feh={0:+4.2f}_afe={1:+3.1f}.full.h5'.format(mm,aa),
+					C3Kpath+'c3k_v1.3_feh{0:+4.2f}_afe{1:+3.1f}.full.h5'.format(mm,aa),
 					'r')
 
 		# randomly select num number of MIST isochrone grid points, currently only 
