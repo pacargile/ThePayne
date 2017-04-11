@@ -211,7 +211,7 @@ class TrainSpec(object):
 		label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
 		xmin_h5  = outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
 		xmax_h5  = outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
-		resol_h5 = outfile.create_dataset('resolution',data=self.resolution,compression='gzip')
+		resol_h5 = outfile.create_dataset('resolution',data=np.array(self.resolution),compression='gzip')
 
 		# define vectorized wavelength array
 		wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
