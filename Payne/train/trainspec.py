@@ -283,11 +283,11 @@ class TrainSpec(object):
 		alphaarr = [0.0,0.2,0.4]
 
 		# define aliases for the MIST isochrones and C3K/CKC files
-		MISTpath = '/n/regal/conroy_lab/pac/ThePayne/models/MIST/'
-		C3Kpath  = '/n/regal/conroy_lab/pac/ThePayne/models/C3K/'
+		MISTpath = os.path.dirname(Payne.__file__[:-19]+'/data/')
+		C3Kpath  = os.path.dirname(Payne.__file__[:-19]+'/data/')
 
 		# load MIST models
-		MIST = h5py.File(MISTpath+'MIST_full.h5','r')
+		MIST = h5py.File(MISTpath+'/MIST_full.h5','r')
 		MIST_EAF = np.array(MIST['EAF'])
 		MIST_BSP = np.array(MIST['BSP'])
 
