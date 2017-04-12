@@ -217,7 +217,7 @@ class TrainSpec(object):
 		wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
 
 		# create vectorized datasets for the netweork results to be added
-		w0_h5    = outfile.create_dataset('w_array_0', (len(self.wavelength),10,3), compression='gzip')
+		w0_h5    = outfile.create_dataset('w_array_0', (len(self.wavelength),10,4), compression='gzip')
 		w1_h5    = outfile.create_dataset('w_array_1', (len(self.wavelength),10),   compression='gzip')
 		b0_h5    = outfile.create_dataset('b_array_0', (len(self.wavelength),10),   compression='gzip')
 		b1_h5    = outfile.create_dataset('b_array_1', (len(self.wavelength),),     compression='gzip')
@@ -414,7 +414,7 @@ class TrainSpec(object):
 		# start a timer
 		starttime = datetime.now()
 
-		print('Training Pixel {0}'.format(pixel_no))
+		# print('Training Pixel {0}'.format(pixel_no))
 
 		# extract flux of a wavelength pixel
 		training_y = theano.shared(np.asarray(np.array([self.spectra[pixel_no,:]]).T, 
