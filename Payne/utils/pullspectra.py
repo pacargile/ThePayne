@@ -39,6 +39,16 @@ class pullspectra(object):
 		self.MIST_MOD = MIST_MOD[EEPcond]
 		self.MIST_STA = MIST_STA[EEPcond]
 	
+		# create a dictionary for the C3K models and populate it for different
+		# metallicities
+		self.C3K = {}
+		for aa in self.alphaarr:
+			self.C3K[aa] = {}
+			for mm in self.FeHarr:
+				self.C3K[aa][mm] = h5py.File(
+					self.C3Kpath+'/c3k_v1.3_feh{0:+4.2f}_afe{1:+3.1f}.full.h5'.format(mm,aa),
+					'r')
+
 	def __call__(self,num,**kwargs):
 		'''
 		Randomly draw 2*num spectra from C3K based on 
@@ -110,15 +120,6 @@ class pullspectra(object):
 			waverange = [5150.0,5200.0]
 
 
-		# create a dictionary for the C3K models and populate it for different
-		# metallicities
-		C3K = {}
-		for aa in self.alphaarr:
-			C3K[aa] = {}
-			for mm in self.FeHarr:
-				C3K[aa][mm] = h5py.File(
-					self.C3Kpath+'/c3k_v1.3_feh{0:+4.2f}_afe{1:+3.1f}.full.h5'.format(mm,aa),
-					'r')
 
 		# randomly select num number of MIST isochrone grid points, currently only 
 		# using dwarfs, subgiants, and giants (EEP = 202-605)
@@ -143,7 +144,10 @@ class pullspectra(object):
 				alpha_i = np.random.choice(self.alphaarr)
 
 				# select the C3K spectra at that [Fe/H] and [alpha/Fe]
-				C3K_i = C3K[alpha_i][FeH_i]
+				C3K_i = self.C3K[alpha_i][FeH_i]
+
+				# create array of all labels in specific C3K file
+				C3Kpars = np.array(C3K_i['parameters'])
 
 				# select the range of MIST isochrones with that [Fe/H]
 				FeHcond = (self.MIST_MOD['initial_[Fe/H]'] == FeH_i)
@@ -156,9 +160,6 @@ class pullspectra(object):
 					# get MIST Teff and log(g) for this selection
 					logt_MIST,logg_MIST = MIST_STA_i['log_Teff'][MISTsel], MIST_STA_i['log_g'][MISTsel]
 
-					# do a nearest neighbor interpolation on Teff and log(g) in the C3K grid
-					C3Kpars = np.array(C3K_i['parameters'])
-
 					# check to make sure MIST log(g) and log(Teff) have a spectrum in the C3K grid
 					# if not draw again
 					if (
@@ -166,7 +167,7 @@ class pullspectra(object):
 						(logg_MIST >= loggrange[0]) and (logg_MIST <= loggrange[1])
 						):
 						break
-
+				# do a nearest neighbor interpolation on Teff and log(g) in the C3K grid
 				C3KNN = NearestNDInterpolator(
 					np.array([C3Kpars['logt'],C3Kpars['logg']]).T,range(0,len(C3Kpars))
 					)((logt_MIST,logg_MIST))
@@ -220,6 +221,87 @@ class pullspectra(object):
 					labels.append(label_i)
 					spectra.append(spectra_i)
 					break
+
+		return np.array(spectra), np.array(labels), wavelength_o
+
+	def selspectra(self,inlabels,**kwargs):
+		'''
+		specifically select and return C3K spectra at user
+		defined labels
+
+		:param inlabels
+		Array of user defined lables for returned C3K spectra
+		format is [Teff,logg,FeH,aFe]
+
+		'''
+
+		if 'resolution' in kwargs:
+			resolution = kwargs['resolution']
+		else:
+			resolution = None
+
+		if 'waverange' in kwargs:
+			waverange = kwargs['waverange']
+		else:
+			# default is just the MgB triplet 
+			waverange = [5150.0,5200.0]
+
+		labels = []
+		spectra = []
+		wavelength_o = []
+
+		for li in inlabels:
+			# select the C3K spectra at that [Fe/H] and [alpha/Fe]
+			teff_i  = li[0]
+			logg_i  = li[1]
+			FeH_i   = li[2]
+			alpha_i = li[3]
+
+			C3K_i = self.C3K[alpha_i][FeH_i]
+
+			# create array of all labels in specific C3K file
+			C3Kpars = np.array(C3K_i['parameters'])
+
+			# do a nearest neighbor interpolation on Teff and log(g) in the C3K grid
+			C3KNN = NearestNDInterpolator(
+				np.array([C3Kpars['logt'],C3Kpars['logg']]).T,range(0,len(C3Kpars))
+				)((teff_i,logg_i))
+
+			# determine the labels for the selected C3K spectrum
+			label_i = list(C3Kpars[C3KNN])
+
+			# calculate the normalized spectrum
+			spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
+
+			# store a wavelength array as an instance, all of C3K has 
+			# the same wavelength sampling
+			if wavelength_o == []:
+				wavelength_i = np.array(C3K_i['wavelengths'])
+				if resolution != None:
+					# define new wavelength array with 3*resolution element sampling
+					i = 1
+					while True:
+						wave_i = waverange[0]*(1.0 + 1.0/(3.0*resolution))**(i-1.0)
+						if wave_i <= waverange[1]:
+							wavelength_o.append(wave_i)
+							i += 1
+						else:
+							break
+					wavelength_o = np.array(wavelength_o)
+				else:
+					wavecond = (wavelength_i >= waverange[0]) & (wavelength_i <= waverange[1])
+					wavecond = np.array(wavecond,dtype=bool)
+					wavelength_o = wavelength_i[wavecond]
+
+			# if user defined resolution to train at, the smooth C3K to that resolution
+			if resolution != None:
+				spectra_i = self.smoothspecfunc(wavelength_i,spectra_i,resolution,
+					outwave=wavelength_o,smoothtype='R',fftsmooth=True)
+			else:
+				spectra_i = spectra_i[wavecond]
+
+			labels.append(label_i)
+			spectra.append(spectra_i)
 
 		return np.array(spectra), np.array(labels), wavelength_o
 

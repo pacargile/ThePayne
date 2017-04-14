@@ -25,14 +25,16 @@ class PaynePredict(object):
 		# labels for which the NN was trained on, useful to make
 		# sure prediction is within the trained grid.
 		self.NN['labels']   = np.array(self.NN['file']['labels'])
+		# resolution that network was trained at
+		self.NN['resolution'] = np.array(self.NN['file']['resolution'])[0]
 		# NN coefficents for action function
 		self.NN['w0'] = np.array(self.NN['file']['w_array_0'])
 		self.NN['w1'] = np.array(self.NN['file']['w_array_1'])
 		self.NN['b0'] = np.array(self.NN['file']['b_array_0'])
 		self.NN['b1'] = np.array(self.NN['file']['b_array_1'])
 		# label bounds
-		self.NN['xmin'] = np.array(self.NN['file']['x_min'])
-		self.NN['xmax'] = np.array(self.NN['file']['x_max'])
+		self.NN['x_min'] = np.array(self.NN['file']['x_min'])
+		self.NN['x_max'] = np.array(self.NN['file']['x_max'])
 
 	def act_func(self,z):
 		'''
@@ -65,10 +67,10 @@ class PaynePredict(object):
 		# rescale them according to xmin, xmax
 
 		# first check if labels are within the trained network, warn if outside
-		if any(labels-self.NN['xmin'] < 0.0) or any(self.NN['xmax']-labels < 0.0):
+		if any(labels-self.NN['x_min'] < 0.0) or any(self.NN['x_max']-labels < 0.0):
 			print('WARNING: user labels are outside the trained network!!!')
 
-		slabels = ((labels-self.NN['xmin'])*0.8)/(self.NN['xmax']-self.NN['xmin']) + 0.1
+		slabels = ((labels-self.NN['x_min'])*0.8)/(self.NN['x_max']-self.NN['x_min']) + 0.1
 
 		predict_flux = self.act_func(
 			np.sum(
@@ -122,8 +124,10 @@ class PaynePredict(object):
 
 		if '[alpha/Fe]' in kwargs:
 			self.inputdict['afe'] = kwargs['[alpha/Fe]']
+		elif 'aFe' in kwargs:
+			self.inputdict['afe'] = kwargs['aFe']
 		elif 'afe' in kwargs:
-			self.inputdict['afe'] = kwargs['[alpha/Fe]']
+			self.inputdict['afe'] = kwargs['afe']
 		else:
 			self.inputdict['afe'] = 0.0
 		

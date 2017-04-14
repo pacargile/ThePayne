@@ -114,6 +114,7 @@ class TrainSpec(object):
 
 		# pull C3K spectra for training
 		print('... Pulling Testing Spectra')
+		sys.stdout.flush()
 		self.spectra_o,self.labels_o,self.wavelength = pullspectra(
 			self.num_train,resolution=self.resolution, waverange=self.waverange)
 
@@ -127,6 +128,7 @@ class TrainSpec(object):
 		# pull a validation spectra dataset, make sure the spectra are different 
 		# than the testing dataset
 		print('... Pulling Validation Spectra')
+		sys.stdout.flush()
 		self.val_spectra_o,self.val_labels_o,self.val_wavelength = pullspectra(
 			self.num_train,resolution=self.resolution,waverange=self.waverange,
 			Teff=[10.0**self.x_min[0],10.0**self.x_max[0]],
@@ -138,6 +140,7 @@ class TrainSpec(object):
 		self.val_labels_o = self.val_labels_o.T
 
 		print('... Finished Pulling Spectra')
+		sys.stdout.flush()
 		# neural-nets typically train a function mapping from 
 		# [0,1] -> [0,1], so here we scale both input (labels) 
 		# and output (fluxes) to [0.1,0.9]
@@ -151,6 +154,7 @@ class TrainSpec(object):
 		self.valspectra = self.val_spectra_o.T*0.8 + 0.1
 
 		print('... Finished Init')
+		sys.stdout.flush()
 
 	def __call__(self,pixel_no):
 		'''
@@ -178,6 +182,7 @@ class TrainSpec(object):
 		# number of pixels to train
 		numtrainedpixles = self.spectra.shape[0]
 		print('... Number of Pixels to Train: {0}'.format(numtrainedpixles))
+		sys.stdout.flush()
 
 		# turn on multiprocessing if desired
 		if mp:
