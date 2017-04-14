@@ -9,7 +9,6 @@ from scipy import constants
 speedoflight = constants.c / 1000.0
 from scipy.interpolate import UnivariateSpline,NearestNDInterpolator
 
-import Payne
 from ..predict.predictspec import PaynePredict
 
 class TestSpec(object):
@@ -96,9 +95,12 @@ class TestSpec(object):
 		# create a dictionary for the C3K models and populate it for different
 		# metallicities
 		C3K = {}
-
-		for mm in FeHarr:
-			C3K[mm] = h5py.File(C3Kpath+'/ckc_feh={0:+4.2f}.full.h5'.format(mm),'r')
+		for aa in alphaarr:
+			C3K[aa] = {}
+			for mm in FeHarr:
+				C3K[aa][mm] = h5py.File(
+					C3Kpath+'c3k_v1.3_feh{0:+4.2f}_afe{1:+3.1f}.full.h5'.format(mm,aa),
+					'r')
 
 		# randomly select num number of MIST isochrone grid points, currently only 
 		# using dwarfs, subgiants, and giants (EEP = 202-605)
@@ -117,8 +119,11 @@ class TestSpec(object):
 					if (FeH_i >= fehrange[0]) & (FeH_i <= fehrange[1]):
 						break
 
-				# select the C3K spectra at that [Fe/H]
-				C3K_i = C3K[FeH_i]
+				# then draw an alpha abundance
+				alpha_i = np.random.choice(alphaarr)
+
+				# select the C3K spectra at that [Fe/H] and [alpha/Fe]
+				C3K_i = C3K[alpha_i][FeH_i]
 
 				# store a wavelength array as an instance, all of C3K has 
 				# the same wavelength sampling
@@ -168,7 +173,7 @@ class TestSpec(object):
 					)((logt_MIST,logg_MIST))
 
 				# determine the labels for the selected C3K spectrum
-				label_i = list(C3Kpars[C3KNN])[:-1]
+				label_i = list(C3Kpars[C3KNN])
 
 				# calculate the normalized spectrum
 				spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
@@ -231,12 +236,12 @@ class TestSpec(object):
 		outspecdict['trainspec'] = {}
 		for ii,pars,testspec in zip(range(len(self.labels_test)),self.labels_test,self.spectra_test):
 			modwave_i,modflux_i = self.PP.getspec(
-				logt=pars[0],logg=pars[1],feh=pars[2])
+				logt=pars[0],logg=pars[1],feh=pars[2],afe=pars[3])
 			outspecdict['testspec'][ii] = {'test':testspec,'predict':modflux_i}
 
 		for ii,pars,trainspec in zip(range(len(self.labels_train)),self.labels_train,self.spectra_train):
 			modwave_i,modflux_i = self.PP.getspec(
-				logt=pars[0],logg=pars[1],feh=pars[2])
+				logt=pars[0],logg=pars[1],feh=pars[2],afe=pars[3])
 			outspecdict['trainspec'][ii] = {'train':trainspec,'predict':modflux_i}
 
 		return outspecdict
