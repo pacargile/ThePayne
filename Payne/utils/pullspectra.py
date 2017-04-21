@@ -5,6 +5,7 @@ import numpy as np
 import h5py
 from multiprocessing import Pool
 from scipy.interpolate import NearestNDInterpolator
+from scipy.stats import beta
 import os,sys
 from itertools import imap
 
@@ -32,6 +33,9 @@ class pullspectra(object):
 		MIST = h5py.File(self.MISTpath+'/MIST_full.h5','r')
 		MIST_MOD = np.array(MIST['MODPARS'])
 		MIST_STA = np.array(MIST['STARPARS'])
+
+		MIST_Teff = MIST_STA['log_Teff']
+		self.teffwgts = beta(3.0,1.0,loc=MIST_Teff.min(),scale=MIST_Teff.max()-MIST_Teff.min())
 
 		# parse down the MIST models to just be EEP = 202-605
 		EEPcond = (MIST_MOD['EEP'] > 202) & (MIST_MOD['EEP'] < 605)
@@ -72,6 +76,10 @@ class pullspectra(object):
 		: params waverange (optional):
 			kwarg used to set wavelength range
 			of output spectra
+		
+		: params reclabelsel (optional):
+			kwarg boolean that returns arrays that 
+			give how the labels were selected
 
 		:returns spectra:
 			Structured array: wave, spectra1, spectra2, spectra3, ...
@@ -86,7 +94,7 @@ class pullspectra(object):
 		if 'Teff' in kwargs:
 			Teffrange = kwargs['Teff']
 		else:
-			Teffrange = [3500.0,10000.0]
+			Teffrange = [3000.0,15000.0]
 
 		if 'logg' in kwargs:
 			loggrange = kwargs['logg']
@@ -119,7 +127,10 @@ class pullspectra(object):
 			# default is just the MgB triplet 
 			waverange = [5150.0,5200.0]
 
-
+		if 'reclabelsel' in kwargs:
+			reclabelsel = kwargs['reclabelsel']
+		else:
+			reclabelsel = False
 
 		# randomly select num number of MIST isochrone grid points, currently only 
 		# using dwarfs, subgiants, and giants (EEP = 202-605)
@@ -127,6 +138,8 @@ class pullspectra(object):
 		labels = []
 		spectra = []
 		wavelength_o = []
+		if reclabelsel:
+			initlabels = []
 
 		for ii in range(num):
 			while True:
@@ -152,10 +165,16 @@ class pullspectra(object):
 				# select the range of MIST isochrones with that [Fe/H]
 				FeHcond = (self.MIST_MOD['initial_[Fe/H]'] == FeH_i)
 				MIST_STA_i = self.MIST_STA[np.array(FeHcond,dtype=bool)]
-
+				teffwgts_i = self.teffwgts.pdf(MIST_STA_i['log_Teff'])
+				teffwgts_i = teffwgts_i/np.sum(teffwgts_i)
 				while True:
-					# randomly select a EEP, log(age) combination
-					MISTsel = np.random.randint(0,len(MIST_STA_i))
+					
+					# # randomly select a EEP, log(age) combination
+					# MISTsel = np.random.randint(0,len(MIST_STA_i))
+
+					# randomly select a EEP, log(age) combination with weighting 
+					# towards the hotter temps
+					MISTsel = np.random.choice(len(MIST_STA_i),p=teffwgts_i)
 
 					# get MIST Teff and log(g) for this selection
 					logt_MIST,logg_MIST = MIST_STA_i['log_Teff'][MISTsel], MIST_STA_i['log_g'][MISTsel]
@@ -167,6 +186,12 @@ class pullspectra(object):
 						(logg_MIST >= loggrange[0]) and (logg_MIST <= loggrange[1])
 						):
 						break
+
+				# add a gaussian blur to the MIST selected Teff and log(g)
+				# sigma_t = 750K, sigma_g = 1.5
+				logt_MIST = np.log10(10.0**logt_MIST + np.random.randn()*750.0)
+				logg_MIST = logg_MIST + np.random.randn()*1.5
+
 				# do a nearest neighbor interpolation on Teff and log(g) in the C3K grid
 				C3KNN = NearestNDInterpolator(
 					np.array([C3Kpars['logt'],C3Kpars['logg']]).T,range(0,len(C3Kpars))
@@ -220,9 +245,15 @@ class pullspectra(object):
 				if (label_i not in labels) and (not np.any(np.isnan(spectra_i))):
 					labels.append(label_i)
 					spectra.append(spectra_i)
+					# if requested, record random selected parameters
+					if reclabelsel:
+						initlabels.append([logt_MIST,logg_MIST,FeH_i,alpha_i])
 					break
 
-		return np.array(spectra), np.array(labels), wavelength_o
+		if reclabelsel:
+			return np.array(spectra), np.array(labels), np.array(initlabels), wavelength_o
+		else:
+			return np.array(spectra), np.array(labels), wavelength_o
 
 	def selspectra(self,inlabels,**kwargs):
 		'''
