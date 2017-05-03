@@ -35,7 +35,7 @@ class pullspectra(object):
 		MIST_STA = np.array(MIST['STARPARS'])
 
 		MIST_Teff = MIST_STA['log_Teff']
-		self.teffwgts = beta(3.0,1.0,loc=MIST_Teff.min(),scale=MIST_Teff.max()-MIST_Teff.min())
+		self.teffwgts = beta(0.75,0.75,loc=MIST_Teff.min()-10.0,scale=(MIST_Teff.max()+10.0)-(MIST_Teff.min()-10.0))
 
 		# parse down the MIST models to just be EEP = 202-605
 		EEPcond = (MIST_MOD['EEP'] > 202) & (MIST_MOD['EEP'] < 605)
@@ -147,14 +147,20 @@ class pullspectra(object):
 				while True:
 					FeH_i = np.random.choice(self.FeHarr)
 
-					# check to make sure FeH_i isn't in user defined 
+					# check to make sure FeH_i is in user defined 
 					# [Fe/H] limits
 					if (FeH_i >= fehrange[0]) & (FeH_i <= fehrange[1]):
 						break
 
 
 				# then draw an alpha abundance
-				alpha_i = np.random.choice(self.alphaarr)
+				while True:
+					alpha_i = np.random.choice(self.alphaarr)
+
+					# check to make sure alpha_i is in user defined
+					# [alpha/Fe] limits
+					if (alpha_i >= aFerange[0]) & (alpha_i <= aFerange[1]):
+						break
 
 				# select the C3K spectra at that [Fe/H] and [alpha/Fe]
 				C3K_i = self.C3K[alpha_i][FeH_i]
@@ -237,7 +243,7 @@ class pullspectra(object):
 				# if user defined resolution to train at, the smooth C3K to that resolution
 				if resolution != None:
 					spectra_i = self.smoothspecfunc(wavelength_i,spectra_i,resolution,
-						outwave=wavelength_o,smoothtype='R',fftsmooth=True)
+						outwave=wavelength_o,smoothtype='R',fftsmooth=True,inres=500000.0)
 				else:
 					spectra_i = spectra_i[wavecond]
 
@@ -327,7 +333,7 @@ class pullspectra(object):
 			# if user defined resolution to train at, the smooth C3K to that resolution
 			if resolution != None:
 				spectra_i = self.smoothspecfunc(wavelength_i,spectra_i,resolution,
-					outwave=wavelength_o,smoothtype='R',fftsmooth=True)
+					outwave=wavelength_o,smoothtype='R',fftsmooth=True,inres=500000.0)
 			else:
 				spectra_i = spectra_i[wavecond]
 

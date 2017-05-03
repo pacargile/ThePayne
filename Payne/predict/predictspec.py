@@ -19,7 +19,7 @@ class PaynePredict(object):
 		# name of file that contains the neural-net output
 		self.NN['filename'] = NNfilename
 		# restrore hdf5 file with the NN
-		self.NN['file']     = h5py.File(self.NN['filename'])
+		self.NN['file']     = h5py.File(self.NN['filename'],'r')
 		# wavelength for predicted spectrum
 		self.NN['wavelength']  = np.array(self.NN['file']['wavelength'])
 		# labels for which the NN was trained on, useful to make
@@ -158,7 +158,7 @@ class PaynePredict(object):
 			if kwargs['inst_R'] != 0.0:
 				# instrumental broadening
 				modspec = self.smoothspec(modwave,modspec,kwargs['inst_R'],
-					outwave=outwave,smoothtype='R',fftsmooth=True)
+					outwave=outwave,smoothtype='R',fftsmooth=True,inres=self.NN['resolution'])
 
 		return modwave, modspec
 
