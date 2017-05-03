@@ -116,7 +116,8 @@ class TrainSpec(object):
 		print('... Pulling Testing Spectra')
 		sys.stdout.flush()
 		self.spectra_o,self.labels_o,self.wavelength = pullspectra(
-			self.num_train,resolution=self.resolution, waverange=self.waverange)
+			self.num_train,resolution=self.resolution, waverange=self.waverange,
+			MISTweighting=True)
 
 		self.labels_o = self.labels_o.T
 

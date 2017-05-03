@@ -34,8 +34,12 @@ class pullspectra(object):
 		MIST_MOD = np.array(MIST['MODPARS'])
 		MIST_STA = np.array(MIST['STARPARS'])
 
+		# create weights for Teff
 		MIST_Teff = MIST_STA['log_Teff']
-		self.teffwgts = beta(0.75,0.75,loc=MIST_Teff.min()-10.0,scale=(MIST_Teff.max()+10.0)-(MIST_Teff.min()-10.0))
+		self.teffwgts = beta(0.5,0.5,loc=MIST_Teff.min()-10.0,scale=(MIST_Teff.max()+10.0)-(MIST_Teff.min()-10.0))
+		# create weights for [Fe/H]
+		self.fehwgts = beta(1.0,0.5,loc=-2.1,scale=2.7).pdf(self.FeHarr)
+		self.fehwgts = self.fehwgts/np.sum(self.fehwgts)
 
 		# parse down the MIST models to just be EEP = 202-605
 		EEPcond = (MIST_MOD['EEP'] > 202) & (MIST_MOD['EEP'] < 605)
@@ -132,6 +136,11 @@ class pullspectra(object):
 		else:
 			reclabelsel = False
 
+		if 'MISTweighting' in kwargs:
+			MISTweighting = kwargs['MISTweighting']
+		else:
+			MISTweighting = False
+
 		# randomly select num number of MIST isochrone grid points, currently only 
 		# using dwarfs, subgiants, and giants (EEP = 202-605)
 
@@ -145,7 +154,11 @@ class pullspectra(object):
 			while True:
 				# first randomly draw a [Fe/H]
 				while True:
-					FeH_i = np.random.choice(self.FeHarr)
+					if MISTweighting:
+						p_i = self.fehwgts
+					else:
+						p_i = None
+					FeH_i = np.random.choice(self.FeHarr,p=p_i)
 
 					# check to make sure FeH_i is in user defined 
 					# [Fe/H] limits
@@ -171,15 +184,18 @@ class pullspectra(object):
 				# select the range of MIST isochrones with that [Fe/H]
 				FeHcond = (self.MIST_MOD['initial_[Fe/H]'] == FeH_i)
 				MIST_STA_i = self.MIST_STA[np.array(FeHcond,dtype=bool)]
-				teffwgts_i = self.teffwgts.pdf(MIST_STA_i['log_Teff'])
-				teffwgts_i = teffwgts_i/np.sum(teffwgts_i)
-				while True:
-					
-					# # randomly select a EEP, log(age) combination
-					# MISTsel = np.random.randint(0,len(MIST_STA_i))
 
+				if MISTweighting:
+					# generate Teff weights
+					teffwgts_i = self.teffwgts.pdf(MIST_STA_i['log_Teff'])
+					teffwgts_i = teffwgts_i/np.sum(teffwgts_i)
+				else:
+					teffwgts_i = None
+
+
+				while True:
 					# randomly select a EEP, log(age) combination with weighting 
-					# towards the hotter temps
+					# towards the hotter temps if user wants
 					MISTsel = np.random.choice(len(MIST_STA_i),p=teffwgts_i)
 
 					# get MIST Teff and log(g) for this selection
