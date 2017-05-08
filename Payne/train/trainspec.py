@@ -222,7 +222,9 @@ class TrainSpec(object):
 		tottimestart = datetime.now()
 
 		print('... Starting Training at {0}'.format(tottimestart))
-		for ii,net in enumerate(netout):
+		sys.stdout.flush()
+
+		for ii,net in zip(pixellist,netout):
 			sys.stdout.flush()
 			# store and flush the network parameters into the HDF5 file
 			w0_h5[ii,...] = net.layers[0].w.get_value().T
