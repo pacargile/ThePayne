@@ -192,7 +192,7 @@ class TrainSpec(object):
 
 		# determine which pixels to train, in case we are 
 		# restarting from a previous run
-		if restartfile == None:
+		if self.restartfile == None:
 			pixellist = range(numtrainedpixles)
 		else:
 			pixellist = list(np.argwhere(np.array(wave_h5) == 0.0).flatten())
