@@ -187,7 +187,7 @@ class TrainSpec(object):
 
 		# number of pixels to train
 		numtrainedpixles = self.spectra.shape[0]
-		print('... Number of Pixels to Train: {0}'.format(numtrainedpixles))
+		print('... Number of Pixels in Spectrum: {0}'.format(numtrainedpixles))
 		sys.stdout.flush()
 
 		# determine which pixels to train, in case we are 
@@ -197,6 +197,8 @@ class TrainSpec(object):
 		else:
 			pixellist = list(np.argwhere(np.array(wave_h5) == 0.0).flatten())
 
+		print('... Number of Pixels to Train: {0}'.format(len(pixellist)))
+		sys.stdout.flush()
 
 		# turn on multiprocessing if desired
 		if mp:
