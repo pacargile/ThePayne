@@ -273,7 +273,7 @@ class TrainSpec(object):
 
 		else:
 			# read in training file from restarted run
-			outfile  = h5py.File(restartfromfile,'r+')
+			outfile  = h5py.File(restartfile,'r+')
 
 			# add datesets for values that are already defined
 			label_h5 = outfile['labels']
