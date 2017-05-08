@@ -112,8 +112,13 @@ class TrainSpec(object):
 		else:
 			self.outfilename = 'TESTOUT.h5'
 
+		if 'restartfile' in kwargs:
+			self.restartfile = kwargs['restartfile']
+		else:
+			self.restartfile = None
+
 		# pull C3K spectra for training
-		print('... Pulling Testing Spectra')
+		print('... Pulling Training Spectra')
 		sys.stdout.flush()
 		self.spectra_o,self.labels_o,self.wavelength = pullspectra(
 			self.num_train,resolution=self.resolution, waverange=self.waverange,
@@ -178,17 +183,26 @@ class TrainSpec(object):
 
 		'''
 		# initialize the output HDf5 file, return the datasets to populate
-		outfile,w0_h5,w1_h5,b0_h5,b1_h5,wave_h5 = self.initout()
+		outfile,w0_h5,w1_h5,b0_h5,b1_h5,wave_h5 = self.initout(restartfile=self.restartfile)
 
 		# number of pixels to train
 		numtrainedpixles = self.spectra.shape[0]
 		print('... Number of Pixels to Train: {0}'.format(numtrainedpixles))
 		sys.stdout.flush()
 
+		# determine which pixels to train, in case we are 
+		# restarting from a previous run
+		if restartfile == None:
+			pixellist = range(numtrainedpixles)
+		else:
+			pixellist = list(np.argwhere(np.array(wave_h5) == 0.0).flatten())
+
+
 		# turn on multiprocessing if desired
 		if mp:
 			##### multiprocessing stuff #######
 			try:
+				# determine the number of cpu's and make sure we have access to them all
 				numcpus = open('/proc/cpuinfo').read().count('processor\t:')
 				os.system("taskset -p -c 0-{NCPUS} {PID}".format(NCPUS=numcpus-1,PID=os.getpid()))
 			except IOError:
@@ -196,11 +210,11 @@ class TrainSpec(object):
 
 			pool = Pool(processes=ncpus)
 			# init the map for the pixel training using the pool imap
-			netout = pool.imap(self,range(numtrainedpixles))
+			netout = pool.imap(self,pixellist)
 
 		else:
-			# init the map for the pixel training using the standard imap
-			netout = imap(self,range(numtrainedpixles))
+			# init the map for the pixel training using the standard serial imap
+			netout = imap(self,pixellist)
 
 		# start total timer
 		tottimestart = datetime.now()
@@ -228,32 +242,54 @@ class TrainSpec(object):
 		# formally close the output file
 		outfile.close()
 
-	def initout(self):
+	def initout(self,restartfile=None):
 		'''
 		function to save all of the information into 
 		a single HDF5 file
 		'''
 
-		# create output HDF5 file
-		outfile = h5py.File(self.outfilename,'w')
+		if restartfile == None:
+			# create output HDF5 file
+			outfile = h5py.File(self.outfilename,'w')
 
-		# add datesets for values that are already defined
-		label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
-		xmin_h5  = outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
-		xmax_h5  = outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
-		resol_h5 = outfile.create_dataset('resolution',data=np.array([self.resolution]),compression='gzip')
-		vallabel_h5 = outfile.create_dataset('val_labels',    data=self.val_labels_o,  compression='gzip')
+			# add datesets for values that are already defined
+			label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
+			xmin_h5  = outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
+			xmax_h5  = outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
+			resol_h5 = outfile.create_dataset('resolution',data=np.array([self.resolution]),compression='gzip')
+			vallabel_h5 = outfile.create_dataset('val_labels',    data=self.val_labels_o,  compression='gzip')
 
-		# define vectorized wavelength array
-		wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
+			# define vectorized wavelength array
+			wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
 
-		# create vectorized datasets for the netweork results to be added
-		w0_h5    = outfile.create_dataset('w_array_0', (len(self.wavelength),10,4), compression='gzip')
-		w1_h5    = outfile.create_dataset('w_array_1', (len(self.wavelength),10),   compression='gzip')
-		b0_h5    = outfile.create_dataset('b_array_0', (len(self.wavelength),10),   compression='gzip')
-		b1_h5    = outfile.create_dataset('b_array_1', (len(self.wavelength),),     compression='gzip')
+			# create vectorized datasets for the netweork results to be added
+			w0_h5    = outfile.create_dataset('w_array_0', (len(self.wavelength),10,4), compression='gzip')
+			w1_h5    = outfile.create_dataset('w_array_1', (len(self.wavelength),10),   compression='gzip')
+			b0_h5    = outfile.create_dataset('b_array_0', (len(self.wavelength),10),   compression='gzip')
+			b1_h5    = outfile.create_dataset('b_array_1', (len(self.wavelength),),     compression='gzip')
 
-		outfile.flush()
+			outfile.flush()
+
+
+		else:
+			# read in training file from restarted run
+			outfile  = h5py.File(restartfromfile,'r+')
+
+			# add datesets for values that are already defined
+			label_h5 = outfile['labels']
+			xmin_h5  = outfile['x_min']    
+			xmax_h5  = outfile['x_max']    
+			resol_h5 = outfile['resolution']
+			vallabel_h5 = outfile['val_labels']
+
+			# define vectorized wavelength array
+			wave_h5  = outfile['wavelength']
+
+			# create vectorized datasets for the netweork results to be added
+			w0_h5    = outfile['w_array_0']
+			w1_h5    = outfile['w_array_1']
+			b0_h5    = outfile['b_array_0']
+			b1_h5    = outfile['b_array_1']
 
 		return outfile,w0_h5,w1_h5,b0_h5,b1_h5,wave_h5
 
