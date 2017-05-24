@@ -114,6 +114,7 @@ class TrainSpec(object):
 
 		if 'restartfile' in kwargs:
 			self.restartfile = kwargs['restartfile']
+			print('... Using Restart File: {0}'.format(self.restartfile))
 		else:
 			self.restartfile = None
 

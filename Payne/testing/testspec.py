@@ -81,4 +81,18 @@ class TestSpec(object):
 				logt=pars[0],logg=pars[1],feh=pars[2],afe=pars[3])
 			outspecdict['testspec'][ii] = {'test':testspec,'predict':modflux_i}
 
+		outspecdict['medarr_test'] = np.ones(len(outspecdict['WAVE']))
+		outspecdict['medarr_train'] = np.ones(len(outspecdict['WAVE']))
+
+		for ii in range(len(outspecdict['medarr_test'])):
+			outspecdict['medarr_test'][ii] = np.median(
+				[np.abs(outspecdict['testspec'][x]['test'][ii]-
+					outspecdict['testspec'][x]['predict'][ii]) 
+				for x in outspecdict['testspec']])
+
+			outspecdict['medarr_train'][ii] = np.median(
+				[np.abs(outspecdict['trainspec'][x]['train'][ii]-
+					outspecdict['trainspec'][x]['predict'][ii]) 
+				for x in outspecdict['trainspec']])
+
 		return outspecdict

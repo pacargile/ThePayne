@@ -6,6 +6,7 @@ import numpy as np
 import h5py
 from scipy import constants
 speedoflight = constants.c / 1000.0
+from scipy.interpolate import UnivariateSpline
 
 from ..utils.smoothing import smoothspec
 
@@ -24,14 +25,19 @@ class PaynePredict(object):
 		self.NN['wavelength']  = np.array(self.NN['file']['wavelength'])
 		# labels for which the NN was trained on, useful to make
 		# sure prediction is within the trained grid.
+
+		# check to see if any wavelengths are == 0.0
+		goodruncond = self.NN['wavelength'] != 0.0
+		self.NN['wavelength'] = self.NN['wavelength'][goodruncond]
+
 		self.NN['labels']   = np.array(self.NN['file']['labels'])
 		# resolution that network was trained at
 		self.NN['resolution'] = np.array(self.NN['file']['resolution'])[0]
 		# NN coefficents for action function
-		self.NN['w0'] = np.array(self.NN['file']['w_array_0'])
-		self.NN['w1'] = np.array(self.NN['file']['w_array_1'])
-		self.NN['b0'] = np.array(self.NN['file']['b_array_0'])
-		self.NN['b1'] = np.array(self.NN['file']['b_array_1'])
+		self.NN['w0'] = np.array(self.NN['file']['w_array_0'])[goodruncond]
+		self.NN['w1'] = np.array(self.NN['file']['w_array_1'])[goodruncond]
+		self.NN['b0'] = np.array(self.NN['file']['b_array_0'])[goodruncond]
+		self.NN['b1'] = np.array(self.NN['file']['b_array_1'])[goodruncond]
 		# label bounds
 		self.NN['x_min'] = np.array(self.NN['file']['x_min'])
 		self.NN['x_max'] = np.array(self.NN['file']['x_max'])
@@ -69,6 +75,9 @@ class PaynePredict(object):
 		# first check if labels are within the trained network, warn if outside
 		if any(labels-self.NN['x_min'] < 0.0) or any(self.NN['x_max']-labels < 0.0):
 			print('WARNING: user labels are outside the trained network!!!')
+			print('WARNING: Here are the problematic labels: ',labels)
+			print('WARNING: Here are the NN[x_min]: ',self.NN['x_min'])
+			print('WARNING: Here are the NN[x_max]: ',self.NN['x_max'])
 
 		slabels = ((labels-self.NN['x_min'])*0.8)/(self.NN['x_max']-self.NN['x_min']) + 0.1
 
@@ -134,31 +143,49 @@ class PaynePredict(object):
 		# calculate model spectrum at the native network resolution
 		modspec = self.predictspec([self.inputdict[kk] for kk in ['logt','logg','feh','afe']])
 
-		if 'outwave' in kwargs:
-			# define array of output wavelength values
-			outwave = kwargs['outwave']
-		else:
-			outwave = self.NN['wavelength']
+		modwave = self.NN['wavelength']
 
+		rot_vel_bool = False
 		if 'rot_vel' in kwargs:
 			# check to make sure rot_vel isn't 0.0, this will cause the convol. to crash
 			if kwargs['rot_vel'] != 0.0:
-				# use BJ's smoothspec to convolve with rotational broadening
-				modspec = self.smoothspec(self.NN['wavelength'],modspec,kwargs['rot_vel'],
-					outwave=outwave,smoothtype='vel',fftsmooth=True)
+				# set boolean to let rest of code know the spectrum has been broadened
+				rot_vel_bool = True
+				# use B.Johnson's smoothspec to convolve with rotational broadening
+				modspec = self.smoothspec(modwave,modspec,kwargs['rot_vel'],
+					outwave=None,smoothtype='vel',fftsmooth=True)
 
+		rad_vel_bool = False
 		if 'rad_vel' in kwargs:
-			# kwargs['radial_velocity']: RV in km/s
-			modwave = self.NN['wavelength'].copy()*(1.0-(kwargs['rad_vel']/speedoflight))
-		else:
-			modwave = self.NN['wavelength']
+			if kwargs['rad_vel'] != 0.0:
+				# kwargs['radial_velocity']: RV in km/s
+				rad_vel_bool = True
+				# modwave = self.NN['wavelength'].copy()*(1.0-(kwargs['rad_vel']/speedoflight))
+				modwave = modwave*(1.0+(kwargs['rad_vel']/speedoflight))
 
+		inst_R_bool = False
 		if 'inst_R' in kwargs:
 			# check to make sure inst_R != 0.0
 			if kwargs['inst_R'] != 0.0:
+				inst_R_bool = True
 				# instrumental broadening
+				# if rot_vel_bool:
+				# 	inres = (2.998e5)/kwargs['rot_vel']
+				# else:
+				# 	inres = self.NN['resolution']
+				# inres=None
+				if 'outwave' in kwargs:
+					outwave = np.array(kwargs['outwave'])
+				else:
+					outwave = None
+
 				modspec = self.smoothspec(modwave,modspec,kwargs['inst_R'],
 					outwave=outwave,smoothtype='R',fftsmooth=True,inres=self.NN['resolution'])
+				if type(outwave) != type(None):
+					modwave = outwave
+		if (inst_R_bool == False) & ('outwave' in kwargs):
+			modspec = UnivariateSpline(modwave,modspec,k=1,s=0)(kwargs['outwave'])
+			modwave = kwargs['outwave']
 
 		return modwave, modspec
 
