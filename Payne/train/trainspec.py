@@ -75,8 +75,8 @@ class TrainSpec(object):
 			self.n_neurons = 10
 
 		# number of training spectra
-		if 'num_train' in kwargs:
-			self.num_train = kwargs['num_train']
+		if 'numtrain' in kwargs:
+			self.num_train = kwargs['numtrain']
 		else:
 			self.num_train = 150
 

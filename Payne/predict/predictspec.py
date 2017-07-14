@@ -145,6 +145,9 @@ class PaynePredict(object):
 
 		modwave = self.NN['wavelength']
 
+		print(modspec)
+		print(modwave)
+
 		rot_vel_bool = False
 		if 'rot_vel' in kwargs:
 			# check to make sure rot_vel isn't 0.0, this will cause the convol. to crash
