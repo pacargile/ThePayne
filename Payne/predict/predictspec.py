@@ -145,9 +145,6 @@ class PaynePredict(object):
 
 		modwave = self.NN['wavelength']
 
-		print(modspec)
-		print(modwave)
-
 		rot_vel_bool = False
 		if 'rot_vel' in kwargs:
 			# check to make sure rot_vel isn't 0.0, this will cause the convol. to crash
@@ -178,7 +175,10 @@ class PaynePredict(object):
 				# 	inres = self.NN['resolution']
 				# inres=None
 				if 'outwave' in kwargs:
-					outwave = np.array(kwargs['outwave'])
+					if type(kwargs['outwave']) == type(None):
+						outwave = None
+					else:
+						outwave = np.array(kwargs['outwave'])
 				else:
 					outwave = None
 
