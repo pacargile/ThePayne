@@ -5,7 +5,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
 import h5py
-import time,sys
+import time,sys,os
 from datetime import datetime
 from itertools import imap
 
