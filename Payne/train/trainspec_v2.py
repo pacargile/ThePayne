@@ -8,6 +8,7 @@ import h5py
 import time,sys,os
 from datetime import datetime
 from itertools import imap
+from multiprocessing import Pool
 
 from ..utils.pullspectra import pullspectra
 pullspectra = pullspectra()
