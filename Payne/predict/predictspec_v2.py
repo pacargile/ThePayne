@@ -43,19 +43,14 @@ class Net(nn.Module):
 
 class readNN(object):
   """docstring for nnBC"""
-  def __init__(self, nnh5=None):
+  def __init__(self, nnh5=None,xmin=None,xmax=None):
     super(readNN, self).__init__()
     D_in = nnh5['model/lin1.weight'].shape[1]
     H = nnh5['model/lin1.weight'].shape[0]
     D_out = nnh5['model/lin3.weight'].shape[0]
     self.model = Net(D_in,H,D_out)
-    self.model.xmin = []
-    self.model.xmax = []
-    for ii in range(nnh5['labels'].shape[1]):
-        self.model.xmin.append(np.array(nnh5['labels'])[:,ii].min())
-        self.model.xmax.append(np.array(nnh5['labels'])[:,ii].max())
-    self.model.xmin = np.array(self.model.xmin)
-    self.model.xmax = np.array(self.model.xmax)
+    self.model.xmin = xmin
+    self.model.xmax = xmax
 
     newmoddict = {}
     for kk in nnh5['model'].keys():
@@ -110,7 +105,11 @@ class PaynePredict_V2(object):
 		# dictionary of trained NN models for predictions
 		self.NN['model'] = {}
 		for WW in self.NN['wavelength']:
-			self.NN['model'][WW] = readNN(self.NN['file']['model_{0}'.format(WW)])
+			self.NN['model'][WW] = readNN(
+                nnh5=self.NN['file']['model_{0}'.format(WW)],
+                xmin=self.NN['x_min'],
+                xmax=self.NN['x_max'],
+                )
 
 	def predictspec(self,labels):
 		'''
