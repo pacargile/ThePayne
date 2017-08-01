@@ -59,7 +59,7 @@ class PaynePredict_V2(object):
 		'''
 
 		predict_flux = np.zeros_like(self.NN['wavelength'])
-		for ii,WW in self.NN['wavelength']:
+		for ii,WW in enumerate(self.NN['wavelength']):
 			predict_flux[ii] = float(self.NN['model'][WW].eval(labels))
 
 		return predict_flux
