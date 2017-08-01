@@ -49,7 +49,7 @@ class readNN(object):
     H = nnh5['model/lin1.weight'].shape[0]
     D_out = nnh5['model/lin3.weight'].shape[0]
     self.model = Net(D_in,H,D_out)
-    self.model.xmin = []
+	self.model.xmin = []
 	self.model.xmax = []
 	for ii in range(nnh5['labels'].shape[1]):
 		self.model.xmin.append(np.array(nnh5['labels'])[:,ii].min())
