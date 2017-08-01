@@ -73,34 +73,34 @@ class readNN(object):
 
 
 class PaynePredict_V2(object):
-	"""
-	Class for taking a Payne-learned NN and predicting spectrum.
-	"""
-	def __init__(self, NNfilename):
-		self.NN = {}
-		# name of file that contains the neural-net output
-		self.NN['filename'] = NNfilename
-		# restrore hdf5 file with the NN
-		self.NN['file']     = h5py.File(self.NN['filename'],'r')
-		# wavelength for predicted spectrum
-		self.NN['wavelength']  = np.array(self.NN['file']['wavelength'])
-		# labels for which the NN was trained on, useful to make
-		# sure prediction is within the trained grid.
+    """
+    Class for taking a Payne-learned NN and predicting spectrum.
+    """
+    def __init__(self, NNfilename):
+        self.NN = {}
+        # name of file that contains the neural-net output
+        self.NN['filename'] = NNfilename
+        # restrore hdf5 file with the NN
+        self.NN['file']     = h5py.File(self.NN['filename'],'r')
+        # wavelength for predicted spectrum
+        self.NN['wavelength']  = np.array(self.NN['file']['wavelength'])
+        # labels for which the NN was trained on, useful to make
+        # sure prediction is within the trained grid.
 
-		# check to see if any wavelengths are == 0.0
-		goodruncond = self.NN['wavelength'] != 0.0
-		self.NN['wavelength'] = self.NN['wavelength'][goodruncond]
+        # check to see if any wavelengths are == 0.0
+        goodruncond = self.NN['wavelength'] != 0.0
+        self.NN['wavelength'] = self.NN['wavelength'][goodruncond]
 
-		self.NN['labels']   = np.array(self.NN['file']['labels'])
-		# resolution that network was trained at
-		self.NN['resolution'] = np.array(self.NN['file']['resolution'])[0]
+        self.NN['labels']   = np.array(self.NN['file']['labels'])
+        # resolution that network was trained at
+        self.NN['resolution'] = np.array(self.NN['file']['resolution'])[0]
 
-		# label bounds
-		x_min = []
-		x_max = []
-		for ii in range(self.NN['file']['labels'].shape[1]):
-			x_min.append(np.array(self.NN['file']['labels'])[:,ii].min())
-			x_max.append(np.array(self.NN['file']['labels'])[:,ii].max())
+        # label bounds
+        x_min = []
+        x_max = []
+        for ii in range(self.NN['file']['labels'].shape[1]):
+            x_min.append(np.array(self.NN['file']['labels'])[:,ii].min())
+            x_max.append(np.array(self.NN['file']['labels'])[:,ii].max())
 
         self.NN['x_min'] = np.array(x_min)
         self.NN['x_max'] = np.array(x_max)
@@ -112,7 +112,7 @@ class PaynePredict_V2(object):
                 nnh5=self.NN['file']['model_{0}'.format(WW)],
                 xmin=self.NN['x_min'],
                 xmax=self.NN['x_max'],
-                )
+            )
 
 	def predictspec(self,labels):
 		'''
