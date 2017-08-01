@@ -102,6 +102,9 @@ class PaynePredict_V2(object):
 			self.NN['x_min'].append(np.array(self.NN['file']['labels'])[:,ii].min())
 			self.NN['x_max'].append(np.array(self.NN['file']['labels'])[:,ii].max())
 
+        self.NN['x_min'] = np.array(self.NN['x_min'])
+        self.NN['x_max'] = np.array(self.NN['x_max'])
+
 		# dictionary of trained NN models for predictions
 		self.NN['model'] = {}
 		for WW in self.NN['wavelength']:
