@@ -145,7 +145,7 @@ class TrainSpec_V2(object):
 		'''
 
 		# initialize the output HDf5 file, return the datasets to populate
-		outfile,model_h5,opt_h5,wave_h5 = self.initout(restartfile=self.restartfile)
+		outfile,wave_h5 = self.initout(restartfile=self.restartfile)
 
 		# number of pixels to train
 		numtrainedpixles = self.spectra.shape[0]
@@ -210,8 +210,8 @@ class TrainSpec_V2(object):
 
 			# define vectorized wavelength array, model array, and optimizer array
 			wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
-			model_h5 = outfile.create_dataset('model_arr', (len(self.wavelength),), compression='gzip')
-			opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
+			# model_h5 = outfile.create_dataset('model_arr', (len(self.wavelength),), compression='gzip')
+			# opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
 
 			outfile.flush()
 
@@ -225,10 +225,10 @@ class TrainSpec_V2(object):
 
 			# define vectorized arrays
 			wave_h5  = outfile['wavelength']
-			model_h5 = outfile['model_arr']
-			opt_h5   = outfile['opt_arr']
+			# model_h5 = outfile['model_arr']
+			# opt_h5   = outfile['opt_arr']
 
-		return outfile,model_h5,opt_h5,wave_h5
+		return outfile,wave_h5
 
 	def train_pixel(self,pixel_no):
 		'''
