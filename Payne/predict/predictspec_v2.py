@@ -14,18 +14,16 @@ class readNN(object):
   """docstring for nnBC"""
   def __init__(self, nnh5=None):
     super(readNN, self).__init__()
-    self.nnh5 = nnh5
-    th5 = h5py.File(self.nnh5,'r')
-    D_in = th5['model/lin1.weight'].shape[1]
-    H = th5['model/lin1.weight'].shape[0]
-    D_out = th5['model/lin3.weight'].shape[0]
+    D_in = nnh5['model/lin1.weight'].shape[1]
+    H = nnh5['model/lin1.weight'].shape[0]
+    D_out = nnh5['model/lin3.weight'].shape[0]
     self.model = Net(D_in,H,D_out)
-    self.model.xmin = np.amin(np.array(th5['test/X']),axis=0)
-    self.model.xmax = np.amax(np.array(th5['test/X']),axis=0)
+    self.model.xmin = np.amin(np.array(nnh5['test/X']),axis=0)
+    self.model.xmax = np.amax(np.array(nnh5['test/X']),axis=0)
 
     newmoddict = {}
-    for kk in th5['model'].keys():
-      nparr = np.array(th5['model'][kk])
+    for kk in nnh5['model'].keys():
+      nparr = np.array(nnh5['model'][kk])
       torarr = torch.from_numpy(nparr).type(dtype)
       newmoddict[kk] = torarr    
     self.model.load_state_dict(newmoddict)
@@ -76,7 +74,7 @@ class PaynePredict_V2(object):
 		# dictionary of trained NN models for predictions
 		self.NN['model'] = {}
 		for WW in self.NN['wavelength']:
-			self.NN['model'][WW] = self.NN['file']['model_{0}'.format(WW)]
+			self.NN['model'][WW] = readNN(self.NN['file']['model_{0}'.format(WW)])
 
 	def predictspec(self,labels):
 		'''
