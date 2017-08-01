@@ -2,6 +2,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
+import torch
+from torch import nn
+dtype = torch.FloatTensor
+from torch.autograd import Variable
+import torch.nn.functional as F
+
 import numpy as np
 import h5py
 from scipy import constants
@@ -9,6 +15,31 @@ speedoflight = constants.c / 1000.0
 from scipy.interpolate import UnivariateSpline
 
 from ..utils.smoothing import smoothspec
+
+class Net(nn.Module):  
+  def __init__(self, D_in, H, D_out):
+    super(Net, self).__init__()
+    self.lin1 = nn.Linear(D_in, H)
+    self.lin2 = nn.Linear(H,H)
+    self.lin3 = nn.Linear(H, D_out)
+
+  def forward(self, x):
+    x_i = self.encode(x)
+    out1 = F.sigmoid(self.lin1(x_i))
+    out2 = F.sigmoid(self.lin2(out1))
+    y_i = self.lin3(out2)
+    return y_i     
+
+  def encode(self,x):
+    try:
+      self.xmin
+      self.xmax
+    except (NameError,AttributeError):
+      self.xmin = np.amin(x.data.numpy(),axis=0)
+      self.xmax = np.amax(x.data.numpy(),axis=0)
+
+    x = (x.data.numpy()-self.xmin)/(self.xmax-self.xmin)
+    return Variable(torch.from_numpy(x).type(dtype))
 
 class readNN(object):
   """docstring for nnBC"""
