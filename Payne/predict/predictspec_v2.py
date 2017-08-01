@@ -105,10 +105,10 @@ class PaynePredict_V2(object):
         self.NN['x_min'] = np.array(self.NN['x_min'])
         self.NN['x_max'] = np.array(self.NN['x_max'])
 
-		# dictionary of trained NN models for predictions
-		self.NN['model'] = {}
-		for WW in self.NN['wavelength']:
-			self.NN['model'][WW] = readNN(
+        # dictionary of trained NN models for predictions
+        self.NN['model'] = {}
+        for WW in self.NN['wavelength']:
+            self.NN['model'][WW] = readNN(
                 nnh5=self.NN['file']['model_{0}'.format(WW)],
                 xmin=self.NN['x_min'],
                 xmax=self.NN['x_max'],
