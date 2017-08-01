@@ -10,6 +10,38 @@ from scipy.interpolate import UnivariateSpline
 
 from ..utils.smoothing import smoothspec
 
+class readNN(object):
+  """docstring for nnBC"""
+  def __init__(self, nnh5=None):
+    super(readNN, self).__init__()
+    self.nnh5 = nnh5
+    th5 = h5py.File(self.nnh5,'r')
+    D_in = th5['model/lin1.weight'].shape[1]
+    H = th5['model/lin1.weight'].shape[0]
+    D_out = th5['model/lin3.weight'].shape[0]
+    self.model = Net(D_in,H,D_out)
+    self.model.xmin = np.amin(np.array(th5['test/X']),axis=0)
+    self.model.xmax = np.amax(np.array(th5['test/X']),axis=0)
+
+    newmoddict = {}
+    for kk in th5['model'].keys():
+      nparr = np.array(th5['model'][kk])
+      torarr = torch.from_numpy(nparr).type(dtype)
+      newmoddict[kk] = torarr    
+    self.model.load_state_dict(newmoddict)
+
+  def eval(self,x):
+    if type(x) == type([]):
+      x = np.array(x)
+    if len(x.shape) == 1:
+      inputD = 1
+    else:
+      inputD = x.shape[0]
+
+    inputVar = Variable(torch.from_numpy(x).type(dtype)).resize(inputD,4)
+    outpars = self.model(inputVar)
+    return outpars.data.numpy().squeeze()
+
 
 class PaynePredict_V2(object):
 	"""
