@@ -96,14 +96,14 @@ class PaynePredict_V2(object):
 		self.NN['resolution'] = np.array(self.NN['file']['resolution'])[0]
 
 		# label bounds
-		self.NN['x_min'] = []
-		self.NN['x_max'] = []
+		x_min = []
+		x_max = []
 		for ii in range(self.NN['file']['labels'].shape[1]):
-			self.NN['x_min'].append(np.array(self.NN['file']['labels'])[:,ii].min())
-			self.NN['x_max'].append(np.array(self.NN['file']['labels'])[:,ii].max())
+			x_min.append(np.array(self.NN['file']['labels'])[:,ii].min())
+			x_max.append(np.array(self.NN['file']['labels'])[:,ii].max())
 
-        self.NN['x_min'] = np.array(self.NN['x_min'])
-        self.NN['x_max'] = np.array(self.NN['x_max'])
+        self.NN['x_min'] = np.array(x_min)
+        self.NN['x_max'] = np.array(x_max)
 
         # dictionary of trained NN models for predictions
         self.NN['model'] = {}
