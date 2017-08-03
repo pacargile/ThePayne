@@ -295,6 +295,7 @@ class TrainSpec_V2(object):
 			th5.create_dataset('model_{0}/model/{1}'.format(wavelength,kk),
 				data=model.state_dict()[kk].numpy(),
 				compression='gzip')
+		th5.flush()
 
 	def h5opt_write(self,optimizer,th5,wavelength):
 		'''
@@ -328,3 +329,4 @@ class TrainSpec_V2(object):
 							'opt_{0}/optimizer/param_groups/{1}'.format(wavelength,jj),
 							data=np.array([pgdict[jj]]),compression='gzip')
 
+		th5.flush()
