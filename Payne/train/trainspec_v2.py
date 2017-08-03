@@ -271,8 +271,8 @@ class TrainSpec_V2(object):
 
 				if (t+1) % 50 == 0:
 					print (
-						'Step [{0:d}/{1:d}], Loss: {2:.4f}'.format(
-						t+1, self.niter, loss.data[0])
+						'Pixel: {0} -- Step [{1:d}/{2:d}], Loss: {3:.4f}'.format(
+						pixel_no,t+1, self.niter, loss.data[0])
 					)
 					sys.stdout.flush()
 				return loss
