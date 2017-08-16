@@ -247,11 +247,13 @@ class TrainSpec_V2(object):
 		model = Net(self.D_in,self.H,self.D_out)
 
 		# initialize the loss function
-		loss_fn = torch.nn.MSELoss(size_average=False)
+		# loss_fn = torch.nn.MSELoss(size_average=False)
+		loss_fn = torch.nn.KLDivLoss(size_average=False)
 
 		# initialize the optimizer
 		learning_rate = 1e-3
-		optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+		# optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+		optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
 		for t in range(self.niter):
 			def closure():
