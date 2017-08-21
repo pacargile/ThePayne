@@ -247,15 +247,16 @@ class TrainSpec_V2(object):
 		model = Net(self.D_in,self.H,self.D_out)
 
 		# initialize the loss function
-		# loss_fn = torch.nn.MSELoss(size_average=False)
-		loss_fn = torch.nn.KLDivLoss(size_average=False)
+		loss_fn = torch.nn.MSELoss(size_average=False)
+		# loss_fn = torch.nn.KLDivLoss(size_average=False)
 
 		# initialize the optimizer
-		learning_rate = 1e-3
-		# optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-		optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
+		learning_rate = 1e-5
+		optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+		# optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
 		for t in range(self.niter):
+			steptime = datetime.now()
 			def closure():
 				# Before the backward pass, use the optimizer object to zero all of the
 				# gradients for the variables it will update (which are the learnable weights
@@ -270,13 +271,14 @@ class TrainSpec_V2(object):
 
 				# Backward pass: compute gradient of the loss with respect to model parameters
 				loss.backward()
-
+				
 				if (t+1) % 50 == 0:
 					print (
-						'Pixel: {0} -- Step [{1:d}/{2:d}], Loss: {3:.4f}'.format(
-						pixel_no,t+1, self.niter, loss.data[0])
+						'Pixel: {0} -- Step [{1:d}/{2:d}], Step Time: {3}, Loss: {4:.4f}'.format(
+						pixel_no,t+1, self.niter, datetime.now()-steptime, loss.data[0])
 					)
 					sys.stdout.flush()
+
 				return loss
 
 			# Calling the step function on an Optimizer makes an update to its parameters
