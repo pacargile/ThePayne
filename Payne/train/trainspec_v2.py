@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-dtype = torch.FloatTensor
+dtype = torch.cuda.FloatTensor
 from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
