@@ -8,8 +8,8 @@ import h5py
 import time,sys,os
 from datetime import datetime
 from itertools import imap
-import multiprocessing
-from multiprocessing import Pool
+import torch.multiprocessing as multiprocessing
+from torch.multiprocessing import Pool
 
 from ..utils.pullspectra import pullspectra
 pullspectra = pullspectra()
