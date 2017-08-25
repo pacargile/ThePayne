@@ -242,9 +242,9 @@ class TrainSpec_GPU(object):
 		# start a timer
 		starttime = datetime.now()
 	
-		# determine if this is running within mp
-		if len(multiprocessing.current_process()._identity) > 0:
-			torch.cuda.device(multiprocessing.current_process()._identity[0])
+		# # determine if this is running within mp
+		# if len(multiprocessing.current_process()._identity) > 0:
+		# 	torch.cuda.device(multiprocessing.current_process()._identity[0])
 
 		# pull fluxes at wavelength pixel
 		Y_train = np.array(self.spectra[pixel_no,:]).T
@@ -258,7 +258,7 @@ class TrainSpec_GPU(object):
 		# loss_fn = torch.nn.KLDivLoss(size_average=False)
 
 		# initialize the optimizer
-		learning_rate = 1e-1
+		learning_rate = 1e-6
 		optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 		# optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
