@@ -8,6 +8,7 @@ import h5py
 import time,sys,os
 from datetime import datetime
 from itertools import imap
+import multiprocessing
 from multiprocessing import Pool
 
 from ..utils.pullspectra import pullspectra
@@ -241,6 +242,10 @@ class TrainSpec_V2(object):
 		# start a timer
 		starttime = datetime.now()
 	
+		# determine if this is running within mp
+		if len(multiprocessing.current_process()._identity) > 0:
+			torch.cuda.device(multiprocessing.current_process()._identity[0])
+
 		# pull fluxes at wavelength pixel
 		Y_train = np.array(self.spectra[pixel_no,:]).T
 		Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
