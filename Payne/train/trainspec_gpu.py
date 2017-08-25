@@ -110,7 +110,6 @@ class TrainSpec_GPU(object):
 		self.spectra = self.spectra_o.T
 
 		self.X_train = self.labels_o
-		self.X_train_Tensor = Variable(torch.from_numpy(self.X_train).type(dtype))
   
 		# N is batch size (number of points in X_train),
 		# D_in is input dimension
@@ -243,8 +242,10 @@ class TrainSpec_GPU(object):
 		starttime = datetime.now()
 	
 		# # determine if this is running within mp
-		# if len(multiprocessing.current_process()._identity) > 0:
-		# 	torch.cuda.device(multiprocessing.current_process()._identity[0])
+		if len(multiprocessing.current_process()._identity) > 0:
+			torch.cuda.device(multiprocessing.current_process()._identity[0])
+
+		X_train_Tensor = Variable(torch.from_numpy(self.X_train).type(dtype))
 
 		# pull fluxes at wavelength pixel
 		Y_train = np.array(self.spectra[pixel_no,:]).T
@@ -271,7 +272,7 @@ class TrainSpec_GPU(object):
 				optimizer.zero_grad()
 
 				# Forward pass: compute predicted y by passing x to the model.
-				y_pred_train_Tensor = model(self.X_train_Tensor)
+				y_pred_train_Tensor = model(X_train_Tensor)
 
 				# Compute and print loss.
 				loss = loss_fn(y_pred_train_Tensor, Y_train_Tensor)
