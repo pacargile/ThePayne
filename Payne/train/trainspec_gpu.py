@@ -14,7 +14,7 @@ from multiprocessing import Pool
 from ..utils.pullspectra import pullspectra
 pullspectra = pullspectra()
 
-class Net(nn.Module):  
+class Net_GPU(nn.Module):  
 	def __init__(self, D_in, H, D_out):
 		super(Net, self).__init__()
 		self.lin1 = nn.Linear(D_in, H).cuda()
@@ -41,7 +41,7 @@ class Net(nn.Module):
 		x = (x_np-self.xmin)/(self.xmax-self.xmin)
 		return Variable(torch.from_numpy(x).type(dtype))
 
-class TrainSpec_V2(object):
+class TrainSpec_GPU(object):
 	"""docstring for TrainSpec"""
 	def __init__(self, **kwargs):
 		# number of models to train on
@@ -251,7 +251,7 @@ class TrainSpec_V2(object):
 		Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
 
 		# initialize the model
-		model = Net(self.D_in,self.H,self.D_out)
+		model = Net_GPU(self.D_in,self.H,self.D_out)
 
 		# initialize the loss function
 		loss_fn = torch.nn.MSELoss(size_average=False)
