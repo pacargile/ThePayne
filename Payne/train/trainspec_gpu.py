@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-dtype = torch.FloatTensor
+dtype = torch.cuda.FloatTensor
 from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
@@ -16,9 +16,9 @@ pullspectra = pullspectra()
 class Net(nn.Module):  
 	def __init__(self, D_in, H, D_out):
 		super(Net, self).__init__()
-		self.lin1 = nn.Linear(D_in, H)
-		self.lin2 = nn.Linear(H,H)
-		self.lin3 = nn.Linear(H, D_out)
+		self.lin1 = nn.Linear(D_in, H).cuda()
+		self.lin2 = nn.Linear(H,H).cuda()
+		self.lin3 = nn.Linear(H, D_out).cuda()
 
 	def forward(self, x):
 		x_i = self.encode(x)
@@ -29,7 +29,7 @@ class Net(nn.Module):
 
 	def encode(self,x):
 		# convert x into numpy to do math
-		x_np = x.data.numpy()
+		x_np = x.data.cpu().numpy()
 		try:
 			self.xmin
 			self.xmax
