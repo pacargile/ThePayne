@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import torch
 from torch import nn
-dtype = torch.cuda.FloatTensor
+dtype = torch.FloatTensor
 from torch.autograd import Variable
 import torch.nn.functional as F
 
