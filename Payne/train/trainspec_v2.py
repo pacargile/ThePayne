@@ -28,14 +28,16 @@ class Net(nn.Module):
 		return y_i     
 
 	def encode(self,x):
+		# convert x into numpy to do math
+		x_np = x.data.cpu().numpy()
 		try:
 			self.xmin
 			self.xmax
 		except (NameError,AttributeError):
-			self.xmin = np.amin(x.data.numpy(),axis=0)
-			self.xmax = np.amax(x.data.numpy(),axis=0)
+			self.xmin = np.amin(x_np,axis=0)
+			self.xmax = np.amax(x_np,axis=0)
 
-		x = (x.data.numpy()-self.xmin)/(self.xmax-self.xmin)
+		x = (x_np-self.xmin)/(self.xmax-self.xmin)
 		return Variable(torch.from_numpy(x).type(dtype))
 
 class TrainSpec_V2(object):
