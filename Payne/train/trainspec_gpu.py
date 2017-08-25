@@ -245,6 +245,12 @@ class TrainSpec_GPU(object):
 		if len(multiprocessing.current_process()._identity) > 0:
 			torch.cuda.device(multiprocessing.current_process()._identity[0])
 
+		print('Pixel: {0} -- Running on GPU: {1}/{2}'.format(
+			pixel_no,
+			torch.cuda.current_device(),
+			torch.cuda.device_count(),
+			))
+
 		X_train_Tensor = Variable(torch.from_numpy(self.X_train).type(dtype))
 
 		# pull fluxes at wavelength pixel
