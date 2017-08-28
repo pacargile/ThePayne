@@ -243,7 +243,7 @@ class TrainSpec_GPU(object):
 	
 		# # determine if this is running within mp
 		if len(multiprocessing.current_process()._identity) > 0:
-			torch.cuda.set_device(multiprocessing.current_process()._identity[0])
+			torch.cuda.set_device(multiprocessing.current_process()._identity[0]-1)
 
 		print('Pixel: {0} -- Running on GPU: {1}/{2}'.format(
 			pixel_no,
