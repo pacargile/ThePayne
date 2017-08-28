@@ -247,7 +247,7 @@ class TrainSpec_GPU(object):
 
 		print('Pixel: {0} -- Running on GPU: {1}/{2}'.format(
 			pixel_no,
-			torch.cuda.current_device(),
+			torch.cuda.current_device()+1,
 			torch.cuda.device_count(),
 			))
 
