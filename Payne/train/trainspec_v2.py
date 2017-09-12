@@ -136,7 +136,7 @@ class TrainSpec_V2(object):
 		'''
 		return self.train_pixel(pixel_no)
 
-	def dycallback(net):
+	def dycallback(self,net):
 		self.h5model_write(net[1],outfile,self.wavelength[net[0]])
 		self.h5opt_write(net[2],outfile,self.wavelength[net[0]])
 		wave_h5[net[0]]  = self.wavelength[net[0]]
