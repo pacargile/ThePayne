@@ -188,6 +188,7 @@ class TrainSpec_GPU(object):
 
 			# flush output file to save results
 			outfile.flush()
+			sys.stdout.flush()
 
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
