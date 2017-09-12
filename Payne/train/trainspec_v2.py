@@ -190,7 +190,7 @@ class TrainSpec_V2(object):
 		print('... Starting Training at {0}'.format(tottimestart))
 		sys.stdout.flush()
 
-		netout(self,pixellist,callback=self.dycallback)
+		pool.map_async(self,pixellist,callback=self.dycallback)
 		# for ii,net in zip(pixellist,netout):
 		# 	self.h5model_write(net[1],outfile,self.wavelength[ii])
 		# 	self.h5opt_write(net[2],outfile,self.wavelength[ii])
