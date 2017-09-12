@@ -168,7 +168,7 @@ class TrainSpec_V2(object):
 
 			pool = Pool(processes=ncpus)
 			# init the map for the pixel training using the pool imap
-			netout = pool.imap(self,pixellist,chunksize=5)
+			netout = pool.map(self,pixellist)
 
 		else:
 			# init the map for the pixel training using the standard serial imap
