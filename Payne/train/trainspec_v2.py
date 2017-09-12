@@ -185,7 +185,7 @@ class TrainSpec_V2(object):
 			self.h5model_write(net[1],outfile,self.wavelength[ii])
 			self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			wave_h5[ii]  = self.wavelength[ii]
-
+			print(self.wavelength[ii],np.array(wave_h5[ii]))
 			# flush output file to save results
 			outfile.flush()
 
