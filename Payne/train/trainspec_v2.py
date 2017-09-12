@@ -136,15 +136,6 @@ class TrainSpec_V2(object):
 		'''
 		return self.train_pixel(pixel_no)
 
-	def dycallback(self,net):
-		self.h5model_write(net[1],outfile,self.wavelength[net[0]])
-		self.h5opt_write(net[2],outfile,self.wavelength[net[0]])
-		wave_h5[net[0]]  = self.wavelength[net[0]]
-		print(self.wavelength[net[0]],np.array(wave_h5[net[0]]))
-		# flush output file to save results
-		sys.stdout.flush()
-		outfile.flush()
-
 
 	def run(self,mp=False,ncpus=1):
 		'''
@@ -178,7 +169,7 @@ class TrainSpec_V2(object):
 
 			pool = Pool(processes=ncpus)
 			# init the map for the pixel training using the pool imap
-			netout = pool.map_async#self,pixellist)
+			netout = pool.imap(self,pixellist)
 
 		else:
 			# init the map for the pixel training using the standard serial imap
@@ -190,15 +181,14 @@ class TrainSpec_V2(object):
 		print('... Starting Training at {0}'.format(tottimestart))
 		sys.stdout.flush()
 
-		result = pool.map_async(self,pixellist,callback=self.dycallback)
-		# for ii,net in zip(pixellist,netout):
-		# 	self.h5model_write(net[1],outfile,self.wavelength[ii])
-		# 	self.h5opt_write(net[2],outfile,self.wavelength[ii])
-		# 	wave_h5[ii]  = self.wavelength[ii]
-		# 	print(self.wavelength[ii],np.array(wave_h5[ii]))
-		# 	# flush output file to save results
-		# 	sys.stdout.flush()
-		# 	outfile.flush()
+		for ii,net in zip(pixellist,netout):
+			wave_h5[ii]  = self.wavelength[ii]
+			print(wave_h5)
+			self.h5model_write(net[1],outfile,self.wavelength[ii])
+			self.h5opt_write(net[2],outfile,self.wavelength[ii])
+			# flush output file to save results
+			sys.stdout.flush()
+			outfile.flush()
 		result.wait()
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
