@@ -181,7 +181,6 @@ class TrainSpec_GPU(object):
 		sys.stdout.flush()
 
 		for ii,net in zip(pixellist,netout):
-			sys.stdout.flush()
 			self.h5model_write(net[1],outfile,self.wavelength[ii])
 			self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			wave_h5[ii]  = self.wavelength[ii]
