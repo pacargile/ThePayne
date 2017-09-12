@@ -199,7 +199,7 @@ class TrainSpec_V2(object):
 		# 	# flush output file to save results
 		# 	sys.stdout.flush()
 		# 	outfile.flush()
-
+		result.wait()
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
 		sys.stdout.flush()
