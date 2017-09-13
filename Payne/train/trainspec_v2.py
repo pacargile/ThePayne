@@ -183,13 +183,12 @@ class TrainSpec_V2(object):
 
 		for ii,net in zip(pixellist,netout):
 			wave_h5[ii]  = self.wavelength[ii]
-			print(wave_h5)
-			self.h5model_write(net[1],outfile,self.wavelength[ii])
-			self.h5opt_write(net[2],outfile,self.wavelength[ii])
+			# self.h5model_write(net[1],outfile,self.wavelength[ii])
+			# self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			# flush output file to save results
 			sys.stdout.flush()
 			outfile.flush()
-		result.wait()
+
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
 		sys.stdout.flush()
@@ -302,7 +301,7 @@ class TrainSpec_V2(object):
 			th5.create_dataset('model_{0}/model/{1}'.format(wavelength,kk),
 				data=model.state_dict()[kk].numpy(),
 				compression='gzip')
-		th5.flush()
+		# th5.flush()
 
 	def h5opt_write(self,optimizer,th5,wavelength):
 		'''
@@ -336,4 +335,4 @@ class TrainSpec_V2(object):
 							'opt_{0}/optimizer/param_groups/{1}'.format(wavelength,jj),
 							data=np.array([pgdict[jj]]),compression='gzip')
 
-		th5.flush()
+		# th5.flush()
