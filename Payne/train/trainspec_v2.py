@@ -169,11 +169,11 @@ class TrainSpec_V2(object):
 
 			pool = Pool(processes=ncpus)
 			# init the map for the pixel training using the pool imap
-			netout = pool.imap(self,pixellist)
+			netout = pool.imap#(self,pixellist)
 
 		else:
 			# init the map for the pixel training using the standard serial imap
-			netout = imap(self,pixellist)
+			netout = imap#(self,pixellist)
 
 		# start total timer
 		tottimestart = datetime.now()
@@ -181,10 +181,11 @@ class TrainSpec_V2(object):
 		print('... Starting Training at {0}'.format(tottimestart))
 		sys.stdout.flush()
 
-		for ii,net in zip(pixellist,netout):
-			wave_h5[ii]  = self.wavelength[ii]
-			# self.h5model_write(net[1],outfile,self.wavelength[ii])
-			# self.h5opt_write(net[2],outfile,self.wavelength[ii])
+		for pixellist_i in np.array_split(np.array(pixellist),int(numtrainedpixles/ncpus)):
+			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
+				wave_h5[ii]  = self.wavelength[ii]
+				self.h5model_write(net[1],outfile,self.wavelength[ii])
+				self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			# flush output file to save results
 			sys.stdout.flush()
 			outfile.flush()
