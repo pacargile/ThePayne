@@ -303,10 +303,14 @@ class TrainSpec_V2(object):
 		'''
 		Write trained model to HDF5 file
 		'''
-		for kk in model.state_dict().keys():
-			th5.create_dataset('model_{0}/model/{1}'.format(wavelength,kk),
-				data=model.state_dict()[kk].numpy(),
-				compression='gzip')
+		try:
+			for kk in model.state_dict().keys():
+				th5.create_dataset('model_{0}/model/{1}'.format(wavelength,kk),
+					data=model.state_dict()[kk].numpy(),
+					compression='gzip')
+		except RuntimeError:
+			print('PROBLEM WITH WAVELENGTH = {0}'.format(wavelength))
+			raise
 		# th5.flush()
 
 	def h5opt_write(self,optimizer,th5,wavelength):
