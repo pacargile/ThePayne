@@ -309,7 +309,7 @@ class TrainSpec_V2(object):
 					data=model.state_dict()[kk].numpy(),
 					compression='gzip')
 		except RuntimeError:
-			print('PROBLEM WITH WAVELENGTH = {0}'.format(wavelength))
+			print('!!! PROBLEM WITH WRITING TO HDF5 FOR WAVELENGTH = {0} !!!'.format(wavelength))
 			raise
 		# th5.flush()
 
