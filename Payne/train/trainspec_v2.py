@@ -280,7 +280,7 @@ class TrainSpec_V2(object):
 				# Backward pass: compute gradient of the loss with respect to model parameters
 				loss.backward()
 				
-				if (t+1) % 50 == 0:
+				if (t+1) % 500 == 0:
 					print (
 						'Pixel: {0} -- Step [{1:d}/{2:d}], Step Time: {3}, Loss: {4:.4f}'.format(
 						pixel_no,t+1, self.niter, datetime.now()-steptime, loss.data[0])

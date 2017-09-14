@@ -190,7 +190,6 @@ class TrainSpec_GPU(object):
 				self.h5model_write(net[1],outfile,self.wavelength[ii])
 				self.h5opt_write(net[2],outfile,self.wavelength[ii])
 				wave_h5[ii]  = self.wavelength[ii]
-
 			# flush output file to save results
 			outfile.flush()
 			sys.stdout.flush()
@@ -292,7 +291,7 @@ class TrainSpec_GPU(object):
 				# Backward pass: compute gradient of the loss with respect to model parameters
 				loss.backward()
 				
-				if (t+1) % 50 == 0:
+				if (t+1) % 500 == 0:
 					print (
 						'Pixel: {0} -- Step [{1:d}/{2:d}], Step Time: {3}, Loss: {4:.4f}'.format(
 						pixel_no,t+1, self.niter, datetime.now()-steptime, loss.data[0])
@@ -319,7 +318,7 @@ class TrainSpec_GPU(object):
 
 			for kk in model.state_dict().keys():
 				th5.create_dataset('model_{0}/model/{1}'.format(wavelength,kk),
-					data=model.state_dict()[kk].numpy(),
+					data=model.state_dict()[kk].cpu().numpy(),
 					compression='gzip')
 		except RuntimeError:
 			print('!!! PROBLEM WITH WRITING TO HDF5 FOR WAVELENGTH = {0} !!!'.format(wavelength))
@@ -338,7 +337,7 @@ class TrainSpec_GPU(object):
 					for ll in optimizer.state_dict()['state'][jj].keys():
 	  					try:
 							# check to see if it is a Tensor or an Int
-							data = optimizer.state_dict()['state'][jj][ll].numpy()
+							data = optimizer.state_dict()['state'][jj][ll].cpu().numpy()
 						except AttributeError:
 							# create an int array to save in the HDF5 file
 							data = np.array([optimizer.state_dict()['state'][jj][ll]])
