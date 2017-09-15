@@ -270,7 +270,7 @@ class TrainSpec_GPU(object):
 		# loss_fn = torch.nn.KLDivLoss(size_average=False)
 
 		# initialize the optimizer
-		learning_rate = 1e-6
+		learning_rate = 1e-4
 		optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 		# optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
