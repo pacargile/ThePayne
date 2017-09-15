@@ -60,7 +60,7 @@ class TrainSpec_GPU(object):
 		if 'H' in kwargs:
 			self.H = kwargs['H']
 		else:
-			self.H = 256
+			self.H = 12
 
 		# wavelength range to train on in angstroms
 		if 'waverange' in kwargs:
