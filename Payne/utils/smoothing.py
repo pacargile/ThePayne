@@ -5,6 +5,7 @@
 
 import numpy as np
 from numpy.fft import fft, ifft, fftfreq, rfftfreq
+from scipy.special import j1
 
 __all__ = ["smoothspec", "smooth_wave", "smooth_vel", "smooth_lsf",
            "smooth_wave_fft", "smooth_vel_fft", "smooth_fft", "smooth_lsf_fft",
@@ -45,6 +46,7 @@ def smoothspec(wave, spec, resolution=None, outwave=None,
           present as an additional ``lsf`` keyword.  In this case all
           additional keywords as well as the ``wave`` vector will be passed to
           this ``lsf`` function.
+        * vsini - velocity smoothing that uses a tapered gaussian, units are in km/s
     :param fftsmooth: (optional, default: True)
         Switch to use FFTs to do the smoothing, usually resulting in massive
         speedups of all algorithms.
@@ -86,6 +88,16 @@ def smoothspec(wave, spec, resolution=None, outwave=None,
         Rsigma = ckms / sigma
         R = ckms / fwhm
         width = Rsigma
+
+    elif smoothtype == 'vsini':
+        linear = False
+        units = 'km/s'
+        sigma = resolution
+        fwhm = sigma * sigma_to_fwhm
+        Rsigma = ckms / sigma
+        R = ckms / fwhm
+        width = Rsigma
+
 
     elif smoothtype == 'R':
         linear = False
@@ -135,10 +147,13 @@ def smoothspec(wave, spec, resolution=None, outwave=None,
         else:
             smooth_method = smooth_wave
     else:
-        if fftsmooth:
-            smooth_method = smooth_vel_fft
-        else:
-            smooth_method = smooth_vel
+        if smoothtype == 'vsini':
+            smooth_method = smooth_vsini_fft
+        else:                        
+            if fftsmooth:
+                smooth_method = smooth_vel_fft
+            else:
+                smooth_method = smooth_vel
 
     return smooth_method(w, s, outwave, sigma, **kwargs)
 
@@ -218,6 +233,30 @@ def smooth_vel_fft(wavelength, spectrum, outwave, sigma_out, inres=0.0,
 
     # Do the convolution
     spec_conv = smooth_fft(dv, spec, sigma)
+    # interpolate onto output grid
+    if outwave is not None:
+        spec_conv = np.interp(outwave, wave, spec_conv)
+
+    return spec_conv
+
+def smooth_vsini_fft(wavelength, spectrum, outwave, sigma_out, inres=0.0,
+                   **extras):
+    # The kernel width for the convolution.
+    sigma = np.sqrt(sigma_out**2 - inres**2)
+    if sigma <= 0:
+        return np.interp(outwave, wavelength, spectrum)
+
+    # make length of spectrum a power of 2 by resampling
+    wave, spec = resample_wave(wavelength, spectrum)
+
+    # get grid resolution (*not* the resolution of the input spectrum) and make
+    # sure it's nearly constant.  It should be, by design (see resample_wave)
+    invRgrid = np.diff(np.log(wave))
+    assert invRgrid.max() / invRgrid.min() < 1.05
+    dv = ckms * np.median(invRgrid)
+
+    # Do the convolution
+    spec_conv = smooth_fft_vsini(dv, spec, sigma)
     # interpolate onto output grid
     if outwave is not None:
         spec_conv = np.interp(outwave, wave, spec_conv)
@@ -497,6 +536,26 @@ def smooth_fft(dx, spec, sigma):
     spec_conv = np.fft.irfft(ff_tapered)
     return spec_conv
 
+def smooth_fft_vsini(dv,spec,sigma):
+    # The Fourier coordinate
+    ss = rfftfreq(len(spec), d=dv)
+
+    # Make the fourier space taper
+    ss[0] = 0.01 #junk so we don't get a divide by zero error
+    ub = 2. * np.pi * sigma * ss
+    sb = j1(ub) / ub - 3 * np.cos(ub) / (2 * ub ** 2) + 3. * np.sin(ub) / (2 * ub ** 3)
+    #set zeroth frequency to 1 separately (DC term)
+    sb[0] = 1.
+
+    # Fourier transform the spectrum
+    FF = np.fft.rfft(spec)
+
+    # Multiply in fourier space
+    FF_tap = FF * sb
+
+    # Fourier transform back
+    spec_conv = np.fft.irfft(FF_tap)
+    return spec_conv
 
 def mask_wave(wavelength, width=1, wlo=0, whi=np.inf, outwave=None,
               nsigma_pad=20.0, linear=False, **extras):

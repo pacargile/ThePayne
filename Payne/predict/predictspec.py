@@ -153,7 +153,18 @@ class PaynePredict(object):
 				rot_vel_bool = True
 				# use B.Johnson's smoothspec to convolve with rotational broadening
 				modspec = self.smoothspec(modwave,modspec,kwargs['rot_vel'],
-					outwave=None,smoothtype='vel',fftsmooth=True)
+					outwave=None,smoothtype='vsini',fftsmooth=True)
+
+				# TEST THE FOLLOWING
+				# # apply macroturbulent broadening using Doyle et al. 2014 relationship
+				# vmac = (
+				# 	3.21 + 
+				# 	2.33 * (10.0**−3.0)*(10.0**self.inputdict['logt'] − 5777.0) + 
+				# 	2.00 * (10.0**−6.0)*(10.0**self.inputdict['logt'] − 5777.0)**2.0 - 
+				# 	2.00 * (self.inputdict['logg'] − 4.44)
+				# 	)
+				# modspec = self.smoothspec(modwave,modspec,vmac,
+				# 	outwave=None,smoothtype='vel',fftsmooth=True)
 
 		rad_vel_bool = False
 		if 'rad_vel' in kwargs:
