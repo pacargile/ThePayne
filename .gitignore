@@ -8,8 +8,8 @@ apj*
 *~
 *.pyc
 junk*
-detritus/
+Payne.egg-info/
 build/
 _build/
 dist/
-data
+data/
