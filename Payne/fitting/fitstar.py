@@ -220,7 +220,7 @@ class FitPayne(object):
 		# initialize sampler object
 		dy_sampler = dynesty.NestedSampler(
 			lnprobfn,
-			self.priorfn.priortrans,
+			self.priorobj.priortrans,
 			self.ndim,
 			logl_args=[self.likeobj,self.priorobj],
 			nlive=npoints,

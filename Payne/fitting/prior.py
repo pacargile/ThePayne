@@ -14,12 +14,14 @@ class prior(object):
 		self.additionalpriors = {}
 
 		for kk in inpriordict.keys():
-			if len(inpriordict[kk].keys()) > 0:
-				for ii in inpriordict[kk].keys():
-					if 'uniform' in inpriordict[kk].keys():
-						self.priordict[kk] = inpriordict[kk]['uniform']
-					else:
-						self.additionalpriors[kk] = inpriordict[kk][ii]
+			for ii in inpriordict[kk].keys():
+				if ii == 'uniform':
+					self.priordict[kk] = inpriordict[kk]['uniform']
+				else:
+					try:
+						self.additionalpriors[kk][ii] = inpriordict[kk][ii]
+					except KeyError:
+						self.additionalpriors[kk] = {ii:inpriordict[kk][ii]}
 
 		# split up the boolean flags
 		self.spec_bool = runbools[0]
@@ -282,7 +284,7 @@ class prior(object):
 
 	def lnprior_phot(self,pars,verbose=True):
 		lnprior = 0.0
-		
+
 		# pull out the pars and put into a dictionary
 		pardict = {}
 		pardict['Teff']   = pars[0]

@@ -63,6 +63,14 @@ print('    Median Spec Flux: ')
 print('       {0}'.format(np.median(inputdict['spec']['obs_flux'])))
 print('    Median Spec Err_Flux:')
 print('       {0}'.format(np.median(inputdict['spec']['obs_eflux'])))
+print('    PRIORS:')
+for kk in inputdict['priordict'].keys():
+	for kk2 in inputdict['priordict'][kk].keys():
+		if kk2 == 'uniform':
+			print('       {0}: min={1} max={2}'.format(kk,inputdict['priordict'][kk][kk2][0],inputdict['priordict'][kk][kk2][1]))
+		if kk2 == 'gaussian':
+			print('       {0}: N({1},{2})'.format(kk,inputdict['priordict'][kk][kk2][0],inputdict['priordict'][kk][kk2][1]))
+
 print('--------------')
 
 sys.stdout.flush()
