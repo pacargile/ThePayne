@@ -7,15 +7,15 @@ class likelihood(object):
 		super(likelihood, self).__init__()
 
 		self.verbose = kwargs.get('verbose',True)
-
-		self.GM = GenMod()
-
 		self.fitargs = fitargs
 		self.spec_bool,self.phot_bool,self.normspec_bool = runbools
 
+		# initialize the model generation class
+		self.GM = GenMod()
+
+		# initialize the ANN for spec and phot if user defined
 		if self.spec_bool:
 			self.GM._initspecnn(nnpath=fitargs['specANNpath'])
-
 		if self.phot_bool:
 			self.GM._initphotnn(self.fitargs['obs_phot'].keys(),
 				nnpath=fitargs['photANNpath'])
@@ -23,13 +23,11 @@ class likelihood(object):
 		# determine the number of dims
 		if self.spec_bool:
 			self.ndim = 7
-
 		if self.phot_bool:
 			if self.spec_bool:
 				self.ndim = 10
 			else:
 				self.ndim = 6
-
 		if self.normspec_bool:
 			self.polyorder = self.fitargs['norm_polyorder']
 			if self.phot_bool:
@@ -46,16 +44,7 @@ class likelihood(object):
 			logR,Dist,Av = pars[-3:]
 		else:
 			Teff,logg,FeH,logR,Dist,Av = pars
-
-		# if (self.ndim == 7) or (self.ndim == 7+self.polyorder+1):
-		# 	Teff,logg,FeH,aFe,radvel,rotvel,inst_R = pars[:7]
-		# elif (self.ndim == 10) or (self.ndim == 10+self.polyorder+1):
-		# 	Teff,logg,FeH,aFe,radvel,rotvel,inst_R = pars[:7]
-		# 	logR,Dist,Av = pars[-3:]
-		# else:
-		# 	#self.ndim == 6
-		# 	Teff,logg,FeH,logR,Dist,Av = pars
-
+		
 		if self.spec_bool:
 			specpars = [Teff,logg,FeH,aFe,radvel,rotvel,inst_R]
 			if self.normspec_bool:

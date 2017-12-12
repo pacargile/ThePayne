@@ -184,7 +184,7 @@ class FitPayne(object):
 		self.outff = open(self.output,'w')
 		self.outff.write('Iter ')
 		if self.spec_bool:
-			self.outff.write('Iter Teff logg FeH aFe Vrad Vrot Inst_R ')
+			self.outff.write('Teff logg FeH aFe Vrad Vrot Inst_R ')
 
 			if self.normspec_bool:
 				for ii in range(self.polyorder+1):
@@ -192,7 +192,7 @@ class FitPayne(object):
 
 		if self.phot_bool:
 			if not self.spec_bool:
-				self.outff.write('Iter Teff logg FeH ')
+				self.outff.write('Teff logg FeH ')
 
 			self.outff.write('logR Dist Av ')
 		self.outff.write('log(lk) log(vol) log(wt) h nc log(z) delta(log(z))')

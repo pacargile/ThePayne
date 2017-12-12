@@ -14,7 +14,7 @@ inputdict['spec']['obs_wave'] = demospec['WAVE']
 inputdict['spec']['obs_flux'] = demospec['FLUX']
 # error of SNR = 50
 inputdict['spec']['obs_eflux'] = demospec['FLUX']/50.0
-# inputdict['spec']['normspec']['bool'] = False
+# inputdict['spec']['normspec']['bool'] = True
 # inputdict['spec']['normspec']['blaze_coeff'] = ([
 # 	[0.0720479608681,0.0525086134796],
 # 	[-0.261792998145,0.0575258483974],
