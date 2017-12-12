@@ -282,7 +282,7 @@ class prior(object):
 
 	def lnprior_phot(self,pars,verbose=True):
 		lnprior = 0.0
-
+		
 		# pull out the pars and put into a dictionary
 		pardict = {}
 		pardict['Teff']   = pars[0]
