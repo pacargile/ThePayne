@@ -44,13 +44,15 @@ inputdict['sampler']['flushnum'] = 100
 
 inputdict['output'] = 'OUTPUTFILE.dat'
 
+# set some flat priors for defining the prior volume
 inputdict['priordict'] = {}
-inputdict['priordict']['Teff']   = [5000.0,6500.0]
-inputdict['priordict']['log(g)'] = [3.0,5.0]
-inputdict['priordict']['[Fe/H]'] = [-0.25,0.25]
-inputdict['priordict']['Dist'] = [5.0,20.0]
+inputdict['priordict']['Teff']   = {'uniform':[5000.0,6500.0]}
+inputdict['priordict']['log(g)'] = {'uniform':[3.0,5.0]}
+inputdict['priordict']['[Fe/H]'] = {'uniform':[-0.25,0.25]}
+inputdict['priordict']['Dist']   = {'uniform':[5.0,20.0]}
 
-
+# set an additional guassian prior on the instrument profile
+inputdict['priordict']['Inst_R'] = {'gaussian':[32000.0,1000.0]}
 
 FS = fitstar.FitPayne()
 print('---------------')

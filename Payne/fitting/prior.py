@@ -2,9 +2,26 @@ import numpy as np
 
 class prior(object):
 	"""docstring for priors"""
-	def __init__(self, priordict,runbools):
+	def __init__(self, inpriordict,runbools):
 		super(prior, self).__init__()
-		self.priordict = priordict
+
+		# find uniform priors and put them into a 
+		# dictionary used for the prior transformation
+		self.priordict = {}
+
+		# put any additional priors into a dictionary so that
+		# they can be applied in the lnprior_* functions
+		self.additionalpriors = {}
+
+		for kk in inpriordict.keys():
+			if len(inpriordict[kk].keys()) > 0:
+				for ii in inpriordict[kk].keys():
+					if 'uniform' in inpriordict[kk].keys():
+						self.priordict[kk] = inpriordict[kk]['uniform']
+					else:
+						self.additionalpriors[kk] = inpriordict[kk][ii]
+
+		# split up the boolean flags
 		self.spec_bool = runbools[0]
 		self.phot_bool = runbools[1]
 		self.normspec_bool = runbools[2]
@@ -19,15 +36,8 @@ class prior(object):
 		else:
 			Teff,logg,FeH,logR,Dist,Av = upars
 
-		# if (self.ndim == 7) or (self.ndim == 7+self.polyorder+1):
-		# 	Teff,logg,FeH,aFe,radvel,rotvel,inst_R = upars[:7]
-		# elif (self.ndim == 10) or (self.ndim == 10+self.polyorder+1):
-		# 	Teff,logg,FeH,aFe,radvel,rotvel,inst_R = upars[:7]
-		# 	logR,Dist,Av = upars[-3:]
-		# else:
-		# 	#self.ndim == 6
-		# 	Teff,logg,FeH,logR,Dist,Av = upars
-
+		# determine what paramters go into the spec function and 
+		# calculate prior transformation for spectrum
 		if self.spec_bool:
 			uspecpars = [Teff,logg,FeH,aFe,radvel,rotvel,inst_R]
 
@@ -42,16 +52,20 @@ class prior(object):
 		else:
 			specPT = []
 
+		# determine what paramters go into the phot function and 
+		# calcuate prior transformation for SED
 		if self.phot_bool:
 			uphotpars = [Teff,logg,FeH,logR,Dist,Av]
 			photPT = self.priortrans_phot(uphotpars)
 		else:
 			photPT = []
 
+		# return prior transformed parameters
 		outpars = specPT + photPT
 		return outpars
 
 	def priortrans_spec(self,upars):
+		# split up scaled parameters
 		uTeff   = upars[0]
 		ulogg   = upars[1]
 		uFeH    = upars[2]
@@ -60,6 +74,9 @@ class prior(object):
 		urotvel = upars[5]
 		uinst_R = upars[6]
 	
+		# calcuate transformation from prior volume to parameter for all modeled parameters
+		# EVENTUALLY TAKE IN ANN FILE AND DETERMINE DEFAULT GRID LIMITS FOR UNIFORM PRIORS
+
 		if 'Teff' in self.priordict.keys():
 			Teff = (max(self.priordict['Teff'])-min(self.priordict['Teff']))*uTeff + min(self.priordict['Teff'])
 		else:
@@ -101,6 +118,7 @@ class prior(object):
 
 		outarr = [Teff,logg,FeH,aFe,radvel,rotvel,inst_R]
 
+		# if fitting a blaze function, do transformation for polycoef
 		if self.normspec_bool:
 			uspec_scale = upars[7]
 			upolycoef = upars[8:]
@@ -109,19 +127,18 @@ class prior(object):
 			spec_scale = (0.1-0.0)*uspec_scale + 0.0
 			outarr.append(spec_scale)
 
+			# use a 5-sigma limit on uniform priors for polycoef
 			for ii,upolycoef_i in enumerate(upolycoef):
 				pcmax = self.polycoefarr[ii][0]+5.0*self.polycoefarr[ii][1]
 				pcmin = self.polycoefarr[ii][0]-5.0*self.polycoefarr[ii][1]
-
 				polycoef_i = (pcmax-pcmin)*upolycoef_i + pcmin
-
-				# polycoef_i = 6.0*self.polycoefarr[kk][1]*upolycoef_i + 3.0*self.polycoefarr[kk][1] - self.polycoefarr[kk][0]
 				outarr.append(polycoef_i)
 
 		return outarr
 
 	def priortrans_phot(self,upars):
 
+		# if only fitting the SED, pull Teff/logg/FeH and do prior transformation
 		if not self.spec_bool:
 			uTeff   = upars[0]
 			ulogg   = upars[1]
@@ -146,6 +163,7 @@ class prior(object):
 		else:
 			outarr = []
 
+		# pull SED only parameters and do prior transformation
 		ulogR  = upars[3]
 		uDist = upars[4]
 		uAv   = upars[5]
@@ -171,47 +189,83 @@ class prior(object):
 
 		return outarr
 
+	def lnpriorfn(self,pars):
+		# check to see if any priors in additionalprior dictionary,
+		# save time by quickly returning zero if there are none
+		if len(self.additionalpriors.keys()) == 0:
+			return 0.0
+
+		# split pars based on the runbools
+		if (self.spec_bool and not self.phot_bool):
+			Teff,logg,FeH,aFe,radvel,rotvel,inst_R = pars[:7]
+		elif (self.spec_bool and self.phot_bool):
+			Teff,logg,FeH,aFe,radvel,rotvel,inst_R = pars[:7]
+			logR,Dist,Av = pars[-3:]
+		else:
+			Teff,logg,FeH,logR,Dist,Av = pars
+
+		# determine what paramters go into the spec function
+		if self.spec_bool:
+			specpars = [Teff,logg,FeH,aFe,radvel,rotvel,inst_R]
+			if self.normspec_bool:
+				if self.phot_bool:
+					polypars = pars[7:-3]
+				else:
+					polypars = pars[7:]
+				for pp in polypars:
+					specpars.append(pp)
+			lnP_spec = self.lnprior_spec(specpars)
+			if lnP_spec == -np.inf:
+				return -np.inf
+		else:
+			lnP_spec = 0.0
+
+		# determine what paramters go into the phot function
+		if self.phot_bool:
+			photpars = [Teff,logg,FeH,logR,Dist,Av]
+			lnP_phot = self.lnprior_phot(photpars)
+			if lnP_phot == -np.inf:
+				return -np.inf
+		else:
+			lnP_phot = 0.0
+
+		# sun prior probabilities for spec and SED
+		lnprior_i = lnP_spec + lnP_phot
+
+		return lnprior_i
+
 
 	def lnprior_spec(self,pars,verbose=True):
 		lnprior = 0.0
 
-		Teff = pars[0]
-		logg = pars[1]
-		FeH  = pars[2]
-		aFe = pars[3]
-		radvel = pars[4]
-		rotvel = pars[5]
-		inst_R = pars[6]
+		pardict = {}
+		pardict['Teff']   = pars[0]
+		pardict['log(g)'] = pars[1]
+		pardict['[Fe/H]'] = pars[2]
+		pardict['[a/Fe]'] = pars[3]
+		pardict['Vrad']   = pars[4]
+		pardict['Vrot']   = pars[5]
+		pardict['Inst_R'] = pars[6]
 
-		# check to make sure pars are in grid used to train NN
-		if (Teff < 10.0**self.GM.PP.NN['x_min'][0]) | (Teff > 10.0**self.GM.PP.NN['x_max'][0]):
-			if verbose:
-				print('Hit Teff Prior Bounds!: {0}'.format(Teff))
-			return -np.inf
-		if (logg < self.GM.PP.NN['x_min'][1]) | (logg > self.GM.PP.NN['x_max'][1]):
-			if verbose:
-				print('Hit log(g) Prior Bounds!: {0}'.format(logg))
-			return -np.inf
-		if (FeH < self.GM.PP.NN['x_min'][2])  | (FeH > self.GM.PP.NN['x_max'][2]):
-			if verbose:
-				print('Hit [Fe/H] Prior Bounds!: {0}'.format(FeH))
-			return -np.inf
-		if (aFe < self.GM.PP.NN['x_min'][3])  | (aFe > self.GM.PP.NN['x_max'][3]):
-			if verbose:
-				print('Hit [a/Fe] Prior Bounds!: {0}'.format(aFe))
-			return -np.inf
-		if (np.abs(radvel) > 400.0):
-			if verbose:
-				print('Hit Vrad Prior Bounds!: {0}'.format(radvel))
-			return -np.inf
-		if (rotvel <= 0.0) | (rotvel > 300.0):
-			if verbose:
-				print('Hit Vrot Prior Bounds!: {0}'.format(rotvel))
-			return -np.inf
-		if (inst_R <= 10000) | (inst_R > 42000.0):
-			if verbose:
-				print('Hit Instr_R Prior Bounds!: {0}'.format(inst_R))
-			return -np.inf
+		# check to see if any of these parameter are included in additionalpriors dict
+		if len(self.additionalpriors.keys()) > 0:
+			for kk in self.additionalpriors.keys():
+				# check to see if additional prior is for a spectroscopic parameter
+				if kk in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R']:
+					# if prior is Gaussian
+					if 'gaussian' in self.additionalpriors[kk].keys():
+						lnprior += -0.5 * (((pardict[kk]-self.additionalpriors[kk]['gaussian'][0])**2.0)/
+							(self.additionalpriors[kk]['gaussian'][1]**2.0))
+					elif 'flat' in self.additionalpriors[kk].keys():
+						if ((pardict[kk] < self.additionalpriors[kk]['flat'][0]) or 
+							(pardict[kk] > self.additionalpriors[kk]['flat'][1])):
+							return -np.inf
+					elif 'beta' in self.additionalpriors[kk].keys():
+						raise IOError('Beta Prior not implimented yet!!!')
+					elif 'log-normal' in self.additionalpriors[kk].keys():
+						raise IOError('Log-Normal Prior not implimented yet!!!')
+					else:
+						pass
 
 		if self.normspec_bool:
 			spec_scale = pars[7]
@@ -223,58 +277,39 @@ class prior(object):
 			# for kk,pp in enumerate(polycoef):
 			# 	lnprior += -0.5 * ((pp-self.polycoefarr[kk][0])**2.0) / ((0.1*self.polycoefarr[kk][0])**2.0)
 
-		# lnprior += -0.5 * ((inst_R-42000.0)**2.0)/(1000.0**2.0)
-		# lnprior += -0.5 *((logg-4.16)**2.0)/(0.1**2.0)
-
-		# lnprior += (
-		# 	- 0.5*((Teff-5770.0)**2.0)/(10.0**2.0) 
-		# 	- 0.5*((logg-4.44)**2.0)/(0.01**2.0) 
-		# 	- 0.5*(FeH**2.0)/(0.01**2.0) 
-		# 	- 0.5*(aFe**2.0)/(0.01**2.0)
-		# 	)
 
 		return lnprior
 
 	def lnprior_phot(self,pars,verbose=True):
 		lnprior = 0.0
 
-		Teff = pars[0]
-		logg = pars[1]
-		FeH  = pars[2]
-		logR = pars[3]
-		Dist = pars[4]
-		Av = pars[5]
+		# pull out the pars and put into a dictionary
+		pardict = {}
+		pardict['Teff']   = pars[0]
+		pardict['log(g)'] = pars[1]
+		pardict['[Fe/H]'] = pars[2]
+		pardict['log(R)'] = pars[3]
+		pardict['Dist']   = pars[4]
+		pardict['Av']     = pars[5]
 
-		if not self.spec_bool:
-			if (Teff < 2500.0) | (Teff > 30000.0):
-				if verbose:
-					print('Hit phot Teff Prior Bounds!: {0}'.format(Teff))
-				return -np.inf
-			if (logg < -1.0) | (logg > 6.0):
-				if verbose:
-					print('Hit phot log(g) Prior Bounds!: {0}'.format(logg))
-				return -np.inf
-			if (FeH < -4.0) | (FeH > 0.5):
-				if verbose:
-					print('Hit phot FeH Prior Bounds!: {0}'.format(FeH))
-				return -np.inf
-
-		if (logR > 3.0) | (logR < -2.0):
-			if verbose:
-				print('Hit logR Prior Bounds!: {0}'.format(logR))
-			return -np.inf
-
-		if (Dist >= 1000.0) | (Dist < 200.0):
-			if verbose:
-				print('Hit Dist Prior Bounds!: {0}'.format(Dist))
-			return -np.inf
-
-		if (Av < 0.0) | (Av > 3.0):
-			if verbose:
-				print('Hit Av Prior Bounds!: {0}'.format(Av))
-			return -np.inf
-		# lnprior += -1.0*(Av/0.1)
-		# lnprior += -0.5 * ((Dist-10.0)**2.0)/(0.1**2.0)		
-		# lnprior += -0.5 * ( ( (1000.0/Dist) - 2.04)**2.0 ) / (0.3**2.0)
+		# check to see if any of these parameter are included in additionalpriors dict
+		if len(self.additionalpriors.keys()) > 0:
+			for kk in self.additionalpriors.keys():
+				# check to see if additional prior is for a spectroscopic parameter
+				if kk in ['Teff','log(g)','[Fe/H]','log(R)','Dist','Av']:
+					# if prior is Gaussian
+					if 'gaussian' in self.additionalpriors[kk].keys():
+						lnprior += -0.5 * (((pardict[kk]-self.additionalpriors[kk]['gaussian'][0])**2.0)/
+							(self.additionalpriors[kk]['gaussian'][1]**2.0))
+					elif 'flat' in self.additionalpriors[kk].keys():
+						if ((pardict[kk] < self.additionalpriors[kk]['flat'][0]) or 
+							(pardict[kk] > self.additionalpriors[kk]['flat'][1])):
+							return -np.inf
+					elif 'beta' in self.additionalpriors[kk].keys():
+						raise IOError('Beta Prior not implimented yet!!!')
+					elif 'log-normal' in self.additionalpriors[kk].keys():
+						raise IOError('Log-Normal Prior not implimented yet!!!')
+					else:
+						pass
 
 		return lnprior

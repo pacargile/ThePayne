@@ -35,7 +35,7 @@ class likelihood(object):
 			else:
 				self.ndim = 7+self.polyorder+1
 
-	def lnprob(self,pars):
+	def lnlikefn(self,pars):
 		# split upars based on the runbools
 		if (self.spec_bool and not self.phot_bool):
 			Teff,logg,FeH,aFe,radvel,rotvel,inst_R = pars[:7]
@@ -44,7 +44,8 @@ class likelihood(object):
 			logR,Dist,Av = pars[-3:]
 		else:
 			Teff,logg,FeH,logR,Dist,Av = pars
-		
+
+		# determine what paramters go into the spec function
 		if self.spec_bool:
 			specpars = [Teff,logg,FeH,aFe,radvel,rotvel,inst_R]
 			if self.normspec_bool:
@@ -57,28 +58,15 @@ class likelihood(object):
 		else:
 			specpars = None
 
+		# determine what paramters go into the phot function
 		if self.phot_bool:
 			photpars = [Teff,logg,FeH,logR,Dist,Av]
 		else:
 			photpars = None
 
-		# if self.spec_bool:
-		# 	lnprior_spec_i = self.lnprior_spec(specpars)
-		# else:
-		# 	lnprior_spec_i = 0.0
-
-		# if self.phot_bool:
-		# 	lnprior_phot_i = self.lnprior_phot(photpars)
-		# else:
-		# 	lnprior_phot_i = 0.0
-
-
-		# if (lnprior_spec_i == -np.inf) or (lnprior_phot_i == -np.inf):
-		# 	return -np.inf
-
+		# calculate likelihood probability
 		lnlike_i = self.lnlike(specpars=specpars,photpars=photpars)
 
-		# lnprob_i = lnlike_i + lnprior_spec_i + lnprior_phot_i
 		if lnlike_i == np.nan:
 			print(pars,lnlike_i)
 		return lnlike_i
@@ -101,6 +89,7 @@ class likelihood(object):
 			# generate model SED
 			sedmod  = self.GM.genphot(photpars)
 
+			# calculate chi-square for SED
 			sedchi2 = np.sum(
 				[((sedmod[kk]-self.fitargs['obs_phot'][kk][0])**2.0)/(self.fitargs['obs_phot'][kk][1]**2.0) 
 				for kk in self.fitargs['obs_phot'].keys()]
@@ -108,4 +97,5 @@ class likelihood(object):
 		else:
 			sedchi2 = 0.0
 
+		# return ln(like) = -0.5 * chi-square
 		return -0.5*(specchi2+sedchi2)

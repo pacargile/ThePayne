@@ -2,21 +2,21 @@
 # -*- coding: utf-8 -*-
 import sys
 import numpy as np
+from datetime import datetime 
 
 import dynesty
 
 from .fitutils import airtovacuum
 
-def lnprobfn(pars,likefn,priorfn):
+def lnprobfn(pars,likeobj,priorobj):
 	# first pass pars into priorfn
-	# lnprior = priorfn.likeprior(pars)
+	lnprior = priorobj.lnpriorfn(pars)
 
 	# check to see if outside of a flat prior
-	# if lnprior == -np.inf:
-		# return -np.inf
-	lnprior = 0.0
+	if lnprior == -np.inf:
+		return -np.inf
 
-	lnlike = likefn.lnprob(pars)
+	lnlike = likeobj.lnlikefn(pars)
 	if lnlike == -np.inf:
 		return -np.inf
 	
@@ -171,10 +171,10 @@ class FitPayne(object):
 		self._initoutput()
 
 		# initialize the prior class
-		self.priorfn = self.prior(priordict,runbools)
+		self.priorobj = self.prior(priordict,runbools)
 
 		# initialize the likelihood class
-		self.likefn = self.likelihood(fitargs,runbools)
+		self.likeobj = self.likelihood(fitargs,runbools)
 
 		# run sampler
 		sampler = self.runsampler(samplerdict)
@@ -222,7 +222,7 @@ class FitPayne(object):
 			lnprobfn,
 			self.priorfn.priortrans,
 			self.ndim,
-			logl_args=[self.likefn,self.priorfn],
+			logl_args=[self.likeobj,self.priorobj],
 			nlive=npoints,
 			bound=samplertype,
 			sample=samplemethod,
@@ -235,6 +235,7 @@ class FitPayne(object):
 		ncall = 0
 		nit = 0
 
+		# start sampling
 		for it, results in enumerate(dy_sampler.sample(dlogz=delta_logz_final)):
 			(worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
 				h, nc, worst_it, propidx, propiter, eff, delta_logz) = results			

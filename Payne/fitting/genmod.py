@@ -14,7 +14,7 @@ class GenMod(object):
 		from ..predict.predictspec import PaynePredict
 		from .fitutils import polycalc
 
-		# initialize the Payne Predictor
+		# initialize the Payne Spectrum Predictor
 		self.PP = PaynePredict(nnpath)
 
 	def _initphotnn(self,filterarray,nnpath=None):
@@ -22,6 +22,7 @@ class GenMod(object):
 
 		self.filterarray = filterarray
 
+		# for each input filter, read in the ANN file
 		ANNdict = {}
 		for ff in self.filterarray:
 			try:
