@@ -1,3 +1,15 @@
+manual*
+*log
+*aux
+*dvi
+*ps
+apj*
+*bib
+*~
 *.pyc
-*/*.pyc
+junk*
+detritus/
+build/
+_build/
+dist/
 data
