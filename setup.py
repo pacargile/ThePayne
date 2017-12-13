@@ -33,3 +33,20 @@ setup(
     install_requires=["numpy", "scipy", "dynesty", "torch"],
 )
 
+# write top level __init__.py file with the correct absolute path to package repo
+toplevelstr = ("""try:
+    from ._version import __version__
+except(ImportError):
+    pass
+
+from . import fitting
+from . import predict
+from . import train
+from . import testing
+from . import utils"""
+)
+
+with open('Payne/__init__.py','w') as ff:
+  ff.write(toplevelstr)
+  ff.write('\n')
+  ff.write("""__abspath__ = '{0}/'\n""".format(os.getcwd()))
