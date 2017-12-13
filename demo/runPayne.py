@@ -15,17 +15,6 @@ inputdict['spec']['obs_flux'] = demospec['FLUX']
 # error of SNR = 50
 inputdict['spec']['obs_eflux'] = demospec['FLUX']/50.0
 # inputdict['spec']['normspec']['bool'] = True
-# inputdict['spec']['normspec']['blaze_coeff'] = ([
-# 	[0.0720479608681,0.0525086134796],
-# 	[-0.261792998145,0.0575258483974],
-# 	[0.000243761834872,0.00702220288182],
-# 	[-0.0495597298557,0.043602355668],
-# 	[0.0315056023735,0.035893863888],
-# 	[-0.0127712929987,0.0297117232166],
-# 	[0.0301115761372,0.0351109513734],
-# 	[0.000130673860212,0.0106496054721],
-# 	[0.00425294373254,0.0189812284416]
-# 	])
 
 inputdict['phot'] = {}
 inputdict['photANNpath'] = '/Users/pcargile/Astro/GITREPOS/ThePayne/data/photANN/'
@@ -50,6 +39,18 @@ inputdict['priordict']['Teff']   = {'uniform':[5000.0,6500.0]}
 inputdict['priordict']['log(g)'] = {'uniform':[3.0,5.0]}
 inputdict['priordict']['[Fe/H]'] = {'uniform':[-0.25,0.25]}
 inputdict['priordict']['Dist']   = {'uniform':[5.0,20.0]}
+
+# inputdict['priordict']['blaze_coeff'] = ([
+# 	[0.0720479608681,0.0525086134796],
+# 	[-0.261792998145,0.0575258483974],
+# 	[0.000243761834872,0.00702220288182],
+# 	[-0.0495597298557,0.043602355668],
+# 	[0.0315056023735,0.035893863888],
+# 	[-0.0127712929987,0.0297117232166],
+# 	[0.0301115761372,0.0351109513734],
+# 	[0.000130673860212,0.0106496054721],
+# 	[0.00425294373254,0.0189812284416]
+# 	])
 
 # set an additional guassian prior on the instrument profile
 inputdict['priordict']['Inst_R'] = {'gaussian':[32000.0,1000.0]}
