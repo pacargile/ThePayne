@@ -1,52 +1,50 @@
 # #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import print_function
+
 import numpy as np
 import h5py
-from multiprocessing import Pool
 from scipy.interpolate import NearestNDInterpolator
 from scipy.stats import beta
 import os,sys
-from itertools import imap
 
-from ..utils.smoothing import smoothspec
+import Payne
+from .smoothing import smoothspec
 
 class pullspectra(object):
-	def __init__(self,):
+	def __init__(self,**kwargs):
 		# define the [Fe/H] array, this is the values that the MIST 
 		# and C3K grids are built
-		self.FeHarr = [-2.0,-1.75,-1.5,-1.25,-1.0,-0.75,-0.5,-0.25,0.0,0.25,0.5]
+		self.FeHarr = ([-4.0,-3.5,-3.0,-2.75,-2.5,-2.25,-2.0,-1.75,
+			-1.5,-1.25,-1.0,-0.75,-0.5,-0.25,0.0,0.25,0.5])
 
 		# define the [alpha/Fe] array
 		self.alphaarr = [0.0,0.2,0.4]
 
 		# define aliases for the MIST isochrones and C3K/CKC files
-		currentpath = __file__
-		if currentpath[-1] == 'c':
-			removeind = -27
-		else:
-			removeind = -26
-		self.MISTpath = os.path.dirname(__file__[:removeind]+'data/MIST/')
-		self.C3Kpath  = os.path.dirname(__file__[:removeind]+'data/C3K/')
+		self.MISTpath = kwargs.get('MISTpath',Payne.__abspath__+'data/MIST/')
+		self.C3Kpath  = kwargs.get('C3Kpath',Payne.__abspath__+'data/C3K/')
 
 		# load MIST models
-		MIST = h5py.File(self.MISTpath+'/MIST_full.h5','r')
-		MIST_MOD = np.array(MIST['MODPARS'])
-		MIST_STA = np.array(MIST['STARPARS'])
+		self.MIST = h5py.File(self.MISTpath+'/MIST_1.2_EEPtrk.h5','r')
+		self.MISTindex = list(self.MIST['index'])
 
 		# create weights for Teff
-		MIST_Teff = MIST_STA['log_Teff']
-		self.teffwgts = beta(0.5,0.5,loc=MIST_Teff.min()-10.0,scale=(MIST_Teff.max()+10.0)-(MIST_Teff.min()-10.0))
+		# determine the min/max Teff from MIST
+		MISTTeffmin = np.inf
+		MISTTeffmax = 0.0
+		for ind in self.MISTindex:
+			MISTTeffmin_i = self.MIST[ind]['log_Teff'].min()
+			MISTTeffmax_i = self.MIST[ind]['log_Teff'].max()
+			if MISTTeffmin_i < MISTTeffmin:
+				MISTTeffmin = MISTTeffmin_i
+			if MISTTeffmax_i > MISTTeffmax:
+				MISTTeffmax = MISTTeffmax_i
+		self.teffwgts = beta(0.5,0.5,loc=MISTTeffmin-10.0,scale=(MISTTeffmax+10.0)-(MISTTeffmin-10.0))
+
 		# create weights for [Fe/H]
 		self.fehwgts = beta(1.0,0.5,loc=-2.1,scale=2.7).pdf(self.FeHarr)
 		self.fehwgts = self.fehwgts/np.sum(self.fehwgts)
-
-		# parse down the MIST models to just be EEP = 202-605
-		EEPcond = (MIST_MOD['EEP'] > 202) & (MIST_MOD['EEP'] < 605)
-		EEPcond = np.array(EEPcond,dtype=bool)
-		self.MIST_MOD = MIST_MOD[EEPcond]
-		self.MIST_STA = MIST_STA[EEPcond]
-	
+			
 		# create a dictionary for the C3K models and populate it for different
 		# metallicities
 		self.C3K = {}
@@ -181,13 +179,15 @@ class pullspectra(object):
 				# create array of all labels in specific C3K file
 				C3Kpars = np.array(C3K_i['parameters'])
 
-				# select the range of MIST isochrones with that [Fe/H]
-				FeHcond = (self.MIST_MOD['initial_[Fe/H]'] == FeH_i)
-				MIST_STA_i = self.MIST_STA[np.array(FeHcond,dtype=bool)]
+				# select the range of MIST models with that [Fe/H]
+				MIST_i = self.MIST['{0}/0.00/0.00'.format(FeH_i)]
+
+				# restrict the MIST models to EEP = 202-606
+				MIST_i = MIST_i[(MIST_i['EEP'] > 202) & (MIST_i['EEP'] < 606)]
 
 				if MISTweighting:
 					# generate Teff weights
-					teffwgts_i = self.teffwgts.pdf(MIST_STA_i['log_Teff'])
+					teffwgts_i = self.teffwgts.pdf(MIST_i['log_Teff'])
 					teffwgts_i = teffwgts_i/np.sum(teffwgts_i)
 				else:
 					teffwgts_i = None
@@ -196,10 +196,10 @@ class pullspectra(object):
 				while True:
 					# randomly select a EEP, log(age) combination with weighting 
 					# towards the hotter temps if user wants
-					MISTsel = np.random.choice(len(MIST_STA_i),p=teffwgts_i)
+					MISTsel = np.random.choice(len(MIST_i),p=teffwgts_i)
 
 					# get MIST Teff and log(g) for this selection
-					logt_MIST,logg_MIST = MIST_STA_i['log_Teff'][MISTsel], MIST_STA_i['log_g'][MISTsel]
+					logt_MIST,logg_MIST = MIST_i['log_Teff'][MISTsel], MIST_i['log_g'][MISTsel]
 
 					# check to make sure MIST log(g) and log(Teff) have a spectrum in the C3K grid
 					# if not draw again
