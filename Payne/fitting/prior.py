@@ -14,14 +14,17 @@ class prior(object):
 		self.additionalpriors = {}
 
 		for kk in inpriordict.keys():
-			for ii in inpriordict[kk].keys():
-				if ii == 'uniform':
-					self.priordict[kk] = inpriordict[kk]['uniform']
-				else:
-					try:
-						self.additionalpriors[kk][ii] = inpriordict[kk][ii]
-					except KeyError:
-						self.additionalpriors[kk] = {ii:inpriordict[kk][ii]}
+			if kk == 'blaze_coeff':
+				self.polycoefarr = inpriordict['blaze_coeff']
+			else:
+				for ii in inpriordict[kk].keys():
+					if ii == 'uniform':
+						self.priordict[kk] = inpriordict[kk]['uniform']
+					else:
+						try:
+							self.additionalpriors[kk][ii] = inpriordict[kk][ii]
+						except KeyError:
+							self.additionalpriors[kk] = {ii:inpriordict[kk][ii]}
 
 		# split up the boolean flags
 		self.spec_bool = runbools[0]
