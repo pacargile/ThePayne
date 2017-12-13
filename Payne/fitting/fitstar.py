@@ -89,7 +89,7 @@ class FitPayne(object):
 			self.normspec_bool = False
 			if 'normspec' in inputdict['spec'].keys():
 				# check to see if normspec is True
-				if inputdict['spec']['normspec']['bool']:
+				if inputdict['spec']['normspec']:
 					if self.verbose:
 						print('... Fitting a Blaze function')
 					self.normspec_bool = True

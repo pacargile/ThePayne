@@ -4,6 +4,8 @@
 import numpy as np
 from datetime import datetime
 
+from .fitutils import polycalc
+
 class GenMod(object):
 	"""docstring for GenMod"""
 	def __init__(self, *arg, **kwargs):
@@ -44,7 +46,6 @@ class GenMod(object):
 		# check to see if a polynomial is used for spectrum normalization
 		if normspec_bool:
 			polycoef = pars[7:]
-		
 		# predict model flux at model wavelengths
 		modwave_i,modflux_i = self.PP.getspec(
 			Teff=Teff,logg=logg,feh=FeH,afe=aFe,rad_vel=radvel,rot_vel=rotvel,inst_R=2.355*inst_R,
