@@ -13,3 +13,4 @@ build/
 _build/
 dist/
 data/
+demo/OUTPUTFILE.dat
