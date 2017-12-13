@@ -14,6 +14,7 @@ class prior(object):
 		self.additionalpriors = {}
 
 		for kk in inpriordict.keys():
+			print(kk)
 			if kk == 'blaze_coeff':
 				self.polycoefarr = inpriordict['blaze_coeff']
 			else:

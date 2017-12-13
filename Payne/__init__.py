@@ -8,3 +8,4 @@ from . import predict
 from . import train
 from . import testing
 from . import utils
+__abspath__ = '/Users/pcargile/Astro/GITREPOS/ThePayne/'

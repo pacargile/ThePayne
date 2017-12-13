@@ -95,9 +95,9 @@ class FitPayne(object):
 					self.normspec_bool = True
 					# check to see if user defined a series of polynomial coef for 
 					# blaze function as priors
-					if 'blaze_coeff' in inputdict['spec']['normspec'].keys():
-						self.polyorder = len(inputdict['spec']['normspec']['blaze_coeff'])
-						self.polycoefarr = inputdict['spec']['normspec']['blaze_coeff']
+					if 'blaze_coeff' in inputdict['priordict'].keys():
+						self.polyorder = len(inputdict['priordict']['blaze_coeff'])
+						self.polycoefarr = inputdict['priordict']['blaze_coeff']
 					else:
 						# by default use a 3rd order poly
 						self.polyorder = 3
@@ -106,7 +106,7 @@ class FitPayne(object):
 							[0.0,0.1],
 							[0.0,0.1],
 							])
-					self.fitargs['norm_polyorder'] = sel.polyorder
+					self.fitargs['norm_polyorder'] = self.polyorder
 					# re-scale the wavelength array from -1 to 1 for the Cheb poly
 					self.fitargs['obs_wave_fit_norm'] = (
 						self.fitargs['obs_wave_fit'] - self.fitargs['obs_wave_fit'].min())

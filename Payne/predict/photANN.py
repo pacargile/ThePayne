@@ -13,6 +13,8 @@ import torch.nn.functional as F
 import numpy as np
 import h5py
 
+import Payne
+
 class Net(nn.Module):  
   def __init__(self, D_in, H, D_out):
     super(Net, self).__init__()
@@ -49,12 +51,7 @@ class ANN(object):
       self.nnpath = nnpath
     else:
       # define aliases for the MIST isochrones and C3K/CKC files
-      currentpath = __file__
-      if currentpath[-1] == 'c':
-        removeind = -27
-      else:
-        removeind = -26
-      self.nnpath = os.path.dirname(__file__[:removeind]+'data/nnMIST/')
+      self.nnpath  = Payne.__abspath__+'data/nnMIST/'
 
     self.nnpath = nnpath
     self.nnh5 = self.nnpath+'nnMIST_{0}.h5'.format(ff)
