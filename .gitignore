@@ -13,4 +13,7 @@ build/
 _build/
 dist/
 data/
-demo/OUTPUTFILE.dat
+demo/*.dat
+demo/*.log
+demo/*.pdf
+demo/*.h5
