@@ -180,8 +180,7 @@ class pullspectra(object):
 				C3Kpars = np.array(C3K_i['parameters'])
 
 				# select the range of MIST models with that [Fe/H]
-				print('{0}/0.00/0.00'.format(FeH_i))
-				MIST_i = self.MIST['{0}/0.00/0.00'.format(FeH_i)]
+				MIST_i = self.MIST['{0:4.2f}/0.00/0.00'.format(FeH_i)]
 
 				# restrict the MIST models to EEP = 202-606
 				MIST_i = MIST_i[(MIST_i['EEP'] > 202) & (MIST_i['EEP'] < 606)]

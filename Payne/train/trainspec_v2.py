@@ -3,12 +3,16 @@ from torch import nn
 dtype = torch.FloatTensor
 from torch.autograd import Variable
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import StepLR
+
 import numpy as np
 import h5py
 import time,sys,os
 from datetime import datetime
 from itertools import imap
 from multiprocessing import Pool
+
+import matplotlib.pyplot as plt
 
 from ..utils.pullspectra import pullspectra
 
@@ -54,6 +58,11 @@ class TrainSpec_V2(object):
 		else:
 			self.niter = 200000
 
+		if 'epochs' in kwargs:
+			self.epochs = kwargs['epochs']
+		else:
+			self.epochs = 5
+
 		# number of nuerons in each layer
 		if 'H' in kwargs:
 			self.H = kwargs['H']
@@ -98,6 +107,17 @@ class TrainSpec_V2(object):
 		else:
 			self.restartfile = None
 
+		if 'saveopt' in kwargs:
+			self.saveopt = kwargs['saveopt']
+		else:
+			self.saveopt = False
+
+		if 'logepoch' in kwargs:
+			self.logepoch = kwargs['logepoch']
+		else:
+			self.logepoch = True
+
+
 		# pull C3K spectra for training
 		print('... Pulling Training Spectra')
 		sys.stdout.flush()
@@ -107,17 +127,14 @@ class TrainSpec_V2(object):
 			MISTweighting=True)
 
 		self.spectra = self.spectra_o.T
-
-		self.X_train = self.labels_o
-		self.X_train_Tensor = Variable(torch.from_numpy(self.X_train).type(dtype))
-  
+		  
 		# N is batch size (number of points in X_train),
 		# D_in is input dimension
 		# H is hidden dimension
 		# D_out is output dimension
-		self.N = self.X_train.shape[0]
+		self.N = len(self.labels_o)#self.X_train.shape[0]
 		try:
-			self.D_in = self.X_train.shape[1]
+			self.D_in = len(self.labels_o[0])#self.X_train.shape[1]
 		except IndexError:
 			self.D_in = 1
 		self.D_out = 1
@@ -190,7 +207,8 @@ class TrainSpec_V2(object):
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
 				wave_h5[ii]  = self.wavelength[ii]
 				self.h5model_write(net[1],outfile,self.wavelength[ii])
-				self.h5opt_write(net[2],outfile,self.wavelength[ii])
+				if self.saveopt:
+					self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			# flush output file to save results
 			sys.stdout.flush()
 			outfile.flush()
@@ -247,6 +265,12 @@ class TrainSpec_V2(object):
 		# start a timer
 		starttime = datetime.now()
 	
+		# change labels into old_labels
+		old_labels_o = self.labels_o
+
+		# create tensor for labels
+		X_train_Tensor = Variable(torch.from_numpy(old_labels_o).type(dtype))
+
 		# pull fluxes at wavelength pixel
 		Y_train = np.array(self.spectra[pixel_no,:]).T
 		Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
@@ -259,41 +283,123 @@ class TrainSpec_V2(object):
 		# loss_fn = torch.nn.KLDivLoss(size_average=False)
 
 		# initialize the optimizer
-		learning_rate = 1e-6
+		learning_rate = 0.05
 		optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 		# optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
-		for t in range(self.niter):
-			steptime = datetime.now()
-			def closure():
-				# Before the backward pass, use the optimizer object to zero all of the
-				# gradients for the variables it will update (which are the learnable weights
-				# of the model)
-				optimizer.zero_grad()
+		# initialize the scheduler to adjust the learning rate
+		scheduler = StepLR(optimizer,3,gamma=0.1)
 
-				# Forward pass: compute predicted y by passing x to the model.
-				y_pred_train_Tensor = model(self.X_train_Tensor)
+		for epoch_i in range(self.epochs):
+			# adjust the optimizer lr
+			scheduler.step()
+			lr_i = optimizer.param_groups[0]['lr']
 
-				# Compute and print loss.
-				loss = loss_fn(y_pred_train_Tensor, Y_train_Tensor)
+			epochtime = datetime.now()
 
-				# Backward pass: compute gradient of the loss with respect to model parameters
-				loss.backward()
-				
-				if (t+1) % 500 == 0:
-					print (
-						'Pixel: {0} -- Step [{1:d}/{2:d}], Step Time: {3}, Loss: {4:.4f}'.format(
-						pixel_no,t+1, self.niter, datetime.now()-steptime, loss.data[0])
+			for t in range(self.niter):
+				steptime = datetime.now()
+				def closure():
+					# Before the backward pass, use the optimizer object to zero all of the
+					# gradients for the variables it will update (which are the learnable weights
+					# of the model)
+					optimizer.zero_grad()
+
+					# Forward pass: compute predicted y by passing x to the model.
+					y_pred_train_Tensor = model(X_train_Tensor)
+
+					# Compute and print loss.
+					loss = loss_fn(y_pred_train_Tensor, Y_train_Tensor)
+
+					# Backward pass: compute gradient of the loss with respect to model parameters
+					loss.backward()
+					
+					if (t+1) % 100 == 0:
+						print (
+							'Pixel: {0} -- Step [{1:d}/{2:d}], Step Time: {3}, Loss: {4:.4f}'.format(
+							pixel_no+1,t+1, self.niter, datetime.now()-steptime, loss.data[0])
+						)
+						sys.stdout.flush()
+
+					return loss
+
+				# Calling the step function on an Optimizer makes an update to its parameters
+				optimizer.step(closure)
+
+
+			# re-draw spectra for next epoch
+			spectra_o,labels_o,wavelength = self.pullspectra(
+				self.numtrain,resolution=self.resolution, waverange=self.waverange,
+				MISTweighting=True,excludelabels=old_labels_o)
+			spectra = spectra_o.T
+
+			# create X tensor
+			X_valid = labels_o
+			X_valid_Tensor = Variable(torch.from_numpy(labels_o).type(dtype))
+
+			# pull fluxes at wavelength pixel and create tensor
+			Y_valid = np.array(spectra[pixel_no,:]).T
+			Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
+			
+			# Validation Forward pass: compute predicted y by passing x to the model.
+			Y_pred_valid_Tensor = model(X_valid_Tensor)
+			Y_pred_valid = Y_pred_valid_Tensor.data.numpy()
+
+			# calculate the residual at each validation label
+			valid_residual = np.squeeze(Y_valid.T-Y_pred_valid.T)
+
+			# create log of the validation step if user wants
+			if self.logepoch:
+				with open('ValidLog_pixel{0}_epoch{1}.log'.format(pixel_no+1,epoch_i+1),'w') as logfile:
+					logfile.write('valnum Teff log(g) [Fe/H] [a/Fe] resid\n')
+					for ii,res in enumerate(valid_residual):
+						logfile.write('{0} '.format(ii+1))
+						logfile.write(np.array2string(X_valid[ii],separator=' ').replace('[','').replace(']',''))
+						logfile.write(' {0}'.format(res))
+						logfile.write('\n')
+
+				fig = plt.figure()
+				ax = fig.add_subplot(111)
+				# residsize = ((10 * 
+				# 	(max(np.abs(valid_residual))-np.abs(valid_residual))/
+				# 	(max(np.abs(valid_residual))-min(np.abs(valid_residual)))
+				# 	)**2.0) + 2.0
+
+				residsize = ((20 * np.abs(valid_residual))**2.0) + 2.0
+
+				scsym = ax.scatter(10.0**X_valid.T[0],X_valid.T[1],s=residsize,alpha=0.5)
+				lgnd = ax.legend([scsym,scsym,scsym],
+					# ['{0:5.3f}'.format(min(np.abs(valid_residual))),
+					#  '{0:5.3f}'.format(np.median(np.abs(valid_residual))),
+					#  '{0:5.3f}'.format(max(np.abs(valid_residual)))],
+					['0.0','0.5','1.0'],
+					 loc='upper left',
 					)
-					sys.stdout.flush()
+				lgnd.legendHandles[0]._sizes = [2]
+				lgnd.legendHandles[1]._sizes = [202]
+				lgnd.legendHandles[2]._sizes = [402]
+				# ax.invert_yaxis()
+				# ax.invert_xaxis()
+				ax.set_xlim(16000,3000)
+				ax.set_ylim(6,-1.5)
+				ax.set_xlabel('Teff')
+				ax.set_ylabel('log(g)')
+				fig.savefig('ValidLog_pixel{0}_epoch{1}.pdf'.format(pixel_no+1,epoch_i+1))
 
-				return loss
+			# re-use validation set as new training set for the next epoch
+			old_labels_o = labels_o
+			X_train_Tensor = X_valid_Tensor
+			Y_train_Tensor = Y_valid_Tensor
 
-			# Calling the step function on an Optimizer makes an update to its parameters
-			optimizer.step(closure)
+			print (
+				'Pixel: {0} -- EPOCH [{1:d}/{2:d}], Step Time: {3}, LR: {4}, med(|Res|): {5}'.format(
+					pixel_no+1, epoch_i+1, self.epochs, datetime.now()-epochtime,
+					lr_i,np.median(np.abs(valid_residual)))
+				)
+			sys.stdout.flush()			
 
 		print('Trained pixel:{0}/{1} (wavelength: {2}), took: {3}'.format(
-			pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no],
+			pixel_no+1,len(self.spectra[:,0]),self.wavelength[pixel_no],
 			datetime.now()-starttime))
 		sys.stdout.flush()
 
