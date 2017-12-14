@@ -12,6 +12,8 @@ from datetime import datetime
 from itertools import imap
 from multiprocessing import Pool
 
+import matplotlib
+matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 
 from ..utils.pullspectra import pullspectra

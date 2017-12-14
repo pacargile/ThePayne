@@ -1,7 +1,7 @@
 import Payne
 TS = Payne.train.TrainSpec_V2(
 	waverange=[5000.0,5000.1],
-	numtrain=100,
+	numtrain=10,
 	niter=1000,
 	epochs=10,
 	resolution=10000.0,
