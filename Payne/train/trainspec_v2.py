@@ -13,8 +13,9 @@ from itertools import imap
 from multiprocessing import Pool
 
 import matplotlib
-matplotlib.use('AGG')
+# matplotlib.use('AGG')
 import matplotlib.pyplot as plt
+matplotlib.pyplot.ioff()
 
 from ..utils.pullspectra import pullspectra
 
