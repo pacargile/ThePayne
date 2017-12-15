@@ -11,6 +11,10 @@ Artificial Neural-Net compression and fitting of synthetic spectral grids. The c
 
 The user either need to train a new ANN for an observed spectrum and photometry. Or contact <pcargile@cfa.harvard.edu> to get the latest C3K based ANN. 
 
+Authors:
+
+See [Authors](authors.rst) for a list of contributors to The Payne.
+
 Installation
 ------
 ```
