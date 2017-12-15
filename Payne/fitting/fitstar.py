@@ -141,7 +141,7 @@ class FitPayne(object):
 		call instance so that run_dynesty can be called with multiprocessing
 		and still have all of the class instance variables
 		'''
-		self.run_dynesty(indicts)
+		return self.run_dynesty(indicts)
 		
 
 	def run_dynesty(self,indicts):
@@ -176,8 +176,8 @@ class FitPayne(object):
 		# initialize the likelihood class
 		self.likeobj = self.likelihood(fitargs,runbools)
 
-		# run sampler
-		sampler = self.runsampler(samplerdict)
+		# run sampler and return sampler object
+		return self.runsampler(samplerdict)
 
 	def _initoutput(self):
 		# init output file
