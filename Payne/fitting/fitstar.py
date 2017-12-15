@@ -129,7 +129,7 @@ class FitPayne(object):
 			self.fitargs['obs_phot'] = {kk:inputdict['phot'][kk] for kk in inputdict['phot'].keys()}
 
 		# run the fitter
-		self({
+		return self({
 			'fitargs':self.fitargs,
 			'sampler':self.samplerdict,
 			'priordict':self.priordict,
