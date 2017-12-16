@@ -13,7 +13,7 @@ Artificial Neural-Net compression and fitting of synthetic spectral grids. The c
 
 The initial algorithm framework for The Payne is given in [Ting, Y.-S., Conroy, C., & Rix, H.-W. 2016, ApJ, 826, 83](http://adsabs.harvard.edu/abs/2016ApJ...826...83T) and [Ting, Y.-S., Rix, H.-W., Conroy, C., Ho, A.~Y.~Q., & Lin, J. 2017, ApJL, 849, L9](http://adsabs.harvard.edu/abs/2017ApJ...849L...9T). This code follows the general approach outlined in these papers, with additional changes in the fitting and training procedures. Please cite these references if this code is used for any academic purposes.
 
-The current version of The Payne code is under development and not yet ready for wide distribution. Anyone interested in using this version of the code, please contact <pcargile@cfa.harvard.edu> first.
+The current version of The Payne code is under development and not yet ready for wide distribution. Anyone interested in using this version of the code, please first contact <pcargile@cfa.harvard.edu>.
 
 ***The Payne is named in honor of Cecilia Payne-Gaposchkin, one of the great scientist of the 20th century and a pioneering in stellar astrophysicist. In the 1920s she derived the cosmic abundance of the elements from stellar spectra, including determining the composition of the Sun, and demonstrated for the first time the chemical homogeneity of the universe. Cecilia Payne-Gaposchkin achieved two Harvard firsts: she became the first female professor, and the first woman to become department chair.***
 
