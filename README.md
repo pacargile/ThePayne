@@ -9,7 +9,7 @@ Artificial Neural-Net compression and fitting of synthetic spectral grids. The c
 
 * Fit observed spectra and/or photometry using a trained ANN
 
-The initial algorithm framework for The Payne is given in Ting, Y.-S., Conroy, C., & Rix, H.-W. 2016, ApJ, 826, 83 <http://adsabs.harvard.edu/abs/2016ApJ...826...83T> and  Rix, H.-W., Ting, Y.-S., Conroy, C., & Hogg, D.~W. 2016, ApJL, 826, L25 <http://adsabs.harvard.edu/abs/2016ApJ...826L..25R>. This code follows the general approach outlined in these papers, with additional changes in the fitting and training procedures. Please cite these references if this code is used for any academic purposes.
+The initial algorithm framework for The Payne is given in [Ting, Y.-S., Conroy, C., & Rix, H.-W. 2016, ApJ, 826, 83](http://adsabs.harvard.edu/abs/2016ApJ...826...83T) and  [Rix, H.-W., Ting, Y.-S., Conroy, C., & Hogg, D.~W. 2016, ApJL, 826, L25](http://adsabs.harvard.edu/abs/2016ApJ...826L..25R). This code follows the general approach outlined in these papers, with additional changes in the fitting and training procedures. Please cite these references if this code is used for any academic purposes.
 
 Authors
 -------
