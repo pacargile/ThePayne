@@ -392,6 +392,7 @@ class TrainSpec_V2(object):
 				ax.set_xlabel('Teff')
 				ax.set_ylabel('log(g)')
 				fig.savefig('ValidLog_pixel{0}_epoch{1}.pdf'.format(pixel_no+1,epoch_i+1))
+				plt.close(fig)
 
 			# # check if user wants to do adaptive training
 			# if self.adaptivetrain:

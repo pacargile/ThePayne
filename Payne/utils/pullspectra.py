@@ -227,7 +227,6 @@ class pullspectra(object):
 				if list(label_i) in excludelabels:
 					continue
 
-				# calculate the normalized spectrum
 				spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
 
 				# check to see if label_i in labels, or spectra_i is nan's
