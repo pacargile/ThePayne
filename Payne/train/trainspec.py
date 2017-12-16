@@ -1,84 +1,76 @@
-# #!/usr/bin/env python
-# -*- coding: utf-8 -*-
-from __future__ import print_function
+import torch
+from torch import nn
+dtype = torch.FloatTensor
+from torch.autograd import Variable
+import torch.nn.functional as F
+from torch.optim.lr_scheduler import StepLR
+
 import numpy as np
 import h5py
-from multiprocessing import Pool
-from scipy.interpolate import NearestNDInterpolator
-import os,sys
+import time,sys,os
+from datetime import datetime
 from itertools import imap
+from multiprocessing import Pool
 
-# Theano is a very powerful package to train neural nets
-# it performs "auto diff", i.e., provides analytic differentiation 
-# of any cost function
-
-import theano
-import theano.tensor as T
-from theano.tensor.nnet import sigmoid
+import matplotlib
+matplotlib.use('AGG')
+import matplotlib.pyplot as plt
+matplotlib.pyplot.ioff()
 
 from ..utils.pullspectra import pullspectra
 
-from datetime import datetime
+class Net(nn.Module):  
+	def __init__(self, D_in, H, D_out):
+		super(Net, self).__init__()
+		self.lin1 = nn.Linear(D_in, H)
+		self.lin2 = nn.Linear(H,H)
+		self.lin3 = nn.Linear(H, D_out)
 
-class TrainSpec(object):
+	def forward(self, x):
+		x_i = self.encode(x)
+		out1 = F.sigmoid(self.lin1(x_i))
+		out2 = F.sigmoid(self.lin2(out1))
+		y_i = self.lin3(out2)
+		return y_i     
+
+	def encode(self,x):
+		# convert x into numpy to do math
+		x_np = x.data.numpy()
+		try:
+			self.xmin
+			self.xmax
+		except (NameError,AttributeError):
+			self.xmin = np.amin(x_np,axis=0)
+			self.xmax = np.amax(x_np,axis=0)
+
+		x = (x_np-self.xmin)/(self.xmax-self.xmin)
+		return Variable(torch.from_numpy(x).type(dtype))
+
+class TrainSpec_V2(object):
 	"""docstring for TrainSpec"""
 	def __init__(self, **kwargs):
-
-		# how many portions will we split the training data to 
-		# perform stochastic gradient descent. Smaller batch 
-		# size (i.e., larger number ) will take longer to converge.
-		if 'mini_batch_size' in kwargs:
-			self.mini_batch_size = kwargs['mini_batch_size']
-		else:
-			self.mini_batch_size = 2
-
-		# initial step size in stochastic gradient descent.
-		# smaller step size will be slower but will provide
-		# better convergence.
-		if 'eta_choice' in kwargs:
-			self.eta_choice = kwargs['eta_choice']
-		else:
-			self.eta_choice = 0.1
-
-		# the minimum step size beyond which we will truncate
-		if 'min_eta' in kwargs:
-			self.min_eta = kwargs['min_eta']
-		else:
-			self.min_eta = 0.001
-
-		# how many steps of gradient descent per loop are going
-		# to be performed
-		if 'num_epochs_choice' in kwargs:
-			self.num_epochs_choice = kwargs['num_epochs_choice']
-		else:
-			self.num_epochs_choice = 10000
-
-		# truncation criteria
-		if 'trunc_diff' in kwargs:
-			self.trunc_diff = kwargs['trunc_diff']
-		else:
-			self.trunc_diff = 0.003
-
-		# maximum number of loops (to aviod infinite loops)
-		# i.e., max_iter*num_epoch_choice is the maximum number of steps 
-		# beyond which we will truncate
-		if 'max_iter' in kwargs:
-			self.max_iter = kwargs['max_iter']
-		else:
-			self.max_iter = 100
-
-		# how many neurons per layer
-		# here we always consider two fully connected layers
-		if 'n_neurons' in kwargs:
-			self.n_neurons = kwargs['n_neurons']
-		else:
-			self.n_neurons = 10
-
-		# number of training spectra
+		# number of models to train on
 		if 'numtrain' in kwargs:
-			self.num_train = kwargs['numtrain']
+			self.numtrain = kwargs['numtrain']
 		else:
-			self.num_train = 150
+			self.numtrain = 20000
+
+		# number of iteration steps in training
+		if 'niter' in kwargs:
+			self.niter = kwargs['niter']
+		else:
+			self.niter = 200000
+
+		if 'epochs' in kwargs:
+			self.epochs = kwargs['epochs']
+		else:
+			self.epochs = 5
+
+		# number of nuerons in each layer
+		if 'H' in kwargs:
+			self.H = kwargs['H']
+		else:
+			self.H = 256
 
 		# wavelength range to train on in angstroms
 		if 'waverange' in kwargs:
@@ -118,48 +110,41 @@ class TrainSpec(object):
 		else:
 			self.restartfile = None
 
+		if 'saveopt' in kwargs:
+			self.saveopt = kwargs['saveopt']
+		else:
+			self.saveopt = False
+
+		if 'logepoch' in kwargs:
+			self.logepoch = kwargs['logepoch']
+		else:
+			self.logepoch = True
+
+		if 'adaptivetrain' in kwargs:
+			self.adaptivetrain = kwargs['adaptivetrain']
+		else:
+			self.adaptivetrain = True
+
 		# pull C3K spectra for training
 		print('... Pulling Training Spectra')
 		sys.stdout.flush()
 		self.pullspectra = pullspectra()
 		self.spectra_o,self.labels_o,self.wavelength = self.pullspectra(
-			self.num_train,resolution=self.resolution, waverange=self.waverange,
+			self.numtrain,resolution=self.resolution, waverange=self.waverange,
 			MISTweighting=True)
 
-		self.labels_o = self.labels_o.T
-
-		# record the min,max for the labels so that we can 
-		# scale any labels to our training set
-		self.x_min = np.min(self.labels_o,axis=1)
-		self.x_max = np.max(self.labels_o,axis=1)
-
-		# pull a validation spectra dataset, make sure the spectra are different 
-		# than the testing dataset
-		print('... Pulling Validation Spectra')
-		sys.stdout.flush()
-		self.val_spectra_o,self.val_labels_o,self.val_wavelength = self.pullspectra(
-			self.num_train,resolution=self.resolution,waverange=self.waverange,
-			Teff=[10.0**self.x_min[0],10.0**self.x_max[0]],
-			logg=[self.x_min[1],self.x_max[1]],
-			FeH= [self.x_min[2],self.x_max[2]],
-			aFe= [self.x_min[3],self.x_max[3]],
-			excludelabels=self.labels_o,
-			)
-		self.val_labels_o = self.val_labels_o.T
-
-		print('... Finished Pulling Spectra')
-		sys.stdout.flush()
-		# neural-nets typically train a function mapping from 
-		# [0,1] -> [0,1], so here we scale both input (labels) 
-		# and output (fluxes) to [0.1,0.9]
-
-		# scale labels
-		self.labels    = ( (((self.labels_o.T - self.x_min)*0.8) / (self.x_max-self.x_min)) + 0.1).T
-		self.vallabels = ( (((self.val_labels_o.T - self.x_min)*0.8) / (self.x_max-self.x_min)) + 0.1).T
-
-		# scale the fluxes, we assume model fluxes are already normalized
-		self.spectra = self.spectra_o.T*0.8 + 0.1
-		self.valspectra = self.val_spectra_o.T*0.8 + 0.1
+		self.spectra = self.spectra_o.T
+		  
+		# N is batch size (number of points in X_train),
+		# D_in is input dimension
+		# H is hidden dimension
+		# D_out is output dimension
+		self.N = len(self.labels_o)#self.X_train.shape[0]
+		try:
+			self.D_in = len(self.labels_o[0])#self.X_train.shape[1]
+		except IndexError:
+			self.D_in = 1
+		self.D_out = 1
 
 		print('... Finished Init')
 		sys.stdout.flush()
@@ -168,12 +153,13 @@ class TrainSpec(object):
 		'''
 		call instance so that train_pixel can be called with multiprocessing
 		and still have all of the class instance variables
-	
+
 		:params pixel_no:
 			Pixel number that is going to be trained
 
 		'''
 		return self.train_pixel(pixel_no)
+
 
 	def run(self,mp=False,ncpus=1):
 		'''
@@ -184,16 +170,14 @@ class TrainSpec(object):
 			training in parallel
 
 		'''
+
 		# initialize the output HDf5 file, return the datasets to populate
-		outfile,w0_h5,w1_h5,b0_h5,b1_h5,wave_h5 = self.initout(restartfile=self.restartfile)
+		outfile,wave_h5 = self.initout(restartfile=self.restartfile)
 
 		# number of pixels to train
 		numtrainedpixles = self.spectra.shape[0]
 		print('... Number of Pixels in Spectrum: {0}'.format(numtrainedpixles))
-		sys.stdout.flush()
 
-		# determine which pixels to train, in case we are 
-		# restarting from a previous run
 		if self.restartfile == None:
 			pixellist = range(numtrainedpixles)
 		else:
@@ -214,11 +198,11 @@ class TrainSpec(object):
 
 			pool = Pool(processes=ncpus)
 			# init the map for the pixel training using the pool imap
-			netout = pool.imap(self,pixellist)
+			netout = pool.imap#(self,pixellist)
 
 		else:
 			# init the map for the pixel training using the standard serial imap
-			netout = imap(self,pixellist)
+			netout = imap#(self,pixellist)
 
 		# start total timer
 		tottimestart = datetime.now()
@@ -226,19 +210,14 @@ class TrainSpec(object):
 		print('... Starting Training at {0}'.format(tottimestart))
 		sys.stdout.flush()
 
-		for ii,net in zip(pixellist,netout):
+		for pixellist_i in np.array_split(np.array(pixellist),int(numtrainedpixles/ncpus)):
+			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
+				wave_h5[ii]  = self.wavelength[ii]
+				self.h5model_write(net[1],outfile,self.wavelength[ii])
+				if self.saveopt:
+					self.h5opt_write(net[2],outfile,self.wavelength[ii])
+			# flush output file to save results
 			sys.stdout.flush()
-			# store and flush the network parameters into the HDF5 file
-			w0_h5[ii,...] = net.layers[0].w.get_value().T
-			b0_h5[ii,...] = net.layers[0].b.get_value()
-			w1_h5[ii,...] = net.layers[1].w.get_value()[:,0]
-			b1_h5[ii,...] = net.layers[1].b.get_value()[0]
-
-			# store wavelength value into h5py. This is useful to tell you which pixels 
-			# were actually fit
-			wave_h5[ii] = self.wavelength[ii]
-
-			# flush the HDF5 file to store the output
 			outfile.flush()
 
 		# print out total time
@@ -260,22 +239,14 @@ class TrainSpec(object):
 
 			# add datesets for values that are already defined
 			label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
-			xmin_h5  = outfile.create_dataset('x_min',     data=self.x_min,     compression='gzip')
-			xmax_h5  = outfile.create_dataset('x_max',     data=self.x_max,     compression='gzip')
 			resol_h5 = outfile.create_dataset('resolution',data=np.array([self.resolution]),compression='gzip')
-			vallabel_h5 = outfile.create_dataset('val_labels',    data=self.val_labels_o,  compression='gzip')
 
-			# define vectorized wavelength array
+			# define vectorized wavelength array, model array, and optimizer array
 			wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
-
-			# create vectorized datasets for the netweork results to be added
-			w0_h5    = outfile.create_dataset('w_array_0', (len(self.wavelength),10,4), compression='gzip')
-			w1_h5    = outfile.create_dataset('w_array_1', (len(self.wavelength),10),   compression='gzip')
-			b0_h5    = outfile.create_dataset('b_array_0', (len(self.wavelength),10),   compression='gzip')
-			b1_h5    = outfile.create_dataset('b_array_1', (len(self.wavelength),),     compression='gzip')
+			# model_h5 = outfile.create_dataset('model_arr', (len(self.wavelength),), compression='gzip')
+			# opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
 
 			outfile.flush()
-
 
 		else:
 			# read in training file from restarted run
@@ -283,21 +254,14 @@ class TrainSpec(object):
 
 			# add datesets for values that are already defined
 			label_h5 = outfile['labels']
-			xmin_h5  = outfile['x_min']    
-			xmax_h5  = outfile['x_max']    
 			resol_h5 = outfile['resolution']
-			vallabel_h5 = outfile['val_labels']
 
-			# define vectorized wavelength array
+			# define vectorized arrays
 			wave_h5  = outfile['wavelength']
+			# model_h5 = outfile['model_arr']
+			# opt_h5   = outfile['opt_arr']
 
-			# create vectorized datasets for the netweork results to be added
-			w0_h5    = outfile['w_array_0']
-			w1_h5    = outfile['w_array_1']
-			b0_h5    = outfile['b_array_0']
-			b1_h5    = outfile['b_array_1']
-
-		return outfile,w0_h5,w1_h5,b0_h5,b1_h5,wave_h5
+		return outfile,wave_h5
 
 	def train_pixel(self,pixel_no):
 		'''
@@ -307,227 +271,201 @@ class TrainSpec(object):
 
 		# start a timer
 		starttime = datetime.now()
+	
+		# change labels into old_labels
+		old_labels_o = self.labels_o
 
-		# extract flux of a wavelength pixel
-		training_y = theano.shared(np.asarray(np.array([self.spectra[pixel_no,:]]).T, 
-			dtype=theano.config.floatX))
+		# create tensor for labels
+		X_train_Tensor = Variable(torch.from_numpy(old_labels_o).type(dtype))
 
-		# convert labels into a theano variable
-		training_x = theano.shared(np.asarray(self.labels.T,dtype=theano.config.floatX))
+		# pull fluxes at wavelength pixel
+		Y_train = np.array(self.spectra[pixel_no,:]).T
+		Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
 
-		# define the network
-		net = Network([
-			FullyConnectedLayer(
-				n_in=training_x.get_value().shape[1],
-				n_out=self.n_neurons),
-			FullyConnectedLayer(
-				n_in=self.n_neurons,
-				n_out=training_y.get_value().shape[1]),
-			], self.mini_batch_size)
+		# initialize the model
+		model = Net(self.D_in,self.H,self.D_out)
 
-		# initiate loop counter and step size
-		loop_count = 0
-		step_divide = 1.0
+		# initialize the loss function
+		loss_fn = torch.nn.MSELoss(size_average=False)
+		# loss_fn = torch.nn.KLDivLoss(size_average=False)
 
-		# sometimes the network can get stuck at the initial point
-		# so we first train for 1000 steps
-		net.SGD(training_x,training_y,1000,self.eta_choice)
+		# initialize the optimizer
+		learning_rate = 0.05
+		optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+		# optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
-		# we evaluate if the cost has improved
-		while (
-			np.abs(np.mean(net.cost_train[:100])
-			-np.mean(net.cost_train[-100:]))/(np.mean(net.cost_train[:100])) 
-			< 0.1) and (loop_count < self.max_iter):
+		# initialize the scheduler to adjust the learning rate
+		scheduler = StepLR(optimizer,3,gamma=0.1)
 
-			# if not we reset the network (and hence the initial point)
-			# and loop until it finds a valid initial point
-			net = Network([
-				FullyConnectedLayer(
-					n_in=training_x.get_value().shape[1],
-					n_out=self.n_neurons),
-				FullyConnectedLayer(
-					n_in=self.n_neurons,
-					n_out=training_y.get_value().shape[1]),
-				], self.mini_batch_size)
-			net.SGD(training_x,training_y,1000,self.eta_choice)
+		for epoch_i in range(self.epochs):
+			# adjust the optimizer lr
+			scheduler.step()
+			lr_i = optimizer.param_groups[0]['lr']
 
-			# increase counter
-			loop_count += 1
+			epochtime = datetime.now()
 
-		# after a good initial point is found, we proceed to the extensive training
+			for t in range(self.niter):
+				steptime = datetime.now()
+				def closure():
+					# Before the backward pass, use the optimizer object to zero all of the
+					# gradients for the variables it will update (which are the learnable weights
+					# of the model)
+					optimizer.zero_grad()
 
-		# initiate the deviation trunction criterion
-		med_deviate = 1000.0
+					# Forward pass: compute predicted y by passing x to the model.
+					y_pred_train_Tensor = model(X_train_Tensor)
 
-		# loop until the deviation is smaller than the chosen trunction criterion
-		# we also truncate if the step size has become too small
-		while (
-			(med_deviate > self.trunc_diff) and (loop_count < self.max_iter) and (self.eta_choice/step_divide > self.min_eta)
-			):
+					# Compute and print loss.
+					loss = loss_fn(y_pred_train_Tensor, Y_train_Tensor)
 
-			# continue to train the network if it has not converged yet
-			net.SGD(training_x,training_y,self.num_epochs_choice,self.eta_choice/step_divide)
+					# Backward pass: compute gradient of the loss with respect to model parameters
+					loss.backward()
+					
+					if (t+1) % 100 == 0:
+						print (
+							'Pixel: {0} -- Step [{1:d}/{2:d}], Step Time: {3}, Loss: {4:.4f}'.format(
+							pixel_no+1,t+1, self.niter, datetime.now()-steptime, loss.data[0])
+						)
+						sys.stdout.flush()
 
-			# increase counter to avoid infinite loop
-			loop_count += 1
+					return loss
 
-			# check if the current stepsize is too large, i.e., cost does not change much
-			if (
-				np.abs(np.mean(net.cost_train[:100])-np.mean(net.cost_train[-100:])) / (np.mean(net.cost_train[:100]))
-				 < 0.01
-				 ):
+				# Calling the step function on an Optimizer makes an update to its parameters
+				optimizer.step(closure)
 
-				# if so, we make the step size smaller
-				step_divide = step_divide*2.0
 
-			# this is the validation step
-			# calculate the deviation between the analytic approximation vs. the training models
-			# in principle, we should consider validation models here
-			w_array_0 = net.layers[0].w.get_value().T
-			b_array_0 = net.layers[0].b.get_value()
-			w_array_1 = net.layers[1].w.get_value()[:,0]
-			b_array_1 = net.layers[1].b.get_value()[0]
+			# re-draw spectra for next epoch
+			spectra_o,labels_o,wavelength = self.pullspectra(
+				self.numtrain,resolution=self.resolution, waverange=self.waverange,
+				MISTweighting=True,excludelabels=old_labels_o)
+			spectra = spectra_o.T
 
-			predict_flux = act_func(
-				np.sum(w_array_1*(act_func(np.dot(w_array_0,self.vallabels).T + b_array_0)), axis=1)
-				+ b_array_1)
+			# create X tensor
+			X_valid = labels_o
+			X_valid_Tensor = Variable(torch.from_numpy(labels_o).type(dtype))
 
-			# remember to scale back the fluxes to the normal metric
-			### here we choose the maximum absolute deviation to be the truncation criteria ###
-			med_deviate = np.max(np.abs((predict_flux-self.valspectra[pixel_no,:])/0.8))
+			# pull fluxes at wavelength pixel and create tensor
+			Y_valid = np.array(spectra[pixel_no,:]).T
+			Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
+			
+			# Validation Forward pass: compute predicted y by passing x to the model.
+			Y_pred_valid_Tensor = model(X_valid_Tensor)
+			Y_pred_valid = Y_pred_valid_Tensor.data.numpy()
+
+			# calculate the residual at each validation label
+			valid_residual = np.squeeze(Y_valid.T-Y_pred_valid.T)
+
+			# create log of the validation step if user wants
+			if self.logepoch:
+				with open('ValidLog_pixel{0}_epoch{1}.log'.format(pixel_no+1,epoch_i+1),'w') as logfile:
+					logfile.write('valnum Teff log(g) [Fe/H] [a/Fe] resid\n')
+					for ii,res in enumerate(valid_residual):
+						logfile.write('{0} '.format(ii+1))
+						logfile.write(np.array2string(X_valid[ii],separator=' ').replace('[','').replace(']',''))
+						logfile.write(' {0}'.format(res))
+						logfile.write('\n')
+
+				fig = plt.figure()
+				ax = fig.add_subplot(111)
+				# residsize = ((10 * 
+				# 	(max(np.abs(valid_residual))-np.abs(valid_residual))/
+				# 	(max(np.abs(valid_residual))-min(np.abs(valid_residual)))
+				# 	)**2.0) + 2.0
+
+				residsize = ((150 * np.abs(valid_residual))**2.0) + 2.0
+
+				scsym = ax.scatter(10.0**X_valid.T[0],X_valid.T[1],s=residsize,alpha=0.5)
+				lgnd = ax.legend([scsym,scsym,scsym],
+					# ['{0:5.3f}'.format(min(np.abs(valid_residual))),
+					#  '{0:5.3f}'.format(np.median(np.abs(valid_residual))),
+					#  '{0:5.3f}'.format(max(np.abs(valid_residual)))],
+					['0.0','0.5','1.0'],
+					 loc='upper left',
+					)
+				lgnd.legendHandles[0]._sizes = [2]
+				lgnd.legendHandles[1]._sizes = [202]
+				lgnd.legendHandles[2]._sizes = [402]
+				# ax.invert_yaxis()
+				# ax.invert_xaxis()
+				ax.set_xlim(16000,3000)
+				ax.set_ylim(6,-1.5)
+				ax.set_xlabel('Teff')
+				ax.set_ylabel('log(g)')
+				fig.savefig('ValidLog_pixel{0}_epoch{1}.pdf'.format(pixel_no+1,epoch_i+1))
+
+			# # check if user wants to do adaptive training
+			# if self.adaptivetrain:
+			# 	# sort validation labels on abs(resid)
+			# 	ind = np.argsort(np.abs(valid_residual))
+
+			# 	# determine worst 1% of validation set
+			# 	ind_s = ind[:int(0.01*self.numtrain)]
+
+
+
+			# re-use validation set as new training set for the next epoch
+			old_labels_o = labels_o
+			X_train_Tensor = X_valid_Tensor
+			Y_train_Tensor = Y_valid_Tensor
+
+			print (
+				'Pixel: {0} -- EPOCH [{1:d}/{2:d}], Step Time: {3}, LR: {4}, med(|Res|): {5}'.format(
+					pixel_no+1, epoch_i+1, self.epochs, datetime.now()-epochtime,
+					lr_i,np.median(np.abs(valid_residual)))
+				)
+			sys.stdout.flush()			
 
 		print('Trained pixel:{0}/{1} (wavelength: {2}), took: {3}'.format(
-			pixel_no,len(self.spectra[:,0]),self.wavelength[pixel_no],datetime.now()-starttime))
+			pixel_no+1,len(self.spectra[:,0]),self.wavelength[pixel_no],
+			datetime.now()-starttime))
 		sys.stdout.flush()
 
-		# # store and flush the network parameters into the HDF5 file
-		# self.w0_h5[pixel_no,...] = net.layers[0].w.get_value().T
-		# self.b0_h5[pixel_no,...] = net.layers[0].b.get_value()
-		# self.w1_h5[pixel_no,...] = net.layers[1].w.get_value()[:,0]
-		# self.b1_h5[pixel_no,...] = net.layers[1].b.get_value()[0]
+		return [pixel_no, model, optimizer, datetime.now()-starttime]
 
-		# # flush the HDF5 file to store the output
-		# self.outfile.flush()
-
-		return net
-
-class Network(object):
-	"""
-	Main Network Class
-	"""
-	def __init__(self, layers, mini_batch_size):
-		self.layers = layers
-		self.mini_batch_size = mini_batch_size
-		self.params = [param for layer in self.layers for param in layer.params]
-		
-		self.x = T.dmatrix('x')
-		self.y = T.dmatrix('y')
-
-		init_layer = self.layers[0]
-		init_layer.set_inpt(self.x,self)
-		for j in xrange(1,len(self.layers)):
-			prev_layer, layer = self.layers[j-1],self.layers[j]
-			layer.set_inpt(prev_layer.output,self)
-		self.output = self.layers[-1].output
-
-		# create a property to record the cost function at each training step
-		self.cost_train = []
-
-	def SGD(self,training_x,training_y,epochs,eta):
+	def h5model_write(self,model,th5,wavelength):
 		'''
-		Stochastic Gradient Descent
+		Write trained model to HDF5 file
 		'''
+		try:
+			for kk in model.state_dict().keys():
+				th5.create_dataset('model_{0}/model/{1}'.format(wavelength,kk),
+					data=model.state_dict()[kk].numpy(),
+					compression='gzip')
+		except RuntimeError:
+			print('!!! PROBLEM WITH WRITING TO HDF5 FOR WAVELENGTH = {0} !!!'.format(wavelength))
+			raise
+		# th5.flush()
 
-		# reset the cost for each training loop
-		self.cost_train = []
-
-		# compute mini batches
-		num_sample = training_x.get_value().shape[0]
-		num_training_batches = num_sample/self.mini_batch_size
-
-		# define cost function, symbolic graident, and updates
-		cost = self.layers[-1].cost(self)
-		grads = T.grad(cost,self.params)
-		updates = ([(param, param-eta/self.mini_batch_size*grad) 
-			for param, grad in zip(self.params,grads)])
-		i=T.lscalar()
-
-		# randomize the training data for stochastic gradient descent
-		ind = np.arange(num_sample)
-		np.random.shuffle(ind)
-		ind = theano.shared(ind)
-
-		# define function to train a mini-batch
-		train_mb = theano.function(
-			[i],cost, updates=updates,
-			givens={
-				self.x:training_x[ind[i*self.mini_batch_size:(i+1)*self.mini_batch_size]],
-				self.y:training_y[ind[i*self.mini_batch_size:(i+1)*self.mini_batch_size]]
-				}
-			)
-
-		# the actual training
-		for epoch in xrange(epochs):
-			cost_train_ij = 0.0
-			for mini_batch_index in xrange(num_training_batches):
-				# sum up all cost for each mini batch
-				cost_train_ij += train_mb(mini_batch_index)
-			self.cost_train.append(cost_train_ij)
-
-class FullyConnectedLayer(object):
-	'''
-	Class that defines fully connected layers
-	Here we choose sigmiod function to be the activation function
-	'''
-
-	def __init__(self, n_in,n_out,activation_fn=sigmoid):
-		self.n_in = n_in
-		self.n_out = n_out
-		self.activation_fn = activation_fn
-
-		# initialize weights and biases of the neural net
-		self.w = theano.shared(
-			np.asarray(
-				np.random.normal(
-					loc=0.0,scale=np.sqrt(1.0/n_out),
-					size=(n_in,n_out)
-					),
-				dtype=theano.config.floatX
-				)
-			)
-
-		self.b = theano.shared(
-			np.asarray(
-				np.random.normal(
-					loc=0.0,scale=1.0,
-					size=(n_out,)
-					),
-				dtype=theano.config.floatX
-				)
-			)
-		self.params = [self.w,self.b]
-
-	def set_inpt(self,inpt,net):
+	def h5opt_write(self,optimizer,th5,wavelength):
 		'''
-		Define input and output for each neural net layer
+		Write current state of the optimizer to HDF5 file
 		'''
-		self.inpt = inpt.reshape((net.mini_batch_size,self.n_in))
-		self.output = self.activation_fn(T.dot(self.inpt,self.w) + self.b)
+		for kk in optimizer.state_dict().keys():
+			# cycle through the top keys
+			if kk == 'state':
+				# cycle through the different states
+				for jj in optimizer.state_dict()['state'].keys():
+					for ll in optimizer.state_dict()['state'][jj].keys():
+	  					try:
+							# check to see if it is a Tensor or an Int
+							data = optimizer.state_dict()['state'][jj][ll].numpy()
+						except AttributeError:
+							# create an int array to save in the HDF5 file
+							data = np.array([optimizer.state_dict()['state'][jj][ll]])
+		          
+						th5.create_dataset(
+							'opt_{0}/optimizer/state/{1}/{2}'.format(wavelength,jj,ll),
+							data=data,compression='gzip')
+			elif kk == 'param_groups':
+				pgdict = optimizer.state_dict()['param_groups'][0]
+				for jj in pgdict.keys():
+					try:
+						th5.create_dataset(
+							'opt_{0}/optimizer/param_groups/{1}'.format(wavelength,jj),
+							data=np.array(pgdict[jj]),compression='gzip')
+					except TypeError:
+						th5.create_dataset(
+							'opt_{0}/optimizer/param_groups/{1}'.format(wavelength,jj),
+							data=np.array([pgdict[jj]]),compression='gzip')
 
-	def cost(self,net):
-		'''
-		Define a cost function
-		'''
-		return T.sum(T.abs_(net.y-self.output))
-
-def act_func(z):
-	'''
-	Define action function that we will use in the 
-	validation step. Make sure this function is 
-	consistent with the training function.
-
-	:params z:
-	label that goes into the sigmoid
-
-	'''
-	return 1.0/(1.0+np.exp(-z))
+		# th5.flush()
