@@ -11,6 +11,11 @@ Artificial Neural-Net compression and fitting of synthetic spectral grids. The c
 
 The initial algorithm framework for The Payne is given in [Ting, Y.-S., Conroy, C., & Rix, H.-W. 2016, ApJ, 826, 83](http://adsabs.harvard.edu/abs/2016ApJ...826...83T) and  [Rix, H.-W., Ting, Y.-S., Conroy, C., & Hogg, D.~W. 2016, ApJL, 826, L25](http://adsabs.harvard.edu/abs/2016ApJ...826L..25R). This code follows the general approach outlined in these papers, with additional changes in the fitting and training procedures. Please cite these references if this code is used for any academic purposes.
 
+***The Payne is named in honor of Cecilia Payne-Gaposchkin, one of the great scientist of the 20th century and a pioneering in stellar astrophysicist. In the 1920s she derived the cosmic abundance of the elements from stellar spectra, including determining the composition of the Sun, and demonstrated for the first time the chemical homogeneity of the universe. Cecilia Payne-Gaposchkin achieved two Harvard firsts: she became the first female professor, and the first woman to become department chair.***
+
+<https://en.wikipedia.org/wiki/Cecilia_Payne-Gaposchkin>
+
+
 Authors
 -------
 
@@ -45,7 +50,3 @@ License
 Copyright 2015 the authors. TheCannon is open-source software released under 
 the MIT License. See the file ``LICENSE`` for details.
 
-
-***The Payne is named in honor of Cecilia Payne-Gaposchkin, one of the great scientist of the 20th century and a pioneering in stellar astrophysicist. In the 1920s she derived the cosmic abundance of the elements from stellar spectra, including determining the composition of the Sun, and demonstrated for the first time the chemical homogeneity of the universe. Cecilia Payne-Gaposchkin achieved two Harvard firsts: she became the first female professor, and the first woman to become department chair.***
-
-<https://en.wikipedia.org/wiki/Cecilia_Payne-Gaposchkin>
