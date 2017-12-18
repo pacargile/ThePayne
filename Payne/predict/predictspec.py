@@ -72,7 +72,7 @@ class readNN(object):
     return outpars.data.numpy().squeeze()
 
 
-class PaynePredict_V2(object):
+class PaynePredict(object):
     """
     Class for taking a Payne-learned NN and predicting spectrum.
     """

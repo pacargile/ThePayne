@@ -46,7 +46,7 @@ class Net(nn.Module):
 		x = (x_np-self.xmin)/(self.xmax-self.xmin)
 		return Variable(torch.from_numpy(x).type(dtype))
 
-class TrainSpec_V2(object):
+class TrainSpec(object):
 	"""docstring for TrainSpec"""
 	def __init__(self, **kwargs):
 		# number of models to train on
@@ -394,15 +394,33 @@ class TrainSpec_V2(object):
 				fig.savefig('ValidLog_pixel{0}_epoch{1}.pdf'.format(pixel_no+1,epoch_i+1))
 				plt.close(fig)
 
-			# # check if user wants to do adaptive training
-			# if self.adaptivetrain:
-			# 	# sort validation labels on abs(resid)
-			# 	ind = np.argsort(np.abs(valid_residual))
+			# check if user wants to do adaptive training
+			if self.adaptivetrain:
+				# sort validation labels on abs(resid)
+				ind = np.argsort(np.abs(valid_residual))
 
-			# 	# determine worst 1% of validation set
-			# 	ind_s = ind[:int(0.01*self.numtrain)]
+				# determine worst 1% of validation set
+				ind_s = ind[-int(0.01*self.numtrain):]
+				labels_a = labels_o[ind_s]
 
+				# determine the number of models to add per new point
+				numaddmod = int(0.1*self.numtrain/len(ind_s))
 
+				# cycle through worst samples, adding 10% new models to training set
+				for label_i in labels_a:
+					newlabels = np.array([x+np.random.randn(len=numaddmod) for x in label_i]).T
+					spectra_a,labels_a,wavelength = self.pullspectra.selspectra(
+						newlabels,
+						resolution=self.resolution, 
+						waverange=self.waverange,
+						)
+					Y_valid_a = np.array(spectra_a[pixel_no,:]).T
+					Y_valid = np.vstack([Y_valid,Y_valid_a])
+
+				labels_o.append(labels_a)
+				X_valid_Tensor = Variable(torch.from_numpy(labels_o).type(dtype))
+
+				Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
 
 			# re-use validation set as new training set for the next epoch
 			old_labels_o = labels_o
