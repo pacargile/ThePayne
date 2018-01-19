@@ -5,21 +5,13 @@ import numpy as np
 import h5py
 from scipy.interpolate import NearestNDInterpolator
 from scipy.stats import beta
-import os,sys
+import os,sys,glob
 
 import Payne
 from .smoothing import smoothspec
 
 class pullspectra(object):
 	def __init__(self,**kwargs):
-		# define the [Fe/H] array, this is the values that the MIST 
-		# and C3K grids are built
-		self.FeHarr = ([-4.0,-3.5,-3.0,-2.75,-2.5,-2.25,-2.0,-1.75,
-			-1.5,-1.25,-1.0,-0.75,-0.5,-0.25,0.0,0.25,0.5])
-
-		# define the [alpha/Fe] array
-		self.alphaarr = [0.0,0.2,0.4]
-
 		# define aliases for the MIST isochrones and C3K/CKC files
 		self.MISTpath = kwargs.get('MISTpath',Payne.__abspath__+'data/MIST/')
 		self.C3Kpath  = kwargs.get('C3Kpath',Payne.__abspath__+'data/C3K/')
@@ -28,21 +20,49 @@ class pullspectra(object):
 		self.MIST = h5py.File(self.MISTpath+'/MIST_1.2_EEPtrk.h5','r')
 		self.MISTindex = list(self.MIST['index'])
 
+		self.FeHarr = []
+		self.alphaarr = []
+
+		# determine the FeH and aFe arrays for C3K
+		for indinf in glob.glob(self.C3Kpath+'*'):
+			self.FeHarr.append(float(indinf.split('_')[-2][3:]))
+			self.alphaarr.append(float(indinf.split('_')[-1][3:-8]))
+
+		# remove the super metal-rich models that only have aFe = 0
+		self.FeHarr.remove(0.75)
+		self.FeHarr.remove(1.00)
+		self.FeHarr.remove(1.25)
+
+		# determine the MIST FeH and aFe arrays
+		self.MISTFeHarr = []
+		self.MISTalphaarr = []
+		for indinf in self.MISTindex:
+			self.MISTFeHarr.append(float(indinf.split('/')[0]))
+			self.MISTalphaarr.append(float(indinf.split('/')[1]))
+
+		# # define the [Fe/H] array, this is the values that the MIST 
+		# # and C3K grids are built
+		# self.FeHarr = ([-4.0,-3.5,-3.0,-2.75,-2.5,-2.25,-2.0,-1.75,
+		# 	-1.5,-1.25,-1.0,-0.75,-0.5,-0.25,0.0,0.25,0.5])
+
+		# # define the [alpha/Fe] array
+		# self.alphaarr = [0.0,0.2,0.4]
+
 		# create weights for Teff
 		# determine the min/max Teff from MIST
-		MISTTeffmin = np.inf
-		MISTTeffmax = 0.0
+		self.MISTTeffmin = np.inf
+		self.MISTTeffmax = 0.0
 		for ind in self.MISTindex:
 			MISTTeffmin_i = self.MIST[ind]['log_Teff'].min()
 			MISTTeffmax_i = self.MIST[ind]['log_Teff'].max()
-			if MISTTeffmin_i < MISTTeffmin:
-				MISTTeffmin = MISTTeffmin_i
-			if MISTTeffmax_i > MISTTeffmax:
-				MISTTeffmax = MISTTeffmax_i
-		self.teffwgts = beta(0.5,0.5,loc=MISTTeffmin-10.0,scale=(MISTTeffmax+10.0)-(MISTTeffmin-10.0))
+			if MISTTeffmin_i < self.MISTTeffmin:
+				self.MISTTeffmin = MISTTeffmin_i
+			if MISTTeffmax_i > self.MISTTeffmax:
+				self.MISTTeffmax = MISTTeffmax_i
+		self.teffwgts = beta(0.5,1.0,loc=self.MISTTeffmin-0.1,scale=(self.MISTTeffmax+0.1)-(self.MISTTeffmin-0.1))
 
 		# create weights for [Fe/H]
-		self.fehwgts = beta(1.0,0.5,loc=-2.1,scale=2.7).pdf(self.FeHarr)
+		self.fehwgts = beta(1.0,0.5,loc=-4.1,scale=4.7).pdf(self.FeHarr)
 		self.fehwgts = self.fehwgts/np.sum(self.fehwgts)
 			
 		# create a dictionary for the C3K models and populate it for different
@@ -52,7 +72,7 @@ class pullspectra(object):
 			self.C3K[aa] = {}
 			for mm in self.FeHarr:
 				self.C3K[aa][mm] = h5py.File(
-					self.C3Kpath+'/c3k_v1.3_feh{0:+4.2f}_afe{1:+3.1f}.full.h5'.format(mm,aa),
+					self.C3Kpath+'c3k_v1.3_feh{0:+4.2f}_afe{1:+3.1f}.full.h5'.format(mm,aa),
 					'r')
 
 	def __call__(self,num,**kwargs):
@@ -96,7 +116,7 @@ class pullspectra(object):
 		if 'Teff' in kwargs:
 			Teffrange = kwargs['Teff']
 		else:
-			Teffrange = [3000.0,15000.0]
+			Teffrange = [10.0**self.MISTTeffmin,10.0**self.MISTTeffmax]
 
 		if 'logg' in kwargs:
 			loggrange = kwargs['logg']
@@ -106,12 +126,12 @@ class pullspectra(object):
 		if 'FeH' in kwargs:
 			fehrange = kwargs['FeH']
 		else:
-			fehrange = [-2.0,0.5]
+			fehrange = [min(self.FeHarr),max(self.FeHarr)]
 
 		if 'aFe' in kwargs:
 			aFerange = kwargs['aFe']
 		else:
-			aFerange = [0.0,0.4]
+			aFerange = [min(self.alphaarr),max(self.alphaarr)]
 
 		if 'resolution' in kwargs:
 			resolution = kwargs['resolution']
@@ -180,7 +200,10 @@ class pullspectra(object):
 				C3Kpars = np.array(C3K_i['parameters'])
 
 				# select the range of MIST models with that [Fe/H]
-				MIST_i = self.MIST['{0:4.2f}/0.00/0.00'.format(FeH_i)]
+				# first determine the FeH and aFe that are nearest to MIST values
+				FeH_i_MIST = self.MISTFeHarr[np.argmin(np.abs(FeH_i-self.MISTFeHarr))]
+				aFe_i_MIST = self.MISTalphaarr[np.argmin(np.abs(alpha_i-self.MISTalphaarr))]
+				MIST_i = self.MIST['{0:4.2f}/{1:4.2f}/0.00'.format(FeH_i_MIST,aFe_i_MIST)]
 
 				# restrict the MIST models to EEP = 202-606
 				MIST_i = MIST_i[(MIST_i['EEP'] > 202) & (MIST_i['EEP'] < 606)]
@@ -227,7 +250,9 @@ class pullspectra(object):
 				if list(label_i) in excludelabels:
 					continue
 
-				spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
+				# turn off warnings for this step, C3K has some continuaa with flux = 0
+				with np.errstate(divide='ignore', invalid='ignore'):
+					spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
 
 				# check to see if label_i in labels, or spectra_i is nan's
 				# if so, then skip the append and go to next step in while loop
@@ -309,6 +334,11 @@ class pullspectra(object):
 			FeH_i   = li[2]
 			alpha_i = li[3]
 
+			# find nearest value to FeH and aFe
+			FeH_i   = self.FeHarr[np.argmin(np.abs(self.FeHarr-FeH_i))]
+			alpha_i = self.alphaarr[np.argmin(np.abs(self.alphaarr-alpha_i))]
+
+			# select the C3K spectra for these alpha and FeH
 			C3K_i = self.C3K[alpha_i][FeH_i]
 
 			# create array of all labels in specific C3K file
@@ -322,8 +352,9 @@ class pullspectra(object):
 			# determine the labels for the selected C3K spectrum
 			label_i = list(C3Kpars[C3KNN])
 
-			# calculate the normalized spectrum
-			spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
+			# turn off warnings for this step, C3K has some continuaa with flux = 0
+			with np.errstate(divide='ignore', invalid='ignore'):
+				spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
 
 			# store a wavelength array as an instance, all of C3K has 
 			# the same wavelength sampling

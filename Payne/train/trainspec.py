@@ -400,26 +400,45 @@ class TrainSpec(object):
 				ind = np.argsort(np.abs(valid_residual))
 
 				# determine worst 1% of validation set
-				ind_s = ind[-int(0.01*self.numtrain):]
+				numbadmod = int(0.01*self.numtrain)
+				# if number of bad models < 5, then by default set it to 5
+				if numbadmod < 5:
+					numbadmod = 5
+				ind_s = ind[-numbadmod:]
 				labels_a = labels_o[ind_s]
 
 				# determine the number of models to add per new point
-				numaddmod = int(0.1*self.numtrain/len(ind_s))
+				numselmod = int(0.1*self.numtrain)
+				# if number of new models < 5, then by default set it to 5
+				if numselmod < 5:
+					numselmod = 5
+
+				numaddmod = numselmod/numbadmod
+				if numaddmod <= 1:
+					numaddmod = 2
+
+				# make floor of numaddmod == 1
+				# if numaddmod == 0:
+				# 	numaddmod = 1
 
 				# cycle through worst samples, adding 10% new models to training set
 				for label_i in labels_a:
-					newlabels = np.array([x+np.random.randn(len=numaddmod) for x in label_i]).T
-					spectra_a,labels_a,wavelength = self.pullspectra.selspectra(
-						newlabels,
-						resolution=self.resolution, 
-						waverange=self.waverange,
-						)
-					Y_valid_a = np.array(spectra_a[pixel_no,:]).T
-					Y_valid = np.vstack([Y_valid,Y_valid_a])
+					while True:
+						newlabels = np.array([x+(0.1*x)*np.random.randn(numaddmod) for x in label_i]).T
+						spectra_ai,labels_ai,wavelength = self.pullspectra.selspectra(
+							newlabels,
+							resolution=self.resolution, 
+							waverange=self.waverange,
+							)
+						# check to make sure labels_ai are unique
+						if all([x_ai not in labels_o.tolist() for x_ai in labels_ai.tolist()]):
+							break
 
-				labels_o.append(labels_a)
+					Y_valid_a = np.array(spectra_ai.T[pixel_no,:]).T
+					Y_valid = np.hstack([Y_valid,Y_valid_a])
+					labels_o = np.append(labels_o,labels_ai,axis=0)
+
 				X_valid_Tensor = Variable(torch.from_numpy(labels_o).type(dtype))
-
 				Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
 
 			# re-use validation set as new training set for the next epoch
