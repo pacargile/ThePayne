@@ -24,11 +24,12 @@ def lnprobfn(pars,likeobj,priorobj):
 
 class FitPayne(object):
 	"""docstring for FitPayne"""
-	def __init__(self):
+	def __init__(self,**kwargs):
 		from .likelihood import likelihood
 		from .prior import prior
 		self.prior = prior
 		self.likelihood = likelihood
+		self.oldnnbool = kwargs.get('oldnn',False)
 
 	def run(self,*args,**kwargs):
 		# set verbose
@@ -66,8 +67,7 @@ class FitPayne(object):
 			self.fitargs['obs_eflux'] = inputdict['spec']['obs_eflux']
 
 			# deterimine if user defined spec ANN path
-			specANNpath = inputdict.get('specANNpath',None)
-			self.fitargs['specANNpath'] = specANNpath
+			self.fitargs['specANNpath'] = inputdict.get('specANNpath',None)
 
 			# check to see if user defined some wavelength range for spectrum
 			if 'wave_minmax' in inputdict['spec'].keys():
@@ -133,7 +133,7 @@ class FitPayne(object):
 			'fitargs':self.fitargs,
 			'sampler':self.samplerdict,
 			'priordict':self.priordict,
-			'runbools':[self.spec_bool,self.phot_bool,self.normspec_bool]
+			'runbools':[self.spec_bool,self.phot_bool,self.normspec_bool,self.oldnnbool]
 			})
 
 	def __call__(self,indicts):

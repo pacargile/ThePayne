@@ -8,14 +8,14 @@ class likelihood(object):
 
 		self.verbose = kwargs.get('verbose',True)
 		self.fitargs = fitargs
-		self.spec_bool,self.phot_bool,self.normspec_bool = runbools
+		self.spec_bool,self.phot_bool,self.normspec_bool,self.oldnn_bool = runbools
 
 		# initialize the model generation class
 		self.GM = GenMod()
 
 		# initialize the ANN for spec and phot if user defined
 		if self.spec_bool:
-			self.GM._initspecnn(nnpath=fitargs['specANNpath'])
+			self.GM._initspecnn(nnpath=fitargs['specANNpath'],oldnn=self.oldnn_bool)
 		if self.phot_bool:
 			self.GM._initphotnn(self.fitargs['obs_phot'].keys(),
 				nnpath=fitargs['photANNpath'])
