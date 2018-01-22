@@ -12,8 +12,12 @@ class GenMod(object):
 		super(GenMod, self).__init__()
 		self.verbose = kwargs.get('verbose',False)
 		
-	def _initspecnn(self,nnpath=None):
-		from ..predict.predictspec import PaynePredict
+	def _initspecnn(self,nnpath=None,oldnn=False):
+		if oldnn == False:
+			from ..predict.predictspec import PaynePredict
+		else:
+			from ..predict.oldpredictspec import PaynePredict
+
 		from .fitutils import polycalc
 
 		# initialize the Payne Spectrum Predictor
