@@ -129,8 +129,8 @@ class TrainSpec(object):
 		# pull C3K spectra for training
 		print('... Pulling Training Spectra')
 		sys.stdout.flush()
-		pullspectra = pullspectra()
-		self.spectra_o,self.labels_o,self.wavelength = pullspectra(
+		pullspectra_o = pullspectra()
+		self.spectra_o,self.labels_o,self.wavelength = pullspectra_o(
 			self.numtrain,resolution=self.resolution, waverange=self.waverange,
 			MISTweighting=True)
 
