@@ -158,7 +158,6 @@ class TrainSpec(object):
 			Pixel number that is going to be trained
 
 		'''
-		print('3: {0}'.format(pixel_no))
 		return self.train_pixel(pixel_no)
 
 
@@ -216,9 +215,9 @@ class TrainSpec(object):
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
 				print('2: {0}'.format(ii))
 				wave_h5[ii]  = self.wavelength[ii]
-				self.h5model_write(net[1],outfile,self.wavelength[ii])
-				if self.saveopt:
-					self.h5opt_write(net[2],outfile,self.wavelength[ii])
+				# self.h5model_write(net[1],outfile,self.wavelength[ii])
+				# if self.saveopt:
+				# 	self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			# flush output file to save results
 			sys.stdout.flush()
 			outfile.flush()
