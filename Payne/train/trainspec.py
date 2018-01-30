@@ -364,7 +364,6 @@ class TrainSpec(object):
 			# calculate the residual at each validation label
 			valid_residual = np.squeeze(Y_valid.T-Y_pred_valid.T)
 
-			"""
 			# create log of the validation step if user wants
 			if self.logepoch:
 				with open('ValidLog_pixel{0}_wave{1}_epoch{2}.log'.format(pixel_no+1,self.wavelength[pixel_no],epoch_i+1),'w') as logfile:
@@ -450,7 +449,7 @@ class TrainSpec(object):
 
 				X_valid_Tensor = Variable(torch.from_numpy(labels_o).type(dtype))
 				Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
-			"""
+
 			# re-use validation set as new training set for the next epoch
 			old_labels_o = labels_o
 			X_train_Tensor = X_valid_Tensor
