@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 matplotlib.pyplot.ioff()
 
 from ..utils.pullspectra import pullspectra
+pullspectra = pullspectra()
 
 class Net(nn.Module):  
 	def __init__(self, D_in, H, D_out):
@@ -129,8 +130,7 @@ class TrainSpec(object):
 		# pull C3K spectra for training
 		print('... Pulling Training Spectra')
 		sys.stdout.flush()
-		self.pullspectra = pullspectra()
-		self.spectra_o,self.labels_o,self.wavelength = self.pullspectra(
+		self.spectra_o,self.labels_o,self.wavelength = pullspectra(
 			self.numtrain,resolution=self.resolution, waverange=self.waverange,
 			MISTweighting=True)
 
@@ -234,7 +234,7 @@ class TrainSpec(object):
 		sys.stdout.flush()
 		# formally close the output file
 		outfile.close()
-		
+
 	def initout(self,restartfile=None):
 		'''
 		function to save all of the information into 
@@ -279,7 +279,7 @@ class TrainSpec(object):
 
 		# start a timer
 		starttime = datetime.now()
-	
+		
 		# change labels into old_labels
 		old_labels_o = self.labels_o
 
@@ -342,7 +342,7 @@ class TrainSpec(object):
 				optimizer.step(closure)
 
 			# re-draw spectra for next epoch
-			spectra_o,labels_o,wavelength = self.pullspectra(
+			spectra_o,labels_o,wavelength = pullspectra(
 				self.numtrain,resolution=self.resolution, waverange=self.waverange,
 				MISTweighting=True,excludelabels=old_labels_o)
 			spectra = spectra_o.T
