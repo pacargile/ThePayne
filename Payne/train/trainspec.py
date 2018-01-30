@@ -341,8 +341,8 @@ class TrainSpec(object):
 					
 					if (t+1) % 100 == 0:
 						print (
-							'Pixel: {0} -- Step [{1:d}/{2:d}], Step Time: {3}, Loss: {4:.4f}'.format(
-							pixel_no+1,t+1, self.niter, datetime.now()-steptime, loss.data[0])
+							'Pixel: {0} -- Epoch: {1} -- Step [{2:d}/{3:d}], Step Time: {4}, Loss: {5:.4f}'.format(
+							pixel_no+1,epoch_i,t+1, self.niter, datetime.now()-steptime, loss.data[0])
 						)
 						sys.stdout.flush()
 
