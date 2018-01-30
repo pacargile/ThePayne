@@ -158,6 +158,7 @@ class TrainSpec(object):
 			Pixel number that is going to be trained
 
 		'''
+		print('3: {0}'.format(pixel_no))
 		return self.train_pixel(pixel_no)
 
 
@@ -270,7 +271,6 @@ class TrainSpec(object):
 		define training function for each wavelength pixel to run in parallel
 		note we create individual neural network for each pixel
 		'''
-		print('3: {0}'.format(pixel_no))
 
 		# start a timer
 		starttime = datetime.now()
