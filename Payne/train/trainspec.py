@@ -5,6 +5,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import StepLR
 
+import traceback
 import numpy as np
 import h5py
 import time,sys,os
@@ -158,7 +159,12 @@ class TrainSpec(object):
 			Pixel number that is going to be trained
 
 		'''
-		return self.train_pixel(pixel_no)
+		try:
+			return self.train_pixel(pixel_no)
+		except Exception as e:
+			traceback.print_exc()
+			print()
+			raise e
 
 
 	def run(self,mp=False,ncpus=1):
@@ -214,13 +220,13 @@ class TrainSpec(object):
 			print('1: {0}'.format(pixellist_i))
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
 				print('2: {0}'.format(ii))
-				# wave_h5[ii]  = self.wavelength[ii]
-				# self.h5model_write(net[1],outfile,self.wavelength[ii])
-				# if self.saveopt:
-				# 	self.h5opt_write(net[2],outfile,self.wavelength[ii])
+				wave_h5[ii]  = self.wavelength[ii]
+				self.h5model_write(net[1],outfile,self.wavelength[ii])
+				if self.saveopt:
+					self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			# flush output file to save results
 			sys.stdout.flush()
-			# outfile.flush()
+			outfile.flush()
 
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
