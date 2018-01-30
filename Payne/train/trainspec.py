@@ -279,8 +279,8 @@ class TrainSpec(object):
 		# start a timer
 		starttime = datetime.now()
 
-		
-		pullspectra = pullspectra()
+
+		pullspectra_i = pullspectra()
 		
 		# change labels into old_labels
 		old_labels_o = self.labels_o
@@ -344,7 +344,7 @@ class TrainSpec(object):
 				optimizer.step(closure)
 
 			# re-draw spectra for next epoch
-			spectra_o,labels_o,wavelength = pullspectra(
+			spectra_o,labels_o,wavelength = pullspectra_i(
 				self.numtrain,resolution=self.resolution, waverange=self.waverange,
 				MISTweighting=True,excludelabels=old_labels_o)
 			spectra = spectra_o.T
