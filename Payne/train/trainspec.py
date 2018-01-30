@@ -335,7 +335,7 @@ class TrainSpec(object):
 				# Calling the step function on an Optimizer makes an update to its parameters
 				optimizer.step(closure)
 
-
+			print('3: {0}'.format(pixel_no))
 			# re-draw spectra for next epoch
 			spectra_o,labels_o,wavelength = self.pullspectra(
 				self.numtrain,resolution=self.resolution, waverange=self.waverange,
