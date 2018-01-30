@@ -215,7 +215,7 @@ class TrainSpec(object):
 
 		print('... Starting Training at {0}'.format(tottimestart))
 		sys.stdout.flush()
-		"""
+
 		for pixellist_i in np.array_split(np.array(pixellist),int(numtrainedpixles/ncpus)):
 			print('1: {0}'.format(pixellist_i))
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
@@ -227,7 +227,6 @@ class TrainSpec(object):
 			# flush output file to save results
 			sys.stdout.flush()
 			outfile.flush()
-		"""
 
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
