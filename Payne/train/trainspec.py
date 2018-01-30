@@ -126,6 +126,16 @@ class TrainSpec(object):
 		else:
 			self.adaptivetrain = True
 
+		if 'logdir' in kwargs:
+			self.logdir = kwargs['logdir']
+		else:
+			self.logdir = '.'
+
+		if 'pdfdir' in kwargs:
+			self.pdfdir = kwargs['pdfdir']
+		else:
+			self.pdfdir = '.'
+
 		# pull C3K spectra for training
 		print('... Pulling Training Spectra')
 		sys.stdout.flush()
@@ -364,7 +374,10 @@ class TrainSpec(object):
 
 			# create log of the validation step if user wants
 			if self.logepoch:
-				with open('ValidLog_pixel{0}_wave{1}_epoch{2}.log'.format(pixel_no+1,self.wavelength[pixel_no],epoch_i+1),'w') as logfile:
+				with open(
+					self.logdir+'/ValidLog_pixel{0}_wave{1}_epoch{2}.log'.format(
+						pixel_no+1,self.wavelength[pixel_no],epoch_i+1),
+					'w') as logfile:
 					logfile.write('valnum Teff log(g) [Fe/H] [a/Fe] resid\n')
 					for ii,res in enumerate(valid_residual):
 						logfile.write('{0} '.format(ii+1))
@@ -398,7 +411,9 @@ class TrainSpec(object):
 				ax.set_ylim(6,-1.5)
 				ax.set_xlabel('Teff')
 				ax.set_ylabel('log(g)')
-				fig.savefig('ValidLog_pixel{0}_wave{1}_epoch{2}.pdf'.format(pixel_no+1,self.wavelength[pixel_no],epoch_i+1))
+				fig.savefig(
+					self.pdfdir+'/ValidLog_pixel{0}_wave{1}_epoch{2}.pdf'.format(
+						pixel_no+1,self.wavelength[pixel_no],epoch_i+1))
 				plt.close(fig)
 
 			# check if user wants to do adaptive training
