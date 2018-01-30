@@ -432,7 +432,7 @@ class TrainSpec(object):
 				for label_i in labels_a:
 					while True:
 						newlabels = np.array([x+(0.1*x)*np.random.randn(numaddmod) for x in label_i]).T
-						spectra_ai,labels_ai,wavelength = self.pullspectra.selspectra(
+						spectra_ai,labels_ai,wavelength = pullspectra_i.selspectra(
 							newlabels,
 							resolution=self.resolution, 
 							waverange=self.waverange,
