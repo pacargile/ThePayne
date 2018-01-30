@@ -213,6 +213,7 @@ class TrainSpec(object):
 		for pixellist_i in np.array_split(np.array(pixellist),int(numtrainedpixles/ncpus)):
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
 				wave_h5[ii]  = self.wavelength[ii]
+				print('WRITING {0}'.format(self.wavelength[ii]))
 				self.h5model_write(net[1],outfile,self.wavelength[ii])
 				if self.saveopt:
 					self.h5opt_write(net[2],outfile,self.wavelength[ii])
