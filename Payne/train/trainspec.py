@@ -214,13 +214,13 @@ class TrainSpec(object):
 			print('1: {0}'.format(pixellist_i))
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
 				print('2: {0}'.format(ii))
-				wave_h5[ii]  = self.wavelength[ii]
+				# wave_h5[ii]  = self.wavelength[ii]
 				# self.h5model_write(net[1],outfile,self.wavelength[ii])
 				# if self.saveopt:
 				# 	self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			# flush output file to save results
 			sys.stdout.flush()
-			outfile.flush()
+			# outfile.flush()
 
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
