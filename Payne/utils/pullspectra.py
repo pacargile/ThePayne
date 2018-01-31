@@ -6,6 +6,7 @@ import h5py
 from scipy.interpolate import NearestNDInterpolator
 from scipy.stats import beta
 import os,sys,glob
+from datetime import datetime
 
 import Payne
 from .smoothing import smoothspec
@@ -59,7 +60,15 @@ class pullspectra(object):
 				self.MISTTeffmin = MISTTeffmin_i
 			if MISTTeffmax_i > self.MISTTeffmax:
 				self.MISTTeffmax = MISTTeffmax_i
-		self.teffwgts = beta(0.5,1.0,loc=self.MISTTeffmin-0.1,scale=(self.MISTTeffmax+0.1)-(self.MISTTeffmin-0.1))
+
+		self.teffwgts = {}
+		for ind in self.MISTindex:
+			self.teffwgts[ind] = beta(0.5,1.0,
+				loc=self.MISTTeffmin-0.1,
+				scale=(self.MISTTeffmax+0.1)-(self.MISTTeffmin-0.1)
+				).pdf(self.MIST[ind]['log_Teff'])
+			self.teffwgts[ind] = self.teffwgts[ind]/np.sum(self.teffwgts[ind])
+		# self.teffwgts = beta(0.5,1.0,loc=self.MISTTeffmin-0.1,scale=(self.MISTTeffmax+0.1)-(self.MISTTeffmin-0.1))
 
 		# create weights for [Fe/H]
 		self.fehwgts = beta(1.0,0.5,loc=-4.1,scale=4.7).pdf(self.FeHarr)
@@ -159,6 +168,11 @@ class pullspectra(object):
 		else:
 			MISTweighting = False
 
+		if 'timeit' in kwargs:
+			timeit = kwargs['timeit']
+		else:
+			timeit = False
+
 		# randomly select num number of MIST isochrone grid points, currently only 
 		# using dwarfs, subgiants, and giants (EEP = 202-605)
 
@@ -168,7 +182,11 @@ class pullspectra(object):
 		if reclabelsel:
 			initlabels = []
 
+
 		for ii in range(num):
+			if timeit:
+				starttime = datetime.now()
+
 			while True:
 				# first randomly draw a [Fe/H]
 				while True:
@@ -192,6 +210,8 @@ class pullspectra(object):
 					# [alpha/Fe] limits
 					if (alpha_i >= aFerange[0]) & (alpha_i <= aFerange[1]):
 						break
+				if timeit:
+					print('Pulled random [Fe/H] & [a/Fe] in {0}'.format(datetime.now()-starttime))
 
 				# select the C3K spectra at that [Fe/H] and [alpha/Fe]
 				C3K_i = self.C3K[alpha_i][FeH_i]
@@ -199,22 +219,28 @@ class pullspectra(object):
 				# create array of all labels in specific C3K file
 				C3Kpars = np.array(C3K_i['parameters'])
 
+				if timeit:
+					print('create arrray of C3Kpars in {0}'.format(datetime.now()-starttime))
+
 				# select the range of MIST models with that [Fe/H]
 				# first determine the FeH and aFe that are nearest to MIST values
 				FeH_i_MIST = self.MISTFeHarr[np.argmin(np.abs(FeH_i-self.MISTFeHarr))]
 				aFe_i_MIST = self.MISTalphaarr[np.argmin(np.abs(alpha_i-self.MISTalphaarr))]
 				MIST_i = self.MIST['{0:4.2f}/{1:4.2f}/0.00'.format(FeH_i_MIST,aFe_i_MIST)]
 
-				# restrict the MIST models to EEP = 202-606
-				MIST_i = MIST_i[(MIST_i['EEP'] > 202) & (MIST_i['EEP'] < 606)]
+				if timeit:
+					print('Pulled MIST models in {0}'.format(datetime.now()-starttime))
 
 				if MISTweighting:
-					# generate Teff weights
-					teffwgts_i = self.teffwgts.pdf(MIST_i['log_Teff'])
-					teffwgts_i = teffwgts_i/np.sum(teffwgts_i)
+					# # generate Teff weights
+					# teffwgts_i = self.teffwgts.pdf(MIST_i['log_Teff'])
+					# teffwgts_i = teffwgts_i/np.sum(teffwgts_i)
+					teffwgts_i = self.teffwgts['{0:4.2f}/{1:4.2f}/0.00'.format(FeH_i_MIST,aFe_i_MIST)]
 				else:
 					teffwgts_i = None
 
+				if timeit:
+					print('Created MIST weighting {0}'.format(datetime.now()-starttime))
 
 				while True:
 					# randomly select a EEP, log(age) combination with weighting 
@@ -222,7 +248,7 @@ class pullspectra(object):
 					MISTsel = np.random.choice(len(MIST_i),p=teffwgts_i)
 
 					# get MIST Teff and log(g) for this selection
-					logt_MIST,logg_MIST = MIST_i['log_Teff'][MISTsel], MIST_i['log_g'][MISTsel]
+					logt_MIST,logg_MIST = MIST_i[MISTsel]['log_Teff'], MIST_i[MISTsel]['log_g']
 
 					# check to make sure MIST log(g) and log(Teff) have a spectrum in the C3K grid
 					# if not draw again
@@ -231,6 +257,9 @@ class pullspectra(object):
 						(logg_MIST >= loggrange[0]) and (logg_MIST <= loggrange[1])
 						):
 						break
+				if timeit:
+					print('Selected MIST pars in {0}'.format(datetime.now()-starttime))
+
 
 				# add a gaussian blur to the MIST selected Teff and log(g)
 				# sigma_t = 750K, sigma_g = 1.5
@@ -245,6 +274,9 @@ class pullspectra(object):
 				# determine the labels for the selected C3K spectrum
 				label_i = list(C3Kpars[C3KNN])
 
+				if timeit:
+					print('Determine C3K labels in {0}'.format(datetime.now()-starttime))
+
 				# check to see if user defined labels to exclude, if so
 				# continue on to the next iteration
 				if list(label_i) in excludelabels:
@@ -253,6 +285,9 @@ class pullspectra(object):
 				# turn off warnings for this step, C3K has some continuaa with flux = 0
 				with np.errstate(divide='ignore', invalid='ignore'):
 					spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
+
+				if timeit:
+					print('Create C3K spectra in {0}'.format(datetime.now()-starttime))
 
 				# check to see if label_i in labels, or spectra_i is nan's
 				# if so, then skip the append and go to next step in while loop
@@ -280,12 +315,18 @@ class pullspectra(object):
 						wavecond = np.array(wavecond,dtype=bool)
 						wavelength_o = wavelength_i[wavecond]
 
+				if timeit:
+					print('Saved a C3K wavelength instance in {0}'.format(datetime.now()-starttime))
+
 				# if user defined resolution to train at, the smooth C3K to that resolution
 				if resolution != None:
 					spectra_i = self.smoothspecfunc(wavelength_i,spectra_i,resolution,
 						outwave=wavelength_o,smoothtype='R',fftsmooth=True,inres=500000.0)
 				else:
 					spectra_i = spectra_i[wavecond]
+
+				if timeit:
+					print('Convolve C3K to new R in {0}'.format(datetime.now()-starttime))
 
 				# check to see if labels are already in training set, if not store labels/spectrum
 				if (label_i not in labels) and (not np.any(np.isnan(spectra_i))):
@@ -295,7 +336,9 @@ class pullspectra(object):
 					if reclabelsel:
 						initlabels.append([logt_MIST,logg_MIST,FeH_i,alpha_i])
 					break
-
+			if timeit:
+				print('TOTAL TIME: {0}'.format(datetime.now()-starttime))
+				print('')
 		if reclabelsel:
 			return np.array(spectra), np.array(labels), np.array(initlabels), wavelength_o
 		else:
