@@ -136,10 +136,13 @@ class TrainSpec(object):
 		else:
 			self.pdfdir = '.'
 
+		self.MISTpath = kwargs.get('MISTpath',None)
+		self.C3Kpath  = kwargs.get('C3Kpath',None)
+
 		# pull C3K spectra for training
 		print('... Pulling Training Spectra')
 		sys.stdout.flush()
-		pullspectra_o = pullspectra()
+		pullspectra_o = pullspectra(MISTpath=self.MISTpath,C3Kpath=self.C3Kpath)
 		self.spectra_o,self.labels_o,self.wavelength = pullspectra_o(
 			self.numtrain,resolution=self.resolution, waverange=self.waverange,
 			MISTweighting=True)
@@ -290,7 +293,7 @@ class TrainSpec(object):
 		starttime = datetime.now()
 
 
-		pullspectra_i = pullspectra()
+		pullspectra_i = pullspectra(MISTpath=self.MISTpath,C3Kpath=self.C3Kpath)
 		
 		# change labels into old_labels
 		old_labels_o = self.labels_o
