@@ -227,6 +227,7 @@ class TrainSpec(object):
 		sys.stdout.flush()
 
 		for pixellist_i in np.array_split(np.array(pixellist),int(numtrainedpixles/ncpus)):
+			print('... Doing Pixels: {0}-{1}'.format(min(pixellist_i),max(pixellist_i)))
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
 				wave_h5[ii]  = self.wavelength[ii]
 				self.h5model_write(net[1],outfile,self.wavelength[ii])
@@ -235,6 +236,7 @@ class TrainSpec(object):
 			# flush output file to save results
 			sys.stdout.flush()
 			outfile.flush()
+			print('... Finished Pixels: {0}-{1} @ {2}'.format(min(pixellist_i),max(pixellist_i),datetime.now()))
 
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
@@ -309,7 +311,7 @@ class TrainSpec(object):
 		loss_fn = torch.nn.KLDivLoss(size_average=False)
 
 		# initialize the optimizer
-		learning_rate = 0.05
+		learning_rate = 10.0
 		optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 		# optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
