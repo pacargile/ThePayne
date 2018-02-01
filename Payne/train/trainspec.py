@@ -311,8 +311,8 @@ class TrainSpec(object):
 
 		# initialize the loss function
 		# loss_fn = torch.nn.MSELoss(size_average=False)
-		# loss_fn = torch.nn.SmoothL1Loss(size_average=False)
-		loss_fn = torch.nn.KLDivLoss(size_average=False)
+		loss_fn = torch.nn.SmoothL1Loss(size_average=False)
+		# loss_fn = torch.nn.KLDivLoss(size_average=False)
 
 		# initialize the optimizer
 		learning_rate = 10.0
