@@ -17,6 +17,12 @@ class pullspectra(object):
 		self.MISTpath = kwargs.get('MISTpath',Payne.__abspath__+'data/MIST/')
 		self.C3Kpath  = kwargs.get('C3Kpath',Payne.__abspath__+'data/C3K/')
 
+		if type(self.MISTpath) == type(None):
+			self.MISTpath = Payne.__abspath__+'data/MIST/'
+
+		if type(self.C3Kpath) == type(None):
+			self.C3Kpath = Payne.__abspath__+'data/C3K/'
+
 		# load MIST models
 		self.MIST = h5py.File(self.MISTpath+'/MIST_1.2_EEPtrk.h5','r')
 		self.MISTindex = list(self.MIST['index'])
