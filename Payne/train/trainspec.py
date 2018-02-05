@@ -3,7 +3,7 @@ from torch import nn
 dtype = torch.FloatTensor
 from torch.autograd import Variable
 import torch.nn.functional as F
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR,ReduceLROnPlateau
 
 import traceback
 import numpy as np
@@ -316,12 +316,13 @@ class TrainSpec(object):
 		# loss_fn = torch.nn.KLDivLoss(size_average=False)
 
 		# initialize the optimizer
-		learning_rate = 10.0
+		learning_rate = 0.1
 		optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 		# optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
 		# initialize the scheduler to adjust the learning rate
-		scheduler = StepLR(optimizer,3,gamma=0.1)
+		# scheduler = StepLR(optimizer,5,gamma=0.1)
+		scheduler = ReduceLROnPlateau(optimizer,mode='min',factor=0.1)
 
 		for epoch_i in range(self.epochs):
 			# adjust the optimizer lr
