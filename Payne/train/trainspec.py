@@ -229,7 +229,8 @@ class TrainSpec(object):
 		print('... Starting Training at {0}'.format(tottimestart))
 		sys.stdout.flush()
 
-		for pixellist_i in np.array_split(np.array(pixellist),int(numtrainedpixles/ncpus)):
+		# for pixellist_i in np.array_split(np.array(pixellist),int(numtrainedpixles/ncpus)):
+		for pixellist_i in [pixellist[ii:ii+ncpus] for ii in range(0,numtrainedpixles,ncpus)]:
 			print('... Doing Pixels: {0}-{1}'.format(min(pixellist_i),max(pixellist_i)))
 			sys.stdout.flush()
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
