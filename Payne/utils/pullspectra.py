@@ -269,8 +269,15 @@ class pullspectra(object):
 
 				# add a gaussian blur to the MIST selected Teff and log(g)
 				# sigma_t = 750K, sigma_g = 1.5
-				logt_MIST = np.log10(10.0**logt_MIST + np.random.randn()*750.0)
-				logg_MIST = logg_MIST + np.random.randn()*1.5
+				randomT = np.random.randn()*750.0
+				randomg = np.random.randn()*1.5
+
+				# check to see if randomT is an issue for log10
+				if 10.0**logt_MIST + np.random.randn()*750.0 <= 0.0:
+					randomT = np.abs(randomT)
+
+				logt_MIST = np.log10(10.0**logt_MIST + randomT)				
+				logg_MIST = logg_MIST + randomg
 
 				# do a nearest neighbor interpolation on Teff and log(g) in the C3K grid
 				C3KNN = NearestNDInterpolator(
