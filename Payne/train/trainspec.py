@@ -321,8 +321,8 @@ class TrainSpec(object):
 		# optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
 		# initialize the scheduler to adjust the learning rate
-		# scheduler = StepLR(optimizer,5,gamma=0.1)
-		scheduler = ReduceLROnPlateau(optimizer,mode='min',factor=0.1)
+		scheduler = StepLR(optimizer,5,gamma=0.1)
+		# scheduler = ReduceLROnPlateau(optimizer,mode='min',factor=0.1)
 
 		for epoch_i in range(self.epochs):
 			# adjust the optimizer lr
