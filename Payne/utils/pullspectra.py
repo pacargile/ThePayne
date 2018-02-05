@@ -254,13 +254,13 @@ class pullspectra(object):
 					MISTsel = np.random.choice(len(MIST_i),p=teffwgts_i)
 
 					# get MIST Teff and log(g) for this selection
-					logt_MIST,logg_MIST = MIST_i[MISTsel]['log_Teff'], MIST_i[MISTsel]['log_g']
+					logt_MIST_i,logg_MIST_i = MIST_i[MISTsel]['log_Teff'], MIST_i[MISTsel]['log_g']
 
 					# check to make sure MIST log(g) and log(Teff) have a spectrum in the C3K grid
 					# if not draw again
 					if (
-						(logt_MIST >= np.log10(Teffrange[0])) and (logt_MIST <= np.log10(Teffrange[1])) and
-						(logg_MIST >= loggrange[0]) and (logg_MIST <= loggrange[1])
+						(logt_MIST_i >= np.log10(Teffrange[0])) and (logt_MIST_i <= np.log10(Teffrange[1])) and
+						(logg_MIST_i >= loggrange[0]) and (logg_MIST_i <= loggrange[1])
 						):
 						break
 				if timeit:
@@ -273,11 +273,18 @@ class pullspectra(object):
 				randomg = np.random.randn()*1.5
 
 				# check to see if randomT is an issue for log10
-				if 10.0**logt_MIST + np.random.randn()*750.0 <= 0.0:
+				if 10.0**logt_MIST_i + np.random.randn()*750.0 <= 0.0:
 					randomT = np.abs(randomT)
 
-				logt_MIST = np.log10(10.0**logt_MIST + randomT)				
-				logg_MIST = logg_MIST + randomg
+				with warnings.catch_warnings():
+					warnings.filterwarnings('error')
+					try:
+						logt_MIST = np.log10(10.0**logt_MIST_i + randomT)				
+						logg_MIST = logg_MIST_i + randomg
+					except Warning:
+						print('Caught a MIST parameter that does not make sense: {0} {1} {2} {3}'.format(randomT,logt_MIST_i,randomg,logg_MIST_i))
+						logt_MIST = logt_MIST_i
+						logg_MIST = logg_MIST_i
 
 				# do a nearest neighbor interpolation on Teff and log(g) in the C3K grid
 				C3KNN = NearestNDInterpolator(
