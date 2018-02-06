@@ -88,7 +88,7 @@ class pullspectra(object):
 			for mm in self.FeHarr:
 				self.C3K[aa][mm] = h5py.File(
 					self.C3Kpath+'c3k_v1.3_feh{0:+4.2f}_afe{1:+3.1f}.full.h5'.format(mm,aa),
-					'r')
+					'r', libver='latest', swmr=True)
 
 	def __call__(self,num,**kwargs):
 		'''
