@@ -451,6 +451,41 @@ class pullspectra(object):
 
 		return np.array(spectra), np.array(labels), wavelength_o
 
+	def checklabels(self,inlabels,**kwargs):
+		# a function that allows the user to determine the nearest C3K labels to array on input labels
+		# useful to run before actually selecting spectra
+
+		labels = []
+
+		for li in inlabels:
+			# select the C3K spectra at that [Fe/H] and [alpha/Fe]
+			teff_i  = li[0]
+			logg_i  = li[1]
+			FeH_i   = li[2]
+			alpha_i = li[3]
+
+			# find nearest value to FeH and aFe
+			FeH_i   = self.FeHarr[np.argmin(np.abs(self.FeHarr-FeH_i))]
+			alpha_i = self.alphaarr[np.argmin(np.abs(self.alphaarr-alpha_i))]
+
+			# select the C3K spectra for these alpha and FeH
+			C3K_i = self.C3K[alpha_i][FeH_i]
+
+			# create array of all labels in specific C3K file
+			C3Kpars = np.array(C3K_i['parameters'])
+
+			# do a nearest neighbor interpolation on Teff and log(g) in the C3K grid
+			C3KNN = NearestNDInterpolator(
+				np.array([C3Kpars['logt'],C3Kpars['logg']]).T,range(0,len(C3Kpars))
+				)((teff_i,logg_i))
+
+			# determine the labels for the selected C3K spectrum
+			label_i = list(C3Kpars[C3KNN])		
+			labels.append(label_i)
+
+		return np.array(labels)
+
+
 	def smoothspecfunc(self,wave, spec, sigma, outwave=None, **kwargs):
 		outspec = smoothspec(wave, spec, sigma, outwave=outwave, **kwargs)
 		return outspec
