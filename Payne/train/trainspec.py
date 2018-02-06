@@ -140,7 +140,7 @@ class TrainSpec(object):
 		self.C3Kpath  = kwargs.get('C3Kpath',None)
 
 		# pull C3K spectra for training
-		print('... Pulling Training Spectra')
+		print('... Pulling {0} Training Spectra'.format(self.numtrain))
 		sys.stdout.flush()
 		pullspectra_o = pullspectra(MISTpath=self.MISTpath,C3Kpath=self.C3Kpath)
 		self.spectra_o,self.labels_o,self.wavelength = pullspectra_o(
@@ -311,8 +311,8 @@ class TrainSpec(object):
 		model = Net(self.D_in,self.H,self.D_out)
 
 		# initialize the loss function
-		# loss_fn = torch.nn.MSELoss(size_average=False)
-		loss_fn = torch.nn.SmoothL1Loss(size_average=False)
+		loss_fn = torch.nn.MSELoss(size_average=False)
+		# loss_fn = torch.nn.SmoothL1Loss(size_average=False)
 		# loss_fn = torch.nn.KLDivLoss(size_average=False)
 
 		# initialize the optimizer
