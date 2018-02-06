@@ -234,10 +234,23 @@ class TrainSpec(object):
 			print('... Doing Pixels: {0}-{1}'.format(min(pixellist_i),max(pixellist_i)))
 			sys.stdout.flush()
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
-				wave_h5[ii]  = self.wavelength[ii]
-				self.h5model_write(net[1],outfile,self.wavelength[ii])
-				if self.saveopt:
-					self.h5opt_write(net[2],outfile,self.wavelength[ii])
+				outfile_i = h5py.File('test_{0}.h5'.format(self.wavelength[ii]),'w')
+				outfile_i.create_dataset('wavelength',data=np.array([self.wavelength[ii]]),compression='gzip')
+
+				try:
+					for kk in net[1].state_dict().keys():
+						outfile_i.create_dataset('model_{0}/model/{1}'.format(self.wavelength[ii],kk),
+							data=net[1].state_dict()[kk].numpy(),
+							compression='gzip')
+				except RuntimeError:
+					print('!!! PROBLEM WITH WRITING TO HDF5 FOR WAVELENGTH = {0} !!!'.format(wavelength))
+					raise
+
+				outfile_i.close()				
+				# wave_h5[ii]  = self.wavelength[ii]
+				# self.h5model_write(net[1],outfile,self.wavelength[ii])
+				# if self.saveopt:
+				# 	self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			# flush output file to save results
 			sys.stdout.flush()
 			outfile.flush()
@@ -294,7 +307,7 @@ class TrainSpec(object):
 		# start a timer
 		starttime = datetime.now()
 
-
+		print('Pixel: {0}, pulling first spectra'.format(pixel_no+1))
 		pullspectra_i = pullspectra(MISTpath=self.MISTpath,C3Kpath=self.C3Kpath)
 		
 		# change labels into old_labels
@@ -351,7 +364,7 @@ class TrainSpec(object):
 					if (t+1) % 100 == 0:
 						print (
 							'WL: {0:6.2f} -- Pixel: {1} -- Epoch: {2} -- Step [{3:d}/{4:d}] -- Time per step: {5} -- Loss: {6:.4f}'.format(
-							self.wavelength[pixel_no],pixel_no+1,epoch_i,t+1, self.niter, datetime.now()-steptime, loss.data[0])
+							self.wavelength[pixel_no],pixel_no+1,epoch_i+1,t+1, self.niter, datetime.now()-steptime, loss.data[0])
 						)
 						sys.stdout.flush()
 
@@ -454,21 +467,30 @@ class TrainSpec(object):
 
 				# cycle through worst samples, adding 10% new models to training set
 				for label_i in labels_a:
+					nosel = 1
+					epsilon = 0.1
 					while True:
-						newlabels = np.array([x+(0.1*x)*np.random.randn(numaddmod) for x in label_i]).T
-						spectra_ai,labels_ai,wavelength = pullspectra_i.selspectra(
-							newlabels,
-							resolution=self.resolution, 
-							waverange=self.waverange,
-							)
+						newlabels = np.array([x*(1.0+epsilon)*np.random.randn(numaddmod) for x in label_i]).T
+						labels_check = pullspectra_i.checklabels(newlabels)
 						# check to make sure labels_ai are unique
-						if all([x_ai not in labels_o.tolist() for x_ai in labels_ai.tolist()]):
+						if all([x_ai not in labels_o.tolist() for x_ai in labels_check.tolist()]):
+							print('Pixel: {0}, nosel = {1}'.format(pixel_no+1,nosel))
 							break
+						elif (nosel % 500 == 0):
+							epsilon = epsilon+3.0
+							nosel += 1
+						else:
+							nosel += 1
+
+					spectra_ai,labels_ai,wavelength = pullspectra_i.selspectra(
+						newlabels,
+						resolution=self.resolution, 
+						waverange=self.waverange,
+						)
 
 					Y_valid_a = np.array(spectra_ai.T[pixel_no,:]).T
 					Y_valid = np.hstack([Y_valid,Y_valid_a])
 					labels_o = np.append(labels_o,labels_ai,axis=0)
-
 				X_valid_Tensor = Variable(torch.from_numpy(labels_o).type(dtype))
 				Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
 
