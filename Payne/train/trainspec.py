@@ -257,7 +257,7 @@ class TrainSpec(object):
 
 		if restartfile == None:
 			# create output HDF5 file
-			outfile = h5py.File(self.outfilename,'w')
+			outfile = h5py.File(self.outfilename,'w', libver='latest', swmr=True)
 
 			# add datesets for values that are already defined
 			label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
@@ -272,7 +272,7 @@ class TrainSpec(object):
 
 		else:
 			# read in training file from restarted run
-			outfile  = h5py.File(restartfile,'r+')
+			outfile  = h5py.File(restartfile,'r+', libver='latest', swmr=True)
 
 			# add datesets for values that are already defined
 			label_h5 = outfile['labels']
