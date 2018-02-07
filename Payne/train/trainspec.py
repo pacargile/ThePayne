@@ -329,12 +329,12 @@ class TrainSpec(object):
 		# loss_fn = torch.nn.KLDivLoss(size_average=False)
 
 		# initialize the optimizer
-		learning_rate = 0.1
-		optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-		# optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
+		learning_rate = 0.01
+		# optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+		optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
 		# initialize the scheduler to adjust the learning rate
-		scheduler = StepLR(optimizer,5,gamma=0.1)
+		scheduler = StepLR(optimizer,3,gamma=0.1)
 		# scheduler = ReduceLROnPlateau(optimizer,mode='min',factor=0.1)
 
 		for epoch_i in range(self.epochs):
@@ -469,28 +469,34 @@ class TrainSpec(object):
 				for label_i in labels_a:
 					nosel = 1
 					epsilon = 0.1
+					newlabelbool = False
 					while True:
-						newlabels = np.array([x*(1.0+epsilon)*np.random.randn(numaddmod) for x in label_i]).T
+						newlabels = np.array([x+epsilon*np.random.randn(numaddmod) for x in label_i]).T
 						labels_check = pullspectra_i.checklabels(newlabels)
 						# check to make sure labels_ai are unique
 						if all([x_ai not in labels_o.tolist() for x_ai in labels_check.tolist()]):
 							print('Pixel: {0}, nosel = {1}'.format(pixel_no+1,nosel))
+							newlabelbool = True
 							break
-						elif (nosel % 500 == 0):
-							epsilon = epsilon+3.0
-							nosel += 1
+						# elif (nosel % 100 == 0):
+						# 	print('Pixel: {0}, increasing epsilon to {1} at nosel={2}'.format(pixel_no+1,epsilon*3.0,nosel))
+						# 	epsilon = epsilon*3.0
+						# 	nosel += 1
+						elif (nosel == 100):
+							print('Pixel: {0}, could not find new model at nosel={1}, quitting'.format(pixel_no+1,nosel))
+							print(newlabels)
+							break
 						else:
 							nosel += 1
-
-					spectra_ai,labels_ai,wavelength = pullspectra_i.selspectra(
-						newlabels,
-						resolution=self.resolution, 
-						waverange=self.waverange,
-						)
-
-					Y_valid_a = np.array(spectra_ai.T[pixel_no,:]).T
-					Y_valid = np.hstack([Y_valid,Y_valid_a])
-					labels_o = np.append(labels_o,labels_ai,axis=0)
+					if newlabelbool:
+						spectra_ai,labels_ai,wavelength = pullspectra_i.selspectra(
+							newlabels,
+							resolution=self.resolution, 
+							waverange=self.waverange,
+							)
+						Y_valid_a = np.array(spectra_ai.T[pixel_no,:]).T
+						Y_valid = np.hstack([Y_valid,Y_valid_a])
+						labels_o = np.append(labels_o,labels_ai,axis=0)
 				X_valid_Tensor = Variable(torch.from_numpy(labels_o).type(dtype))
 				Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
 
