@@ -269,19 +269,20 @@ class TrainSpec(object):
 		'''
 
 		if restartfile == None:
-			# create output HDF5 file
-			outfile = h5py.File(self.outfilename,'w', libver='latest', swmr=True)
+			pass
+			# # create output HDF5 file
+			# outfile = h5py.File(self.outfilename,'w', libver='latest', swmr=True)
 
-			# add datesets for values that are already defined
-			label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
-			resol_h5 = outfile.create_dataset('resolution',data=np.array([self.resolution]),compression='gzip')
+			# # add datesets for values that are already defined
+			# label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
+			# resol_h5 = outfile.create_dataset('resolution',data=np.array([self.resolution]),compression='gzip')
 
-			# define vectorized wavelength array, model array, and optimizer array
-			wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
-			# model_h5 = outfile.create_dataset('model_arr', (len(self.wavelength),), compression='gzip')
-			# opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
+			# # define vectorized wavelength array, model array, and optimizer array
+			# wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
+			# # model_h5 = outfile.create_dataset('model_arr', (len(self.wavelength),), compression='gzip')
+			# # opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
 
-			outfile.flush()
+			# outfile.flush()
 
 		else:
 			# read in training file from restarted run
