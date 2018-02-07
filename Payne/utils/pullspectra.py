@@ -69,7 +69,7 @@ class pullspectra(object):
 
 		self.teffwgts = {}
 		for ind in self.MISTindex:
-			self.teffwgts[ind] = beta(0.5,1.0,
+			self.teffwgts[ind] = beta(0.25,1.0,
 				loc=self.MISTTeffmin-0.1,
 				scale=(self.MISTTeffmax+0.1)-(self.MISTTeffmin-0.1)
 				).pdf(self.MIST[ind]['log_Teff'])
@@ -77,7 +77,7 @@ class pullspectra(object):
 		# self.teffwgts = beta(0.5,1.0,loc=self.MISTTeffmin-0.1,scale=(self.MISTTeffmax+0.1)-(self.MISTTeffmin-0.1))
 
 		# create weights for [Fe/H]
-		self.fehwgts = beta(1.0,0.5,loc=-4.1,scale=4.7).pdf(self.FeHarr)
+		self.fehwgts = beta(1.0,0.25,loc=-4.1,scale=4.7).pdf(self.FeHarr)
 		self.fehwgts = self.fehwgts/np.sum(self.fehwgts)
 			
 		# create a dictionary for the C3K models and populate it for different
