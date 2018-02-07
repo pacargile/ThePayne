@@ -329,12 +329,12 @@ class TrainSpec(object):
 		# loss_fn = torch.nn.KLDivLoss(size_average=False)
 
 		# initialize the optimizer
-		learning_rate = 0.01
+		learning_rate = 0.05
 		# optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 		optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
 		# initialize the scheduler to adjust the learning rate
-		scheduler = StepLR(optimizer,3,gamma=0.1)
+		scheduler = StepLR(optimizer,3,gamma=0.5)
 		# scheduler = ReduceLROnPlateau(optimizer,mode='min',factor=0.1)
 
 		for epoch_i in range(self.epochs):
