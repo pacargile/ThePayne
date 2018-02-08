@@ -253,14 +253,14 @@ class TrainSpec(object):
 				# 	self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			# flush output file to save results
 			sys.stdout.flush()
-			outfile.flush()
+			# outfile.flush()
 			print('... Finished Pixels: {0}-{1} @ {2}'.format(min(pixellist_i),max(pixellist_i),datetime.now()))
 
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
 		sys.stdout.flush()
 		# formally close the output file
-		outfile.close()
+		# outfile.close()
 
 	def initout(self,restartfile=None):
 		'''
@@ -283,7 +283,8 @@ class TrainSpec(object):
 			# # opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
 
 			# outfile.flush()
-
+			outfile = None
+			wave_h5 = None
 		else:
 			# read in training file from restarted run
 			outfile  = h5py.File(restartfile,'r+', libver='latest', swmr=True)
