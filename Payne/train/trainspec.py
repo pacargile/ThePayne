@@ -25,13 +25,15 @@ class Net(nn.Module):
 		super(Net, self).__init__()
 		self.lin1 = nn.Linear(D_in, H)
 		self.lin2 = nn.Linear(H,H)
-		self.lin3 = nn.Linear(H, D_out)
+		self.lin3 = nn.Linear(H,H)
+		self.lin4 = nn.Linear(H, D_out)
 
 	def forward(self, x):
 		x_i = self.encode(x)
 		out1 = F.sigmoid(self.lin1(x_i))
 		out2 = F.sigmoid(self.lin2(out1))
-		y_i = self.lin3(out2)
+		out3 = F.sigmoid(self.lin3(out2))
+		y_i = self.lin4(out3)
 		return y_i     
 
 	def encode(self,x):
@@ -234,7 +236,7 @@ class TrainSpec(object):
 			print('... Doing Pixels: {0}-{1}'.format(min(pixellist_i),max(pixellist_i)))
 			sys.stdout.flush()
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
-				outfile_i = h5py.File('{0}_{1}.h5'.format(self.outfilename,self.wavelength[ii]),'w')
+				outfile_i = h5py.File('test_{0}.h5'.format(self.wavelength[ii]),'w')
 				outfile_i.create_dataset('wavelength',data=np.array([self.wavelength[ii]]),compression='gzip')
 
 				try:
@@ -253,14 +255,14 @@ class TrainSpec(object):
 				# 	self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			# flush output file to save results
 			sys.stdout.flush()
-			# outfile.flush()
+			outfile.flush()
 			print('... Finished Pixels: {0}-{1} @ {2}'.format(min(pixellist_i),max(pixellist_i),datetime.now()))
 
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
 		sys.stdout.flush()
 		# formally close the output file
-		# outfile.close()
+		outfile.close()
 
 	def initout(self,restartfile=None):
 		'''
@@ -269,22 +271,20 @@ class TrainSpec(object):
 		'''
 
 		if restartfile == None:
-			pass
-			# # create output HDF5 file
-			# outfile = h5py.File(self.outfilename,'w', libver='latest', swmr=True)
+			# create output HDF5 file
+			outfile = h5py.File(self.outfilename,'w', libver='latest', swmr=True)
 
-			# # add datesets for values that are already defined
-			# label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
-			# resol_h5 = outfile.create_dataset('resolution',data=np.array([self.resolution]),compression='gzip')
+			# add datesets for values that are already defined
+			label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
+			resol_h5 = outfile.create_dataset('resolution',data=np.array([self.resolution]),compression='gzip')
 
-			# # define vectorized wavelength array, model array, and optimizer array
-			# wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
-			# # model_h5 = outfile.create_dataset('model_arr', (len(self.wavelength),), compression='gzip')
-			# # opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
+			# define vectorized wavelength array, model array, and optimizer array
+			wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
+			# model_h5 = outfile.create_dataset('model_arr', (len(self.wavelength),), compression='gzip')
+			# opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
 
-			# outfile.flush()
-			outfile = None
-			wave_h5 = None
+			outfile.flush()
+
 		else:
 			# read in training file from restarted run
 			outfile  = h5py.File(restartfile,'r+', libver='latest', swmr=True)
@@ -336,7 +336,7 @@ class TrainSpec(object):
 		optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
 		# initialize the scheduler to adjust the learning rate
-		scheduler = StepLR(optimizer,3,gamma=0.5)
+		scheduler = StepLR(optimizer,3,gamma=0.75)
 		# scheduler = ReduceLROnPlateau(optimizer,mode='min',factor=0.1)
 
 		for epoch_i in range(self.epochs):
@@ -363,7 +363,7 @@ class TrainSpec(object):
 					# Backward pass: compute gradient of the loss with respect to model parameters
 					loss.backward()
 					
-					if (t+1) % 100 == 0:
+					if (t+1) % 500 == 0:
 						print (
 							'WL: {0:6.2f} -- Pixel: {1} -- Epoch: {2} -- Step [{3:d}/{4:d}] -- Time per step: {5} -- Loss: {6:.4f}'.format(
 							self.wavelength[pixel_no],pixel_no+1,epoch_i+1,t+1, self.niter, datetime.now()-steptime, loss.data[0])
@@ -477,7 +477,7 @@ class TrainSpec(object):
 						labels_check = pullspectra_i.checklabels(newlabels)
 						# check to make sure labels_ai are unique
 						if all([x_ai not in labels_o.tolist() for x_ai in labels_check.tolist()]):
-							print('Pixel: {0}, nosel = {1}'.format(pixel_no+1,nosel))
+							# print('Pixel: {0}, nosel = {1}'.format(pixel_no+1,nosel))
 							newlabelbool = True
 							break
 						# elif (nosel % 100 == 0):
@@ -486,7 +486,7 @@ class TrainSpec(object):
 						# 	nosel += 1
 						elif (nosel == 100):
 							print('Pixel: {0}, could not find new model at nosel={1}, quitting'.format(pixel_no+1,nosel))
-							print(newlabels)
+							# print(newlabels)
 							break
 						else:
 							nosel += 1
@@ -510,7 +510,7 @@ class TrainSpec(object):
 			print (
 				'Pixel: {0} -- EPOCH [{1:d}/{2:d}], Step Time: {3}, LR: {4}, med(|Res|): {5}'.format(
 					pixel_no+1, epoch_i+1, self.epochs, datetime.now()-epochtime,
-					lr_i,np.median(np.abs(valid_residual)))
+					lr_i,np.nanmedian(np.abs(valid_residual)))
 				)
 			sys.stdout.flush()			
 
