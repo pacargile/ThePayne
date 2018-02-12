@@ -234,7 +234,7 @@ class TrainSpec(object):
 			print('... Doing Pixels: {0}-{1}'.format(min(pixellist_i),max(pixellist_i)))
 			sys.stdout.flush()
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
-				outfile_i = h5py.File('test_{0}.h5'.format(self.wavelength[ii]),'w')
+				outfile_i = h5py.File('{0}_{1}.h5'.format(self.outfilename,self.wavelength[ii]),'w')
 				outfile_i.create_dataset('wavelength',data=np.array([self.wavelength[ii]]),compression='gzip')
 
 				try:
@@ -253,14 +253,14 @@ class TrainSpec(object):
 				# 	self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			# flush output file to save results
 			sys.stdout.flush()
-			outfile.flush()
+			# outfile.flush()
 			print('... Finished Pixels: {0}-{1} @ {2}'.format(min(pixellist_i),max(pixellist_i),datetime.now()))
 
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
 		sys.stdout.flush()
 		# formally close the output file
-		outfile.close()
+		# outfile.close()
 
 	def initout(self,restartfile=None):
 		'''
@@ -269,20 +269,22 @@ class TrainSpec(object):
 		'''
 
 		if restartfile == None:
-			# create output HDF5 file
-			outfile = h5py.File(self.outfilename,'w', libver='latest', swmr=True)
+			pass
+			# # create output HDF5 file
+			# outfile = h5py.File(self.outfilename,'w', libver='latest', swmr=True)
 
-			# add datesets for values that are already defined
-			label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
-			resol_h5 = outfile.create_dataset('resolution',data=np.array([self.resolution]),compression='gzip')
+			# # add datesets for values that are already defined
+			# label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
+			# resol_h5 = outfile.create_dataset('resolution',data=np.array([self.resolution]),compression='gzip')
 
-			# define vectorized wavelength array, model array, and optimizer array
-			wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
-			# model_h5 = outfile.create_dataset('model_arr', (len(self.wavelength),), compression='gzip')
-			# opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
+			# # define vectorized wavelength array, model array, and optimizer array
+			# wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
+			# # model_h5 = outfile.create_dataset('model_arr', (len(self.wavelength),), compression='gzip')
+			# # opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
 
-			outfile.flush()
-
+			# outfile.flush()
+			outfile = None
+			wave_h5 = None
 		else:
 			# read in training file from restarted run
 			outfile  = h5py.File(restartfile,'r+', libver='latest', swmr=True)
