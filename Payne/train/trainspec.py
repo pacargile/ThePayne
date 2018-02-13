@@ -25,15 +25,17 @@ class Net(nn.Module):
 		super(Net, self).__init__()
 		self.lin1 = nn.Linear(D_in, H)
 		self.lin2 = nn.Linear(H,H)
-		self.lin3 = nn.Linear(H,H)
-		self.lin4 = nn.Linear(H, D_out)
+		# self.lin3 = nn.Linear(H,H)
+		# self.lin4 = nn.Linear(H, D_out)
+		self.lin3 = nn.Linear(H,D_out)
 
 	def forward(self, x):
 		x_i = self.encode(x)
 		out1 = F.sigmoid(self.lin1(x_i))
 		out2 = F.sigmoid(self.lin2(out1))
-		out3 = F.sigmoid(self.lin3(out2))
-		y_i = self.lin4(out3)
+		# out3 = F.sigmoid(self.lin3(out2))
+		# y_i = self.lin4(out3)
+		y_i = self.lin3(out2)
 		return y_i     
 
 	def encode(self,x):
