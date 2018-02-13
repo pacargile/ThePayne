@@ -238,7 +238,7 @@ class TrainSpec(object):
 			print('... Doing Pixels: {0}-{1}'.format(min(pixellist_i),max(pixellist_i)))
 			sys.stdout.flush()
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
-				outfile_i = h5py.File('test_{0}.h5'.format(self.wavelength[ii]),'w')
+				outfile_i = h5py.File('{0}_w{1}.h5'.format(self.outfilename,self.wavelength[ii]),'w')
 				outfile_i.create_dataset('wavelength',data=np.array([self.wavelength[ii]]),compression='gzip')
 
 				try:
