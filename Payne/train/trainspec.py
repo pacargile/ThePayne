@@ -365,7 +365,7 @@ class TrainSpec(object):
 					# Backward pass: compute gradient of the loss with respect to model parameters
 					loss.backward()
 					
-					if (t+1) % 1000 == 0:
+					if (t+1) % 2500 == 0:
 						print (
 							'WL: {0:6.2f} -- Pixel: {1} -- Epoch: {2} -- Step [{3:d}/{4:d}] -- Time per step: {5} -- Loss: {6:.4f}'.format(
 							self.wavelength[pixel_no],pixel_no+1,epoch_i+1,t+1, self.niter, datetime.now()-steptime, loss.data[0])
