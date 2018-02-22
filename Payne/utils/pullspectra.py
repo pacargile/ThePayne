@@ -1,11 +1,13 @@
 # #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os,sys,glob,warnings
 import numpy as np
-import h5py
+with warnings.catch_warnings():
+	warnings.simplefilter('ignore')
+	import h5py
 from scipy.interpolate import NearestNDInterpolator
 from scipy.stats import beta
-import os,sys,glob,warnings
 from datetime import datetime
 
 import Payne
@@ -46,14 +48,6 @@ class pullspectra(object):
 		for indinf in self.MISTindex:
 			self.MISTFeHarr.append(float(indinf.split('/')[0]))
 			self.MISTalphaarr.append(float(indinf.split('/')[1]))
-
-		# # define the [Fe/H] array, this is the values that the MIST 
-		# # and C3K grids are built
-		# self.FeHarr = ([-4.0,-3.5,-3.0,-2.75,-2.5,-2.25,-2.0,-1.75,
-		# 	-1.5,-1.25,-1.0,-0.75,-0.5,-0.25,0.0,0.25,0.5])
-
-		# # define the [alpha/Fe] array
-		# self.alphaarr = [0.0,0.2,0.4]
 
 		# create weights for Teff
 		# determine the min/max Teff from MIST
@@ -131,7 +125,7 @@ class pullspectra(object):
 		if 'Teff' in kwargs:
 			Teffrange = kwargs['Teff']
 		else:
-			Teffrange = [10.0**self.MISTTeffmin,10.0**self.MISTTeffmax]
+			Teffrange = [2500.0,15000.0]
 
 		if 'logg' in kwargs:
 			loggrange = kwargs['logg']
@@ -269,11 +263,11 @@ class pullspectra(object):
 
 				# add a gaussian blur to the MIST selected Teff and log(g)
 				# sigma_t = 750K, sigma_g = 1.5
-				randomT = np.random.randn()*750.0
+				randomT = np.random.randn()*1000.0
 				randomg = np.random.randn()*1.5
 
 				# check to see if randomT is an issue for log10
-				if 10.0**logt_MIST_i + np.random.randn()*750.0 <= 0.0:
+				if 10.0**logt_MIST_i + np.random.randn()*1000.0 <= 0.0:
 					randomT = np.abs(randomT)
 
 				with warnings.catch_warnings():

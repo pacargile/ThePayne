@@ -7,7 +7,10 @@ from torch.optim.lr_scheduler import StepLR,ReduceLROnPlateau
 
 import traceback
 import numpy as np
-import h5py
+import warnings
+with warnings.catch_warnings():
+	warnings.simplefilter('ignore')
+	import h5py
 import time,sys,os
 from datetime import datetime
 from itertools import imap
@@ -397,6 +400,11 @@ class TrainSpec(object):
 
 			# calculate the residual at each validation label
 			valid_residual = np.squeeze(Y_valid.T-Y_pred_valid.T)
+
+			if any(np.isnan(valid_residual)):
+				print('Found a NaN resiudal array')
+				print(Y_pred_valid)
+				print(Y_valid)
 
 			# create log of the validation step if user wants
 			if self.logepoch:
