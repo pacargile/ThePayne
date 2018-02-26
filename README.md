@@ -51,6 +51,6 @@ The user either need to train a new ANN for an observed spectrum and photometry.
 License
 --------
 
-Copyright 2015 the authors. The Payne is open-source software released under 
+Copyright 2018. The Payne is open-source software released under 
 the MIT License. See the file ``LICENSE`` for details.
 
