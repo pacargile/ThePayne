@@ -187,7 +187,7 @@ class TrainSpec(object):
 			raise e
 
 
-	def run(self,mp=False,ncpus=1):
+	def run(self,mp=False,ncpus=1,pixelarr=[]):
 		'''
 		function to actually run the training on pixels
 
@@ -204,10 +204,13 @@ class TrainSpec(object):
 		numtrainedpixles = self.spectra.shape[0]
 		print('... Number of Pixels in Spectrum: {0}'.format(numtrainedpixles))
 
-		if self.restartfile == None:
-			pixellist = range(numtrainedpixles)
+		if pixelarr == []:
+			if self.restartfile == None:
+				pixellist = range(numtrainedpixles)
+			else:
+				pixellist = list(np.argwhere(np.array(wave_h5) == 0.0).flatten())
 		else:
-			pixellist = list(np.argwhere(np.array(wave_h5) == 0.0).flatten())
+			pixellist = pixelarr
 
 		print('... Number of Pixels to Train: {0}'.format(len(pixellist)))
 		sys.stdout.flush()
@@ -368,7 +371,7 @@ class TrainSpec(object):
 					# Backward pass: compute gradient of the loss with respect to model parameters
 					loss.backward()
 					
-					if (t+1) % 2500 == 0:
+					if (t+1) % 10000 == 0:
 						print (
 							'WL: {0:6.2f} -- Pixel: {1} -- Epoch: {2} -- Step [{3:d}/{4:d}] -- Time per step: {5} -- Loss: {6:.4f}'.format(
 							self.wavelength[pixel_no],pixel_no+1,epoch_i+1,t+1, self.niter, datetime.now()-steptime, loss.data[0])
@@ -402,9 +405,8 @@ class TrainSpec(object):
 			valid_residual = np.squeeze(Y_valid.T-Y_pred_valid.T)
 
 			if any(np.isnan(valid_residual)):
-				print('Found a NaN resiudal array')
-				print(Y_pred_valid)
-				print(Y_valid)
+				print('Found a NaN validation Tensor')
+				print(Y_pred_valid_Tensor)
 
 			# create log of the validation step if user wants
 			if self.logepoch:
@@ -495,7 +497,7 @@ class TrainSpec(object):
 						# 	epsilon = epsilon*3.0
 						# 	nosel += 1
 						elif (nosel == 100):
-							print('Pixel: {0}, could not find new model at nosel={1}, quitting'.format(pixel_no+1,nosel))
+							# print('Pixel: {0}, could not find new model at nosel={1}, quitting'.format(pixel_no+1,nosel))
 							# print(newlabels)
 							break
 						else:
