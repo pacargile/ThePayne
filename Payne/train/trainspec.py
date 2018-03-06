@@ -241,8 +241,11 @@ class TrainSpec(object):
 
 		# for pixellist_i in np.array_split(np.array(pixellist),int(numtrainedpixles/ncpus)):
 		for pixellist_i in [pixellist[ii:ii+ncpus] for ii in range(0,numtrainedpixles,ncpus)]:
-			print('... Doing Pixels: {0}-{1}'.format(min(pixellist_i),max(pixellist_i)))
-			sys.stdout.flush()
+			try:
+				print('... Doing Pixels: {0}-{1}'.format(min(pixellist_i),max(pixellist_i)))
+				sys.stdout.flush()
+			except ValueError:
+				break
 			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
 				outfile_i = h5py.File('{0}_w{1}.h5'.format(self.outfilename,self.wavelength[ii]),'w')
 				outfile_i.create_dataset('wavelength',data=np.array([self.wavelength[ii]]),compression='gzip')
