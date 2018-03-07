@@ -153,9 +153,12 @@ class TrainSpec(object):
 		self.spectra_o,self.labels_o,self.wavelength = pullspectra_o(
 			self.numtrain,resolution=self.resolution, waverange=self.waverange,
 			MISTweighting=True)
-
 		self.spectra = self.spectra_o.T
-		  
+		# self.spectra_o,self.labels_o,self.wavelength = pullspectra_o.pullpixel(
+		# 	num=self.numtrain,resolution=self.resolution, waverange=self.waverange,
+		# 	MISTweighting=True)
+		# self.spectra = self.spectra_o
+
 		# N is batch size (number of points in X_train),
 		# D_in is input dimension
 		# H is hidden dimension
@@ -242,7 +245,7 @@ class TrainSpec(object):
 		# for pixellist_i in np.array_split(np.array(pixellist),int(numtrainedpixles/ncpus)):
 		for pixellist_i in [pixellist[ii:ii+ncpus] for ii in range(0,numtrainedpixles,ncpus)]:
 			try:
-				print('... Doing Pixels: {0}-{1}'.format(min(pixellist_i),max(pixellist_i)))
+				print('... Doing Pixels: {0}-{1}'.format(min(pixellist_i)+1,max(pixellist_i)+1))
 				sys.stdout.flush()
 			except ValueError:
 				break
@@ -330,7 +333,7 @@ class TrainSpec(object):
 		X_train_Tensor = Variable(torch.from_numpy(old_labels_o).type(dtype))
 
 		# pull fluxes at wavelength pixel
-		Y_train = np.array(self.spectra[pixel_no,:]).T
+		Y_train = np.array(self.spectra[:,pixel_no]).T
 		Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
 
 		# initialize the model
@@ -386,18 +389,24 @@ class TrainSpec(object):
 				# Calling the step function on an Optimizer makes an update to its parameters
 				optimizer.step(closure)
 
-			# re-draw spectra for next epoch
-			spectra_o,labels_o,wavelength = pullspectra_i(
-				self.numtrain,resolution=self.resolution, waverange=self.waverange,
-				MISTweighting=True,excludelabels=old_labels_o)
-			spectra = spectra_o.T
+			# # re-draw spectra for next epoch
+			# spectra_o,labels_o,wavelength = pullspectra_i(
+			# 	self.numtrain,resolution=self.resolution, waverange=self.waverange,
+			# 	MISTweighting=True,excludelabels=old_labels_o)
+			# spectra = spectra_o.T
+
+			spectra_o, labels_o, wavelength = pullspectra_i.pullpixel(pixel_no,
+				num=self.numtrain,resolution=self.resolution, waverange=self.waverange,
+				MISTweighting=True,excludelabels=old_labels_o,
+				)
 
 			# create X tensor
 			X_valid = labels_o
 			X_valid_Tensor = Variable(torch.from_numpy(labels_o).type(dtype))
 
 			# pull fluxes at wavelength pixel and create tensor
-			Y_valid = np.array(spectra[pixel_no,:]).T
+			# Y_valid = np.array(spectra[pixel_no,:]).T
+			Y_valid = spectra_o
 			Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
 			
 			# Validation Forward pass: compute predicted y by passing x to the model.
@@ -505,6 +514,7 @@ class TrainSpec(object):
 							break
 						else:
 							nosel += 1
+					"""
 					if newlabelbool:
 						spectra_ai,labels_ai,wavelength = pullspectra_i.selspectra(
 							newlabels,
@@ -512,6 +522,15 @@ class TrainSpec(object):
 							waverange=self.waverange,
 							)
 						Y_valid_a = np.array(spectra_ai.T[pixel_no,:]).T
+					"""
+					if newlabelbool:
+						spectra_ai,labels_ai,wavelength = pullspectra_i.pullpixel(
+							pixel_no,
+							inlabels=newlabels,
+							resolution=self.resolution, 
+							waverange=self.waverange,
+							)
+						Y_valid_a = spectra_ai
 						Y_valid = np.hstack([Y_valid,Y_valid_a])
 						labels_o = np.append(labels_o,labels_ai,axis=0)
 				X_valid_Tensor = Variable(torch.from_numpy(labels_o).type(dtype))

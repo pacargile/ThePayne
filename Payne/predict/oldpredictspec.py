@@ -3,7 +3,9 @@
 from __future__ import print_function
 
 import numpy as np
-import h5py
+with warnings.catch_warnings():
+	warnings.simplefilter('ignore')
+	import h5py
 from scipy import constants
 speedoflight = constants.c / 1000.0
 from scipy.interpolate import UnivariateSpline

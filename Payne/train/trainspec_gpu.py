@@ -4,7 +4,9 @@ dtype = torch.cuda.FloatTensor
 from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
-import h5py
+with warnings.catch_warnings():
+	warnings.simplefilter('ignore')
+	import h5py
 import time,sys,os
 from datetime import datetime
 from itertools import imap
