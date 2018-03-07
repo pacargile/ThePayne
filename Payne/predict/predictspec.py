@@ -9,6 +9,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 
 import numpy as np
+import warnings
 with warnings.catch_warnings():
     warnings.simplefilter('ignore')
     import h5py

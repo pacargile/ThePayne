@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 import numpy as np
+import warnings
 with warnings.catch_warnings():
 	warnings.simplefilter('ignore')
 	import h5py
