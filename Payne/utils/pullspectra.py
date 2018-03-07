@@ -358,83 +358,6 @@ class pullspectra(object):
 		else:
 			return np.array(spectra), np.array(labels), wavelength_o
 
-	"""
-	def pullpixel(self,num,pixelnum,**kwargs):
-		# a convience function if you only want to pull one pixel at a time
-		# it also does a check and remove any NaNs in spectra 
-
-		if 'Teff' in kwargs:
-			Teffrange = kwargs['Teff']
-		else:
-			Teffrange = [2500.0,15000.0]
-
-		if 'logg' in kwargs:
-			loggrange = kwargs['logg']
-		else:
-			loggrange = [-1.0,5.0]
-
-		if 'FeH' in kwargs:
-			fehrange = kwargs['FeH']
-		else:
-			fehrange = [min(self.FeHarr),max(self.FeHarr)]
-
-		if 'aFe' in kwargs:
-			aFerange = kwargs['aFe']
-		else:
-			aFerange = [min(self.alphaarr),max(self.alphaarr)]
-
-		if 'resolution' in kwargs:
-			resolution = kwargs['resolution']
-		else:
-			resolution = None
-
-		if 'excludelabels' in kwargs:
-			excludelabels = kwargs['excludelabels'].T.tolist()
-		else:
-			excludelabels = []
-
-		if 'waverange' in kwargs:
-			waverange = kwargs['waverange']
-		else:
-			# default is just the MgB triplet 
-			waverange = [5145.0,5300.0]
-
-		if 'reclabelsel' in kwargs:
-			reclabelsel = kwargs['reclabelsel']
-		else:
-			reclabelsel = False
-
-		if 'MISTweighting' in kwargs:
-			MISTweighting = kwargs['MISTweighting']
-		else:
-			MISTweighting = True
-
-		if 'timeit' in kwargs:
-			timeit = kwargs['timeit']
-		else:
-			timeit = False
-
-		# pull the spectrum
-		spectra,labels,wavelength = self(
-			num,resolution=resolution, waverange=waverange,
-			MISTweighting=MISTweighting)
-
-		# select individual pixels
-		pixelarr = np.array(spectra[pixelnum,:])
-
-		# determine if an of the pixels are NaNs
-		mask = np.ones(len(pixelarr),dtype=bool)
-		nanval = np.nonzero(np.isnan(pixelarr))
-		numnan = len(nanval[0])
-		mask[np.nonzero(np.isnan(pixelarr))] = False
-
-		# remove nan pixel values and labels
-		pixelarr = pixelarr[mask]
-		labels = labels[mask]
-	"""
-
-
-
 	def selspectra(self,inlabels,**kwargs):
 		'''
 		specifically select and return C3K spectra at user
@@ -493,8 +416,8 @@ class pullspectra(object):
 			# check to see if label_i in labels, or spectra_i is nan's
 			# if so, then skip the append and go to next step in while loop
 			# do this before the smoothing to reduce run time
-			if np.any(np.isnan(spectra_i)):
-				continue
+			# if np.any(np.isnan(spectra_i)):
+			# 	continue
 
 			# store a wavelength array as an instance, all of C3K has 
 			# the same wavelength sampling
@@ -527,6 +450,97 @@ class pullspectra(object):
 			spectra.append(spectra_i)
 
 		return np.array(spectra), np.array(labels), wavelength_o
+
+	def pullpixel(self,pixelnum,**kwargs):
+		# a convience function if you only want to pull one pixel at a time
+		# it also does a check and remove any NaNs in spectra 
+
+		if 'Teff' in kwargs:
+			Teffrange = kwargs['Teff']
+		else:
+			Teffrange = [2500.0,15000.0]
+
+		if 'logg' in kwargs:
+			loggrange = kwargs['logg']
+		else:
+			loggrange = [-1.0,5.0]
+
+		if 'FeH' in kwargs:
+			fehrange = kwargs['FeH']
+		else:
+			fehrange = [min(self.FeHarr),max(self.FeHarr)]
+
+		if 'aFe' in kwargs:
+			aFerange = kwargs['aFe']
+		else:
+			aFerange = [min(self.alphaarr),max(self.alphaarr)]
+
+		if 'resolution' in kwargs:
+			resolution = kwargs['resolution']
+		else:
+			resolution = None
+
+		if 'excludelabels' in kwargs:
+			excludelabels = kwargs['excludelabels'].T.tolist()
+		else:
+			excludelabels = []
+
+		if 'waverange' in kwargs:
+			waverange = kwargs['waverange']
+		else:
+			# default is just the MgB triplet 
+			waverange = [5145.0,5300.0]
+
+		if 'reclabelsel' in kwargs:
+			reclabelsel = kwargs['reclabelsel']
+		else:
+			reclabelsel = False
+
+		if 'MISTweighting' in kwargs:
+			MISTweighting = kwargs['MISTweighting']
+		else:
+			MISTweighting = True
+
+		if 'timeit' in kwargs:
+			timeit = kwargs['timeit']
+		else:
+			timeit = False
+
+		if 'inlabels' in kwargs:
+			inlabels = kwargs['inlabels']
+		else:
+			inlabels = []
+
+		if 'num' in kwargs:
+			num = kwargs['num']
+		else:
+			num = 1
+
+		if inlabels == []:				
+			# pull the spectrum
+			spectra,labels,wavelength = self(
+				num,resolution=resolution, waverange=waverange,
+				MISTweighting=MISTweighting)
+
+		else:
+			spectra,labels,wavelength = self.selspectra(
+				inlabels,resolution=resolution, waverange=waverange)
+
+		# select individual pixels
+		pixelarr = np.array(spectra[:,pixelnum]).T
+		labels = np.array(labels)
+
+		# determine if an of the pixels are NaNs
+		mask = np.ones_like(pixelarr,dtype=bool)
+		nanval = np.nonzero(np.isnan(pixelarr))
+		numnan = len(nanval[0])
+		mask[np.nonzero(np.isnan(pixelarr))] = False
+
+		# remove nan pixel values and labels
+		pixelarr = pixelarr[mask]
+		labels = labels[mask]
+		
+		return pixelarr, labels, wavelength
 
 	def checklabels(self,inlabels,**kwargs):
 		# a function that allows the user to determine the nearest C3K labels to array on input labels
