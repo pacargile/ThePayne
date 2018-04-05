@@ -327,7 +327,7 @@ class TrainSpec(object):
 		pullspectra_i = pullspectra(MISTpath=self.MISTpath,C3Kpath=self.C3Kpath)
 		
 		# change labels into old_labels
-		old_labels_o = self.labels_o.T
+		old_labels_o = self.labels_o
 
 		# create tensor for labels
 		X_train_Tensor = Variable(torch.from_numpy(old_labels_o).type(dtype))
@@ -370,6 +370,8 @@ class TrainSpec(object):
 
 					# Forward pass: compute predicted y by passing x to the model.
 					y_pred_train_Tensor = model(X_train_Tensor)
+
+					print(y_pred_train_Tensor.shape,Y_train_Tensor.shape)
 
 					# Compute and print loss.
 					loss = loss_fn(y_pred_train_Tensor, Y_train_Tensor)
