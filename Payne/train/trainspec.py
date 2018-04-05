@@ -204,7 +204,7 @@ class TrainSpec(object):
 		outfile,wave_h5 = self.initout(restartfile=self.restartfile)
 
 		# number of pixels to train
-		numtrainedpixles = self.spectra.shape[0]
+		numtrainedpixles = self.spectra.shape[1]
 		print('... Number of Pixels in Spectrum: {0}'.format(numtrainedpixles))
 
 		if pixelarr == []:
@@ -370,7 +370,7 @@ class TrainSpec(object):
 
 					# Forward pass: compute predicted y by passing x to the model.
 					y_pred_train_Tensor = model(X_train_Tensor)
-					
+
 					# Compute and print loss.
 					loss = loss_fn(y_pred_train_Tensor, Y_train_Tensor)
 
