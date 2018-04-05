@@ -333,10 +333,7 @@ class TrainSpec(object):
 		X_train_Tensor = Variable(torch.from_numpy(old_labels_o).type(dtype))
 
 		# pull fluxes at wavelength pixel
-		print(self.spectra.shape)
-		print(self.spectra[:,pixel_no].shape)
 		Y_train = np.array(self.spectra[:,pixel_no])
-		print(Y_train.shape)
 		Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
 
 		# initialize the model
@@ -373,9 +370,7 @@ class TrainSpec(object):
 
 					# Forward pass: compute predicted y by passing x to the model.
 					y_pred_train_Tensor = model(X_train_Tensor)
-
-					print(y_pred_train_Tensor.shape,Y_train_Tensor.shape)
-
+					
 					# Compute and print loss.
 					loss = loss_fn(y_pred_train_Tensor, Y_train_Tensor)
 
