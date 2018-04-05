@@ -327,7 +327,7 @@ class TrainSpec(object):
 		pullspectra_i = pullspectra(MISTpath=self.MISTpath,C3Kpath=self.C3Kpath)
 		
 		# change labels into old_labels
-		old_labels_o = self.labels_o
+		old_labels_o = self.labels_o.T
 
 		# create tensor for labels
 		X_train_Tensor = Variable(torch.from_numpy(old_labels_o).type(dtype))
