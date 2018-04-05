@@ -153,7 +153,7 @@ class TrainSpec(object):
 		self.spectra_o,self.labels_o,self.wavelength = pullspectra_o(
 			self.numtrain,resolution=self.resolution, waverange=self.waverange,
 			MISTweighting=True)
-		self.spectra = self.spectra_o.T
+		self.spectra = self.spectra_o
 		# self.spectra_o,self.labels_o,self.wavelength = pullspectra_o.pullpixel(
 		# 	num=self.numtrain,resolution=self.resolution, waverange=self.waverange,
 		# 	MISTweighting=True)
@@ -334,7 +334,7 @@ class TrainSpec(object):
 
 		# pull fluxes at wavelength pixel
 		print(self.spectra.shape)
-		Y_train = np.array(self.spectra[:,pixel_no])
+		Y_train = np.array(self.spectra[:,pixel_no]).T
 		Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
 
 		# initialize the model
