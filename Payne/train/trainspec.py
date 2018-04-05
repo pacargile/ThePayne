@@ -334,6 +334,7 @@ class TrainSpec(object):
 
 		# pull fluxes at wavelength pixel
 		Y_train = np.array(self.spectra[pixel_no,:]).T
+		print(Y_train.shape)
 		Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
 
 		# initialize the model
