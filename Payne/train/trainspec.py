@@ -270,7 +270,7 @@ class TrainSpec(object):
 			# flush output file to save results
 			sys.stdout.flush()
 			outfile.flush()
-			print('... Finished Pixels: {0}-{1} @ {2}'.format(min(pixellist_i),max(pixellist_i),datetime.now()))
+			print('... Finished Pixels: {0}-{1} @ {2}'.format(min(pixellist_i)+1,max(pixellist_i)+1,datetime.now()))
 
 		# print out total time
 		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
