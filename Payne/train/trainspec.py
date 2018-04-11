@@ -221,7 +221,7 @@ class TrainSpec(object):
 					if self.wavelength[ii] not in runwave:
 						pixellist.append(ii)
 
-				pixellist = list(np.argwhere(np.array(wave_h5) == 0.0).flatten())
+				# pixellist = list(np.argwhere(np.array(wave_h5) == 0.0).flatten())
 		else:
 			pixellist = inpixelarr
 
