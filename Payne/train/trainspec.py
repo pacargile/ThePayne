@@ -11,13 +11,13 @@ import warnings
 with warnings.catch_warnings():
 	warnings.simplefilter('ignore')
 	import h5py
-import time,sys,os
+import time,sys,os,glob
 from datetime import datetime
 from itertools import imap
 from multiprocessing import Pool
 
 import matplotlib
-matplotlib.use('AGG')
+# matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 matplotlib.pyplot.ioff()
 
@@ -112,11 +112,8 @@ class TrainSpec(object):
 		else:
 			self.outfilename = 'TESTOUT.h5'
 
-		if 'restartfile' in kwargs:
-			self.restartfile = kwargs['restartfile']
-			print('... Using Restart File: {0}'.format(self.restartfile))
-		else:
-			self.restartfile = None
+		self.restartfile = kwargs.get('restartfile',False)
+		print('... Restarting File: {0}'.format(self.restartfile))
 
 		if 'saveopt' in kwargs:
 			self.saveopt = kwargs['saveopt']
@@ -190,7 +187,7 @@ class TrainSpec(object):
 			raise e
 
 
-	def run(self,mp=False,ncpus=1,pixelarr=[]):
+	def run(self,mp=False,ncpus=1,inpixelarr=[]):
 		'''
 		function to actually run the training on pixels
 
@@ -201,19 +198,32 @@ class TrainSpec(object):
 		'''
 
 		# initialize the output HDf5 file, return the datasets to populate
-		outfile,wave_h5 = self.initout(restartfile=self.restartfile)
+		# outfile,wave_h5 = self.initout(restartfile=self.restartfile)
 
 		# number of pixels to train
 		numtrainedpixles = self.spectra.shape[1]
 		print('... Number of Pixels in Spectrum: {0}'.format(numtrainedpixles))
 
-		if pixelarr == []:
-			if self.restartfile == None:
+		if inpixelarr == []:
+			if self.restartfile == False:
 				pixellist = range(numtrainedpixles)
 			else:
+				# read all files already created
+				alreadyrunfiles = glob.glob('OUTH5/*.h5')
+				# parse wavelength array out of already run files
+				runwave = (
+					[float(x.split('/')[-1].split('_')[-1].replace('w','').replace('.h5','')) 
+					for x in alreadyrunfiles]
+					)
+				pixellist = []
+				possiblepixellist = range(numtrainedpixles)
+				for ii in possiblepixellist:
+					if self.wavelength[ii] not in runwave:
+						pixellist.append(ii)
+
 				pixellist = list(np.argwhere(np.array(wave_h5) == 0.0).flatten())
 		else:
-			pixellist = pixelarr
+			pixellist = inpixelarr
 
 		print('... Number of Pixels to Train: {0}'.format(len(pixellist)))
 		sys.stdout.flush()
@@ -269,7 +279,7 @@ class TrainSpec(object):
 				# 	self.h5opt_write(net[2],outfile,self.wavelength[ii])
 			# flush output file to save results
 			sys.stdout.flush()
-			outfile.flush()
+			# outfile.flush()
 			print('... Finished Pixels: {0}-{1} @ {2}'.format(min(pixellist_i)+1,max(pixellist_i)+1,datetime.now()))
 
 		# print out total time
@@ -278,13 +288,13 @@ class TrainSpec(object):
 		# formally close the output file
 		outfile.close()
 
-	def initout(self,restartfile=None):
+	def initout(self,restartfile=False):
 		'''
 		function to save all of the information into 
 		a single HDF5 file
 		'''
 
-		if restartfile == None:
+		if restartfile == False:
 			# create output HDF5 file
 			outfile = h5py.File(self.outfilename,'w', libver='latest', swmr=True)
 
@@ -549,7 +559,7 @@ class TrainSpec(object):
 			sys.stdout.flush()			
 
 		print('Trained pixel:{0}/{1} (wavelength: {2}), took: {3}'.format(
-			pixel_no+1,len(self.spectra[:,0]),self.wavelength[pixel_no],
+			pixel_no+1,len(self.spectra[0,:]),self.wavelength[pixel_no],
 			datetime.now()-starttime))
 		sys.stdout.flush()
 
