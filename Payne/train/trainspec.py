@@ -218,7 +218,7 @@ class TrainSpec(object):
 				pixellist = []
 				possiblepixellist = range(numtrainedpixles)
 				for ii in possiblepixellist:
-					if '{0:13.8f}'.format(self.wavelength[ii]) not in runwave:
+					if float('{0:13.8f}'.format(self.wavelength[ii])) not in runwave:
  						pixellist.append(ii)
 
 				# pixellist = list(np.argwhere(np.array(wave_h5) == 0.0).flatten())
