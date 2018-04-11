@@ -212,7 +212,7 @@ class TrainSpec(object):
 				alreadyrunfiles = glob.glob('OUTH5/*.h5')
 				# parse wavelength array out of already run files
 				runwave = (
-					[float('{0:13.8f}'.format(x.split('/')[-1].split('_')[-1].replace('w','').replace('.h5',''))) 
+					[float('{0:13.8f}'.format(float(x.split('/')[-1].split('_')[-1].replace('w','').replace('.h5',''))))
 					for x in alreadyrunfiles]
 					)
 				pixellist = []
