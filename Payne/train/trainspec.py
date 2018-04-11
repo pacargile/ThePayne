@@ -225,6 +225,7 @@ class TrainSpec(object):
 		else:
 			pixellist = inpixelarr
 
+		print(pixellist)
 		print('... Number of Pixels to Train: {0}'.format(len(pixellist)))
 		sys.stdout.flush()
 		exit()
