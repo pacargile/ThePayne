@@ -94,19 +94,22 @@ class PaynePredict(object):
         goodruncond = self.NN['wavelength'] != 0.0
         self.NN['wavelength'] = self.NN['wavelength'][goodruncond]
 
-        self.NN['labels']   = np.array(self.NN['file']['labels'])
+        # self.NN['labels']   = np.array(self.NN['file']['labels'])
         # resolution that network was trained at
         self.NN['resolution'] = np.array(self.NN['file']['resolution'])[0]
 
-        # label bounds
-        x_min = []
-        x_max = []
-        for ii in range(self.NN['file']['labels'].shape[1]):
-            x_min.append(np.array(self.NN['file']['labels'])[:,ii].min())
-            x_max.append(np.array(self.NN['file']['labels'])[:,ii].max())
+        # # label bounds
+        # x_min = []
+        # x_max = []
+        # for ii in range(self.NN['file']['labels'].shape[1]):
+        #     x_min.append(np.array(self.NN['file']['labels'])[:,ii].min())
+        #     x_max.append(np.array(self.NN['file']['labels'])[:,ii].max())
 
-        self.NN['x_min'] = np.array(x_min)
-        self.NN['x_max'] = np.array(x_max)
+        # self.NN['x_min'] = np.array(x_min)
+        # self.NN['x_max'] = np.array(x_max)
+
+        self.NN['x_min'] = np.array(self.NN['file']['xmin'])
+        self.NN['x_max'] = np.array(self.NN['file']['xmax'])
 
         # dictionary of trained NN models for predictions
         self.NN['model'] = {}
