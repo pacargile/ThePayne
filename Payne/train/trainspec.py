@@ -212,13 +212,13 @@ class TrainSpec(object):
 				alreadyrunfiles = glob.glob('OUTH5/*.h5')
 				# parse wavelength array out of already run files
 				runwave = (
-					[float('{0:13.8f}'.format(float(x.split('/')[-1].split('_')[-1].replace('w','').replace('.h5',''))))
+					[float(x.split('/')[-1].split('_')[-1].replace('w','').replace('.h5',''))
 					for x in alreadyrunfiles]
 					)
 				pixellist = []
 				possiblepixellist = range(numtrainedpixles)
 				for ii in possiblepixellist:
-					if self.wavelength[ii] not in runwave:
+					if '{0:13.8f}'.format(self.wavelength[ii]) not in runwave:
  						pixellist.append(ii)
 
 				# pixellist = list(np.argwhere(np.array(wave_h5) == 0.0).flatten())
