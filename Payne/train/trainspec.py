@@ -215,6 +215,7 @@ class TrainSpec(object):
 					[float(x.split('/')[-1].split('_')[-1].replace('w','').replace('.h5','')) 
 					for x in alreadyrunfiles]
 					)
+				print(runwave)
 				pixellist = []
 				possiblepixellist = range(numtrainedpixles)
 				for ii in possiblepixellist:
