@@ -16,6 +16,11 @@ from datetime import datetime
 from itertools import imap
 from multiprocessing import Pool
 
+import matplotlib
+matplotlib.use('AGG')
+import matplotlib.pyplot as plt
+matplotlib.pyplot.ioff()
+
 from ..utils.pullspectra import pullspectra
 
 class Net(nn.Module):  
@@ -134,12 +139,6 @@ class TrainSpec(object):
 			self.pdfdir = kwargs['pdfdir']
 		else:
 			self.pdfdir = '.'
-
-		if self.logepoch:
-			import matplotlib
-			matplotlib.use('AGG')
-			import matplotlib.pyplot as plt
-			matplotlib.pyplot.ioff()
 			
 		self.MISTpath = kwargs.get('MISTpath',None)
 		self.C3Kpath  = kwargs.get('C3Kpath',None)
