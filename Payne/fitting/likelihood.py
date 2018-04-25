@@ -1,5 +1,6 @@
 import numpy as np
 from .genmod import GenMod
+from datetime import datetime
 
 class likelihood(object):
 	"""docstring for likelihood"""

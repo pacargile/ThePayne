@@ -9,7 +9,7 @@ from scipy import constants
 speedoflight = constants.c / 1000.0
 from scipy.interpolate import UnivariateSpline,NearestNDInterpolator
 
-from ..predict.predictspec import PaynePredict
+from ..predict.predictspec import PayneSpecPredict
 from ..utils.pullspectra import pullspectra
 
 class TestSpec(object):
@@ -22,7 +22,7 @@ class TestSpec(object):
 		self.NNfilename = NNfilename
 
 		# initialize the Payne Predictor
-		self.PP = PaynePredict(self.NNfilename)
+		self.PP = PayneSpecPredict(self.NNfilename)
 
 		# define wavelength range of trained network
 		self.waverange = [self.PP.NN['wavelength'].min(),self.PP.NN['wavelength'].max()]

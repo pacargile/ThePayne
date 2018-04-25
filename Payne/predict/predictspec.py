@@ -10,6 +10,7 @@ import torch.nn.functional as F
 
 import numpy as np
 import warnings
+from datetime import datetime
 with warnings.catch_warnings():
     warnings.simplefilter('ignore')
     import h5py
@@ -28,8 +29,10 @@ class Net(nn.Module):
 
   def forward(self, x):
     x_i = self.encode(x)
-    out1 = F.sigmoid(self.lin1(x_i))
-    out2 = F.sigmoid(self.lin2(out1))
+    lin1o = self.lin1(x_i)
+    out1 = F.sigmoid(lin1o)
+    lin2o = self.lin2(out1)
+    out2 = F.sigmoid(lin2o)
     y_i = self.lin3(out2)
     return y_i     
 
@@ -42,6 +45,7 @@ class Net(nn.Module):
       self.xmax = np.amax(x.data.numpy(),axis=0)
 
     x = (x.data.numpy()-self.xmin)/(self.xmax-self.xmin)
+
     return Variable(torch.from_numpy(x).type(dtype))
 
 class readNN(object):
@@ -52,8 +56,8 @@ class readNN(object):
     H = nnh5['model/lin1.weight'].shape[0]
     D_out = nnh5['model/lin3.weight'].shape[0]
     self.model = Net(D_in,H,D_out)
-    self.model.xmin = xmin
-    self.model.xmax = xmax
+    self.model.xmin = xmin#torch.from_numpy(xmin).type(dtype)
+    self.model.xmax = xmax#torch.from_numpy(xmax).type(dtype)
 
     newmoddict = {}
     for kk in nnh5['model'].keys():
@@ -61,6 +65,7 @@ class readNN(object):
       torarr = torch.from_numpy(nparr).type(dtype)
       newmoddict[kk] = torarr    
     self.model.load_state_dict(newmoddict)
+    self.model.eval()
 
   def eval(self,x):
     if type(x) == type([]):
@@ -70,12 +75,52 @@ class readNN(object):
     else:
       inputD = x.shape[0]
 
-    inputVar = Variable(torch.from_numpy(x).type(dtype)).resize(inputD,4)
+    inputVar = Variable(
+        torch.from_numpy(x).type(dtype),
+        volatile=True,requires_grad=False).resize(inputD,4)
     outpars = self.model(inputVar)
     return outpars.data.numpy().squeeze()
 
+class fastreadNN(object):
 
-class PaynePredict(object):
+    def __init__(self, nnlist, wavearr, xmin=None, xmax=None):
+        self.wavearr = wavearr
+
+        self.w1 = np.array([nn.model.lin1.weight.data.numpy() for nn in nnlist])
+        self.b1 = np.expand_dims(np.array([nn.model.lin1.bias.data.numpy() for nn in nnlist]), -1)
+        self.w2 = np.array([nn.model.lin2.weight.data.numpy() for nn in nnlist])
+        self.b2 = np.expand_dims(np.array([nn.model.lin2.bias.data.numpy() for nn in nnlist]), -1)
+        self.w3 = np.array([nn.model.lin3.weight.data.numpy() for nn in nnlist])
+        self.b3 = np.expand_dims(np.array([nn.model.lin3.bias.data.numpy() for nn in nnlist]), -1)
+
+        self.set_minmax(nnlist[0])
+
+    def set_minmax(self, nn):
+      try:
+        self.xmin = nn.model.xmin
+        self.xmax = nn.model.xmax
+      except (NameError,AttributeError):
+        self.xmin = np.amin(nn.model.x.data.numpy(),axis=0)
+        self.xmax = np.amax(nn.model.x.data.numpy(),axis=0)
+
+      self.range = (self.xmax - self.xmin)
+
+    def encode(self, x):
+        xp = (np.atleast_2d(x) - self.xmin) / self.range
+        return xp.T
+
+    def sigmoid(self, a):
+        return 1. / (1 + np.exp(-a))
+
+    def eval(self, x):
+        """With some annying shape changes
+        """
+        a1 = self.sigmoid(np.matmul(self.w1,  self.encode(x)) + self.b1)
+        a2 = self.sigmoid(np.matmul(self.w2, a1) + self.b2)
+        y = np.matmul(self.w3, a2) + self.b3
+        return np.squeeze(y)
+
+class PayneSpecPredict(object):
     """
     Class for taking a Payne-learned NN and predicting spectrum.
     """
@@ -111,14 +156,26 @@ class PaynePredict(object):
         self.NN['x_min'] = np.array(self.NN['file']['xmin'])
         self.NN['x_max'] = np.array(self.NN['file']['xmax'])
 
-        # dictionary of trained NN models for predictions
-        self.NN['model'] = {}
-        for WW in self.NN['wavelength']:
-            self.NN['model'][WW] = readNN(
+        # OLD SLOW PYTORCH CODE
+        # # dictionary of trained NN models for predictions
+        # self.NN['model'] = {}
+        # for WW in self.NN['wavelength']:
+        #     self.NN['model'][WW] = readNN(
+        #         nnh5=self.NN['file']['model_{0}'.format(WW)],
+        #         xmin=self.NN['x_min'],
+        #         xmax=self.NN['x_max'],
+        #     )
+
+        # NEW SMART MATRIX APPROACH
+        nnlist = (
+            [readNN(
                 nnh5=self.NN['file']['model_{0}'.format(WW)],
                 xmin=self.NN['x_min'],
-                xmax=self.NN['x_max'],
+                xmax=self.NN['x_max'])
+                for WW in self.NN['wavelength']
+                ]
             )
+        self.anns = fastreadNN(nnlist, self.NN['wavelength'])
 
     def predictspec(self,labels):
         '''
@@ -132,9 +189,13 @@ class PaynePredict(object):
         predicted flux from the NN
         '''
 
-        predict_flux = np.zeros_like(self.NN['wavelength'])
-        for ii,WW in enumerate(self.NN['wavelength']):
-            predict_flux[ii] = float(self.NN['model'][WW].eval(labels))
+        # OLD SLOW PYTORCH CODE
+        # predict_flux = np.zeros_like(self.NN['wavelength'])
+        # for ii,WW in enumerate(self.NN['wavelength']):
+        #     predict_flux[ii] = float(self.NN['model'][WW].eval(labels))
+
+        # NEW SMART MATRIX APPROACH
+        predict_flux = self.anns.eval(labels)
 
         return predict_flux
 
@@ -188,7 +249,6 @@ class PaynePredict(object):
         
         # calculate model spectrum at the native network resolution
         modspec = self.predictspec([self.inputdict[kk] for kk in ['logt','logg','feh','afe']])
-
         modwave = self.NN['wavelength']
 
         rot_vel_bool = False

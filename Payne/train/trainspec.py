@@ -16,11 +16,6 @@ from datetime import datetime
 from itertools import imap
 from multiprocessing import Pool
 
-import matplotlib
-matplotlib.use('AGG')
-import matplotlib.pyplot as plt
-matplotlib.pyplot.ioff()
-
 from ..utils.pullspectra import pullspectra
 
 class Net(nn.Module):  
@@ -140,6 +135,12 @@ class TrainSpec(object):
 		else:
 			self.pdfdir = '.'
 
+		if self.logepoch:
+			import matplotlib
+			matplotlib.use('AGG')
+			import matplotlib.pyplot as plt
+			matplotlib.pyplot.ioff()
+			
 		self.MISTpath = kwargs.get('MISTpath',None)
 		self.C3Kpath  = kwargs.get('C3Kpath',None)
 
@@ -349,6 +350,10 @@ class TrainSpec(object):
 		# initialize the model
 		model = Net(self.D_in,self.H,self.D_out)
 
+		# set min and max pars to grid bounds for encoding
+		model.xmin = np.array([np.log10(2500.0),-1.0,-4.0,-0.2])
+		model.xmax = np.array([np.log10(15000.0),5.5,0.5,0.6])
+
 		# initialize the loss function
 		loss_fn = torch.nn.MSELoss(size_average=False)
 		# loss_fn = torch.nn.SmoothL1Loss(size_average=False)
@@ -431,7 +436,7 @@ class TrainSpec(object):
 				print(Y_pred_valid_Tensor)
 
 			# create log of the validation step if user wants
-			if self.logepoch:
+			if self.logepoch:				
 				with open(
 					self.logdir+'/ValidLog_pixel{0}_wave{1}_epoch{2}.log'.format(
 						pixel_no+1,self.wavelength[pixel_no],epoch_i+1),

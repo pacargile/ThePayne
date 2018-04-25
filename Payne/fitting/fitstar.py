@@ -57,6 +57,7 @@ class FitPayne(object):
 		# set some flags
 		self.spec_bool = False
 		self.phot_bool = False
+		self.normspec_bool = False
 
 		# determine if input has an observed spectrum
 		if 'spec' in inputdict.keys():
@@ -82,11 +83,11 @@ class FitPayne(object):
 				self.fitargs['obs_flux_fit']  = self.fitargs['obs_flux']
 				self.fitargs['obs_eflux_fit'] = self.fitargs['obs_eflux']
 
-			# shift data to vacuum to match C3K
-			self.fitargs['obs_wave_fit'] = airtovacuum(self.fitargs['obs_wave_fit'])
+			if inputdict['spec'].get('convertair',True):
+				# shift data to vacuum to match C3K
+				self.fitargs['obs_wave_fit'] = airtovacuum(self.fitargs['obs_wave_fit'])
 
 			# determine if user wants to fit the continuum normalization
-			self.normspec_bool = False
 			if 'normspec' in inputdict['spec'].keys():
 				# check to see if normspec is True
 				if inputdict['spec']['normspec']:
@@ -235,6 +236,9 @@ class FitPayne(object):
 		ncall = 0
 		nit = 0
 
+		iter_starttime = datetime.now()
+		deltaitertime_arr = []
+
 		# start sampling
 		for it, results in enumerate(dy_sampler.sample(dlogz=delta_logz_final)):
 			(worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
@@ -248,6 +252,9 @@ class FitPayne(object):
 
 			ncall += nc
 			nit = it
+
+			deltaitertime_arr.append((datetime.now()-iter_starttime).total_seconds()/float(nc))
+			iter_starttime = datetime.now()
 
 			if ((it%flushnum) == 0) or (it == maxiter):
 				self.outff.flush()
@@ -266,10 +273,11 @@ class FitPayne(object):
 						logzerr = np.inf
 						
 					sys.stdout.write("\riter: {0:d} | nc: {1:d} | ncall: {2:d} | eff(%): {3:6.3f} | "
-						"logz: {4:6.3f} +/- {5:6.3f} | dlogz: {6:6.3f} > {7:6.3f}      "
+						"logz: {4:6.3f} +/- {5:6.3f} | dlogz: {6:6.3f} > {7:6.3f}   | mean(time):  {8}  "
 						.format(nit, nc, ncall, eff, 
-							logz, logzerr, delta_logz, delta_logz_final))
+							logz, logzerr, delta_logz, delta_logz_final,np.mean(deltaitertime_arr)))
 					sys.stdout.flush()
+					deltaitertime_arr = []
 			if (it == maxiter):
 				break
 

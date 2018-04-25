@@ -119,7 +119,7 @@ class prior(object):
 		if 'Inst_R' in self.priordict.keys():
 			inst_R = (max(self.priordict['Inst_R'])-min(self.priordict['Inst_R']))*uinst_R + min(self.priordict['Inst_R'])
 		else:
-			inst_R = (42000.0-10000.0)*uinst_R + 10000.0
+			inst_R = (60000.0-10000.0)*uinst_R + 10000.0
 
 		outarr = [Teff,logg,FeH,aFe,radvel,rotvel,inst_R]
 

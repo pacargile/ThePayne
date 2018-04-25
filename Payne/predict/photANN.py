@@ -15,6 +15,7 @@ import warnings
 with warnings.catch_warnings():
   warnings.simplefilter('ignore')
   import h5py
+from itertools import product
 
 import Payne
 
@@ -67,8 +68,10 @@ class ANN(object):
     H = th5['model/lin1.weight'].shape[0]
     D_out = th5['model/lin3.weight'].shape[0]
     self.model = Net(D_in,H,D_out)
-    self.model.xmin = np.amin(np.array(th5['test/X']),axis=0)
-    self.model.xmax = np.amax(np.array(th5['test/X']),axis=0)
+    # self.model.xmin = np.amin(np.array(th5['test/X']),axis=0)
+    # self.model.xmax = np.amax(np.array(th5['test/X']),axis=0)
+    self.model.xmin = np.array(list(th5['xmin']))#np.amin(np.array(th5['test/X']),axis=0)
+    self.model.xmax = np.array(list(th5['xmax']))#np.amax(np.array(th5['test/X']),axis=0)
 
     newmoddict = {}
     for kk in th5['model'].keys():
@@ -88,3 +91,43 @@ class ANN(object):
     inputVar = Variable(torch.from_numpy(x).type(dtype)).resize(inputD,4)
     outpars = self.model(inputVar)
     return outpars.data.numpy().squeeze()
+
+
+class fastANN(object):
+
+    def __init__(self, nnlist, bandlist):
+        self.filternames = bandlist
+        self.w1 = np.array([nn.model.lin1.weight.data.numpy() for nn in nnlist])
+        self.b1 = np.expand_dims(np.array([nn.model.lin1.bias.data.numpy() for nn in nnlist]), -1)
+        self.w2 = np.array([nn.model.lin2.weight.data.numpy() for nn in nnlist])
+        self.b2 = np.expand_dims(np.array([nn.model.lin2.bias.data.numpy() for nn in nnlist]), -1)
+        self.w3 = np.array([nn.model.lin3.weight.data.numpy() for nn in nnlist])
+        self.b3 = np.expand_dims(np.array([nn.model.lin3.bias.data.numpy() for nn in nnlist]), -1)
+
+        self.set_minmax(nnlist[0])
+
+    def set_minmax(self, nn):
+      try:
+        self.xmin = nn.model.xmin
+        self.xmax = nn.model.xmax
+      except (NameError,AttributeError):
+        self.xmin = np.amin(nn.model.x.data.numpy(),axis=0)
+        self.xmax = np.amax(nn.model.x.data.numpy(),axis=0)
+
+      self.range = (self.xmax - self.xmin)
+
+    def encode(self, x):
+        xp = (np.atleast_2d(x) - self.xmin) / self.range
+        return xp.T
+
+    def sigmoid(self, a):
+        return 1. / (1 + np.exp(-a))
+
+    def eval(self, x):
+        """With some annying shape changes
+        """
+        a1 = self.sigmoid(np.matmul(self.w1,  self.encode(x)) + self.b1)
+        a2 = self.sigmoid(np.matmul(self.w2, a1) + self.b2)
+        y = np.matmul(self.w3, a2) + self.b3
+        return np.squeeze(y)
+
