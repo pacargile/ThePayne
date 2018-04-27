@@ -89,7 +89,6 @@ class FitPayne(object):
 
 			# determine if user wants to fit the continuum normalization
 			if 'normspec' in inputdict['spec'].keys():
-				print(inputdict['spec'])
 				# check to see if normspec is True
 				if inputdict['spec']['normspec']:
 					if self.verbose:
@@ -109,7 +108,7 @@ class FitPayne(object):
 						self.polyorder = 3
 						self.polycoefarr = ([[0.0,0.5] for _ in range(self.polyorder)])
 					if self.verbose:
-						print('... Fitting a Blaze function with polyoder: {0}'.format(self.polyoder))
+						print('... Fitting a Blaze function with polyoder: {0}'.format(self.polyorder))
 					self.fitargs['norm_polyorder'] = self.polyorder
 					# re-scale the wavelength array from -1 to 1 for the Cheb poly
 					self.fitargs['obs_wave_fit_norm'] = (
