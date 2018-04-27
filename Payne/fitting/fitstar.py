@@ -103,10 +103,13 @@ class FitPayne(object):
 						# check to see if user defined blaze poly order
 						self.polyorder = inputdict['spec']['polyorder']
 						self.polycoefarr = ([[0.0,0.5] for _ in range(self.polyorder)])
+						self.priordict['blaze_coeff'] = self.polycoefarr
 					else:
 						# by default use a 3rd order poly
 						self.polyorder = 3
 						self.polycoefarr = ([[0.0,0.5] for _ in range(self.polyorder)])
+						self.priordict['blaze_coeff'] = self.polycoefarr
+
 					if self.verbose:
 						print('... Fitting a Blaze function with polyoder: {0}'.format(self.polyorder))
 					self.fitargs['norm_polyorder'] = self.polyorder
