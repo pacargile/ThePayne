@@ -89,6 +89,7 @@ class FitPayne(object):
 
 			# determine if user wants to fit the continuum normalization
 			if 'normspec' in inputdict['spec'].keys():
+				print(inputdict['spec'])
 				# check to see if normspec is True
 				if inputdict['spec']['normspec']:
 					if self.verbose:
