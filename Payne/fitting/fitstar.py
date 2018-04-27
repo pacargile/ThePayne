@@ -99,14 +99,15 @@ class FitPayne(object):
 					if 'blaze_coeff' in inputdict['priordict'].keys():
 						self.polyorder = len(inputdict['priordict']['blaze_coeff'])
 						self.polycoefarr = inputdict['priordict']['blaze_coeff']
+					elif 'polyorder' in inputdict['spec']:
+						# check to see if user defined blaze poly order
+						self.polyorder = inputdict['spec']['polyorder']
+						self.polycoefarr = ([[0.0,0.5] for _ in range(self.polyorder)])
 					else:
 						# by default use a 3rd order poly
 						self.polyorder = 3
-						self.polycoefarr = ([
-							[0.0,0.1],
-							[0.0,0.1],
-							[0.0,0.1],
-							])
+						self.polycoefarr = ([[0.0,0.5] for _ in range(self.polyorder)])
+
 					self.fitargs['norm_polyorder'] = self.polyorder
 					# re-scale the wavelength array from -1 to 1 for the Cheb poly
 					self.fitargs['obs_wave_fit_norm'] = (

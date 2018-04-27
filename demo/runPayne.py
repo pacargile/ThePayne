@@ -9,8 +9,8 @@ print('-----  [Fe/H] = 0.0, log(L) = 0.0  -------')
 print('-----    Av = 0.5, Dist = 10.0     -------')
 
 runspec = True
-runphot = False
-runmock = False
+runphot = True
+runmock = True
 
 print('  ---- Running Spec: {}'.format(runspec))
 print('  ---- Running Phot: {}'.format(runphot))
@@ -23,34 +23,27 @@ inputdict['priordict']['log(g)'] = {'uniform':[4.0,5.0]}
 inputdict['priordict']['[Fe/H]'] = {'uniform':[-0.1,0.1]}
 inputdict['priordict']['Dist']   = {'uniform':[5.0,20.0]}
 inputdict['priordict']['Av']     = {'uniform':[0.0,1.0]}
-inputdict['priordict']['Inst_R'] = {'uniform':[53000.0,42000.0]}
+inputdict['priordict']['Inst_R'] = {'uniform':[25000.0,42000.0]}
 
 inputdict['output'] = 'OUTPUTFILE_new.dat'
 
 if runspec:
+	inputdict['spec'] = {}
+	# inputdict['specANNpath'] = '/Users/pcargile/Astro/GITREPOS/ThePayne/data/specANN/Hecto_T2K_C3K.h5'
+	inputdict['specANNpath'] = '/Users/pcargile/Astro/ThePayne/Hecto_C3K_v2/C3K_Hecto_v2.h5'
 
 	if runmock:
 		demospec = Table.read('demo_spec.fits',format='fits')
-		inputdict['spec'] = {}
-		# inputdict['specANNpath'] = '/Users/pcargile/Astro/GITREPOS/ThePayne/data/specANN/Hecto_T2K_C3K.h5'
-		inputdict['specANNpath'] = '/Users/pcargile/Astro/ThePayne/Hecto_C3K_v2/C3K_Hecto_v2.h5'
 		inputdict['spec']['obs_wave'] = demospec['WAVE']
 		inputdict['spec']['obs_flux'] = demospec['FLUX']
 		# error of SNR = 50
-		inputdict['spec']['obs_eflux'] = demospec['FLUX']/50.0
+		inputdict['spec']['obs_eflux'] = demospec['FLUX']/20.0
 		inputdict['spec']['normspec'] = False
 		inputdict['spec']['convertair'] = False
 		# set an additional guassian prior on the instrument profile
 		# inputdict['priordict']['Inst_R'] = {'gaussian':[32000.0,1000.0]}
 	else:
 		sunspec = Table.read('ATLAS.Sun_47000.txt.gz',format='ascii')
-		sunspec = sunspec[ (sunspec['waveobs'] >= 514.5) & (sunspec['waveobs'] <= 532.225)]
-		sunspec = sunspec[ (sunspec['waveobs'] <= 516.73) | (sunspec['waveobs'] >= 517.5)]
-		sunspec = sunspec[ (sunspec['waveobs'] <= 519.934) | (sunspec['waveobs'] >= 520.5)]
-		sunspec = sunspec[ (sunspec['waveobs'] <= 525.77) | (sunspec['waveobs'] >= 526.5)]
-
-		inputdict['spec'] = {}
-		inputdict['specANNpath'] = '/Users/pcargile/Astro/ThePayne/Hecto_C3K_v2/C3K_Hecto_v2.h5'
 		inputdict['spec']['obs_wave'] = sunspec['waveobs']*10.0
 		inputdict['spec']['obs_flux'] = sunspec['flux']
 		inputdict['spec']['obs_eflux'] = sunspec['err']
@@ -103,10 +96,10 @@ if runphot:
 
 inputdict['sampler'] = {}
 inputdict['sampler']['samplemethod'] = 'rwalk'
-inputdict['sampler']['npoints'] = 80
+inputdict['sampler']['npoints'] = 40
 inputdict['sampler']['samplertype'] = 'multi'
 inputdict['sampler']['flushnum'] = 10
-inputdict['sampler']['delta_logz_final']=0.1
+inputdict['sampler']['delta_logz_final']=0.5
 
 
 FS = fitstar.FitPayne()
