@@ -99,7 +99,7 @@ class FitPayne(object):
 					if 'blaze_coeff' in inputdict['priordict'].keys():
 						self.polyorder = len(inputdict['priordict']['blaze_coeff'])
 						self.polycoefarr = inputdict['priordict']['blaze_coeff']
-					elif 'polyorder' in inputdict['spec']:
+					elif 'polyorder' in inputdict['spec'].keys():
 						# check to see if user defined blaze poly order
 						self.polyorder = inputdict['spec']['polyorder']
 						self.polycoefarr = ([[0.0,0.5] for _ in range(self.polyorder)])
