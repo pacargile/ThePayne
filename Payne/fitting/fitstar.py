@@ -107,7 +107,8 @@ class FitPayne(object):
 						# by default use a 3rd order poly
 						self.polyorder = 3
 						self.polycoefarr = ([[0.0,0.5] for _ in range(self.polyorder)])
-
+					if self.verbose:
+						print('... Fitting a Blaze function with polyoder: {0}'.format(self.polyoder))
 					self.fitargs['norm_polyorder'] = self.polyorder
 					# re-scale the wavelength array from -1 to 1 for the Cheb poly
 					self.fitargs['obs_wave_fit_norm'] = (
