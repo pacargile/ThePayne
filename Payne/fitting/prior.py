@@ -296,12 +296,12 @@ class prior(object):
 		pardict['log(R)'] = pars[3]
 		pardict['Dist']   = pars[4]
 		pardict['Av']     = pars[5]
+		paradict['Parallax'] = 1000.0/paradict['Dist']
 
 		# check to see if any of these parameter are included in additionalpriors dict
 		if len(self.additionalpriors.keys()) > 0:
 			for kk in self.additionalpriors.keys():
-				# check to see if additional prior is for a spectroscopic parameter
-				if kk in ['Teff','log(g)','[Fe/H]','log(R)','Dist','Av']:
+				if kk in ['Teff','log(g)','[Fe/H]','log(R)','Dist','Av','Parallax']:						
 					# if prior is Gaussian
 					if 'gaussian' in self.additionalpriors[kk].keys():
 						lnprior += -0.5 * (((pardict[kk]-self.additionalpriors[kk]['gaussian'][0])**2.0)/
