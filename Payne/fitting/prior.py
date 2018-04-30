@@ -296,7 +296,7 @@ class prior(object):
 		pardict['log(R)'] = pars[3]
 		pardict['Dist']   = pars[4]
 		pardict['Av']     = pars[5]
-		paradict['Parallax'] = 1000.0/paradict['Dist']
+		pardict['Parallax'] = 1000.0/pardict['Dist']
 
 		# check to see if any of these parameter are included in additionalpriors dict
 		if len(self.additionalpriors.keys()) > 0:
