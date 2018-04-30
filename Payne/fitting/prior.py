@@ -301,7 +301,7 @@ class prior(object):
 		# check to see if any of these parameter are included in additionalpriors dict
 		if len(self.additionalpriors.keys()) > 0:
 			for kk in self.additionalpriors.keys():
-				if kk in ['Teff','log(g)','[Fe/H]','log(R)','Dist','Av','Parallax']:						
+				if kk in ['Teff','log(g)','[Fe/H]','log(R)','Dist','Av','Parallax']:
 					# if prior is Gaussian
 					if 'gaussian' in self.additionalpriors[kk].keys():
 						lnprior += -0.5 * (((pardict[kk]-self.additionalpriors[kk]['gaussian'][0])**2.0)/
