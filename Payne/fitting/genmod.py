@@ -26,7 +26,7 @@ class GenMod(object):
 	def _initphotnn(self,filterarray,nnpath=None):
 		self.filterarray = filterarray
 
-		from ..predict.predictsed import FastPayneSEDPredict
+		from ..predict.predsed import FastPayneSEDPredict
 		self.fppsed = FastPayneSEDPredict(
 			usebands=self.filterarray,nnpath=nnpath,
 			)

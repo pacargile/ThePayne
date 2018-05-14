@@ -102,12 +102,16 @@ class FitPayne(object):
 					elif 'polyorder' in inputdict['spec'].keys():
 						# check to see if user defined blaze poly order
 						self.polyorder = inputdict['spec']['polyorder']
-						self.polycoefarr = ([[0.0,0.5] for _ in range(self.polyorder)])
+						if 'polysigma' in inputdict['spec'].keys():
+							self.polysigma = inputdict['spec']['polysigma']
+						else:
+							self.polysigma = 1.0
+						self.polycoefarr = ([[0.0,self.polysigma] for _ in range(self.polyorder)])
 						self.priordict['blaze_coeff'] = self.polycoefarr
 					else:
 						# by default use a 3rd order poly
 						self.polyorder = 3
-						self.polycoefarr = ([[0.0,0.5] for _ in range(self.polyorder)])
+						self.polycoefarr = ([[0.0,1.0] for _ in range(self.polyorder)])
 						self.priordict['blaze_coeff'] = self.polycoefarr
 
 					if self.verbose:
