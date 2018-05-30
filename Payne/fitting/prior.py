@@ -276,8 +276,8 @@ class prior(object):
 			spec_scale = pars[7]
 			polycoef = pars[8:]
 
-			# for pp in polycoef:
-			# 	lnprior += -np.log(np.abs(pp))
+			for kk,pp in enumerate(polycoef):
+				lnprior += -0.5 * ((pp/self.polycoefarr[kk][1])**2.0)
 
 			# for kk,pp in enumerate(polycoef):
 			# 	lnprior += -0.5 * ((pp-self.polycoefarr[kk][0])**2.0) / ((0.1*self.polycoefarr[kk][0])**2.0)
