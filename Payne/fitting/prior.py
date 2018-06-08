@@ -104,7 +104,7 @@ class prior(object):
 			aFe = (max(self.priordict['[a/Fe]'])-min(self.priordict['[a/Fe]']))*uaFe + min(self.priordict['[a/Fe]'])
 		else:
 			# aFe     = (self.PP.NN['x_max'][3]-self.PP.NN['x_min'][3])*uaFe + self.PP.NN['x_min'][3]
-			aFe = (0.4 - 0.0)*uaFe + 0.0
+			aFe = (0.6 - -0.2)*uaFe + -0.2
 
 		if 'Vrad' in self.priordict.keys():
 			radvel = (max(self.priordict['Vrad'])-min(self.priordict['Vrad']))*uradvel + min(self.priordict['Vrad'])
@@ -129,7 +129,7 @@ class prior(object):
 			upolycoef = upars[8:]
 
 			# spec_scale = (2.0*self.fitargs['obs_flux_fit'].max()-0.0)*uspec_scale + 0.0
-			spec_scale = (0.1-0.0)*uspec_scale + 0.0
+			spec_scale = (2.0-0.0)*uspec_scale + 0.0
 			outarr.append(spec_scale)
 
 			# use a 5-sigma limit on uniform priors for polycoef
@@ -162,7 +162,7 @@ class prior(object):
 			if '[Fe/H]' in self.priordict.keys():
 				FeH = (max(self.priordict['[Fe/H]'])-min(self.priordict['[Fe/H]']))*uFeH + min(self.priordict['[Fe/H]'])
 			else:
-				FeH  = (0.5 - -2.0)*uFeH + -4.0
+				FeH  = (0.5 - -2.0)*uFeH + -2.0
 			
 			outarr = [Teff,logg,FeH]
 		else:
