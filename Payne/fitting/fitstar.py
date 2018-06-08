@@ -138,12 +138,21 @@ class FitPayne(object):
 			# stick phot into fitargs
 			self.fitargs['obs_phot'] = {kk:inputdict['phot'][kk] for kk in inputdict['phot'].keys()}
 
+			# check to see if user wants to invoke an IMF prior on log(g)
+			if 'IMF' in inputdict['priordict'].keys():
+				self.imf_bool = True
+			else:
+				self.imf_bool = False
+
 		# run the fitter
 		return self({
 			'fitargs':self.fitargs,
 			'sampler':self.samplerdict,
 			'priordict':self.priordict,
-			'runbools':[self.spec_bool,self.phot_bool,self.normspec_bool,self.oldnnbool]
+			'runbools':(
+				[self.spec_bool,self.phot_bool,
+				self.normspec_bool,self.oldnnbool,
+				self.imf_bool])
 			})
 
 	def __call__(self,indicts):

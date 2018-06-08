@@ -9,7 +9,7 @@ class likelihood(object):
 
 		self.verbose = kwargs.get('verbose',True)
 		self.fitargs = fitargs
-		self.spec_bool,self.phot_bool,self.normspec_bool,self.oldnn_bool = runbools
+		self.spec_bool,self.phot_bool,self.normspec_bool,self.oldnn_bool,self.imf_bool = runbools
 
 		# initialize the model generation class
 		self.GM = GenMod()

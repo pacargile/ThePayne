@@ -16,6 +16,8 @@ class prior(object):
 		for kk in inpriordict.keys():
 			if kk == 'blaze_coeff':
 				self.polycoefarr = inpriordict['blaze_coeff']
+			elif kk == 'IMF':
+				self.imf = inpriordict['IMF']['IMF_type']
 			else:
 				for ii in inpriordict[kk].keys():
 					if ii == 'uniform':
@@ -30,6 +32,7 @@ class prior(object):
 		self.spec_bool = runbools[0]
 		self.phot_bool = runbools[1]
 		self.normspec_bool = runbools[2]
+		self.imf_bool = runbools[3]
 
 	def priortrans(self,upars):
 		# split upars based on the runbools
@@ -317,4 +320,26 @@ class prior(object):
 					else:
 						pass
 
+		# apply IMF pior
+		if self.imf_bool:
+			logM = pardict['log(g)'] + 2.0 * pardict['log(R)']
+			if self.imf == 'Kroupa':
+				P_mass = self.kroupa(logM)
+			else:
+				raise ValueError('Only Kroupa IMF available currently')
+			lnprior += np.log(P_mass)
+
 		return lnprior
+
+	def kroupa(self,logM):
+		"""
+		calculate P(M|Kroupa IMF)
+		"""
+		m = 10.0**logM
+		if m < 0.5:
+			alpha = 1.3
+		else:
+			alpha = 2.3
+		gamma = -1.0*alpha
+		A = (1+gamma)/((100.0**(1.0+gamma))-(0.1**(1.0+gamma)))
+		return A*(m**gamma)
