@@ -1,7 +1,7 @@
 # The Payne
 =====
 
-Version 0.1 (beta)
+Version 1.0 (beta)
 
 Artificial Neural-Net compression and fitting of ab initio synthetic spectral grids. The code has the following functionality:
 
