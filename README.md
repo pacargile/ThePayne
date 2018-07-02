@@ -3,15 +3,15 @@
 
 Version 0.1 (beta)
 
-Artificial Neural-Net compression and fitting of synthetic spectral grids. The code has the following functionality:
+Artificial Neural-Net compression and fitting of ab initio synthetic spectral grids. The code has the following functionality:
 
 * Using PyTorch to train an artificial neural-network on individual pixels in a grid of spectra and/or photometry
 
 * Testing and Validation of a trained ANN to evaluate its precision and calculate the covariance in the predictions
 
-* Fit observed spectra and/or photometry using a trained ANN
+* Fit observed spectra and/or photometry using trained ANN coupled with Bayesian sampling.
 
-The initial algorithm framework for The Payne is given in [Ting, Y.-S., Conroy, C., & Rix, H.-W. 2016, ApJ, 826, 83](http://adsabs.harvard.edu/abs/2016ApJ...826...83T) and [Ting, Y.-S., Rix, H.-W., Conroy, C., Ho, A.~Y.~Q., & Lin, J. 2017, ApJL, 849, L9](http://adsabs.harvard.edu/abs/2017ApJ...849L...9T). This code follows the general approach outlined in these papers, with additional changes in the fitting and training procedures. Please cite these references if this code is used for any academic purposes.
+The general algorithm framework for The Payne is given in [Ting, Y.-S., Conroy, C., Rix, H.-W., & Cargile, P. 2018, ApJ, submitted](https://ui.adsabs.harvard.edu/#abs/2018arXiv180401530T). Further details on building ab initio models of synthetic stellar spectra can be found in [Ting, Y.-S., Conroy, C., & Rix, H.-W. 2016, ApJ, 826, 83](http://adsabs.harvard.edu/abs/2016ApJ...826...83T) and [Ting, Y.-S., Rix, H.-W., Conroy, C., Ho, A.~Y.~Q., & Lin, J. 2017, ApJL, 849, L9](http://adsabs.harvard.edu/abs/2017ApJ...849L...9T). This code follows the general approach outlined in these papers, with additional changes in the fitting and training procedures. Please cite these references if this code is used for any academic purposes.
 
 The current version of The Payne code is under development and not yet ready for wide distribution. Anyone interested in using this version of the code, please first contact <pcargile@cfa.harvard.edu>.
 
