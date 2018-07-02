@@ -8,7 +8,7 @@ print('----- Teff = 5770.0, log(g) = 4.44 -------')
 print('-----  [Fe/H] = 0.0, log(L) = 0.0  -------')
 print('-----    Av = 0.5, Dist = 10.0     -------')
 
-runspec = True
+runspec = True 
 runphot = True
 runmock = True
 
@@ -16,20 +16,9 @@ print('  ---- Running Spec: {}'.format(runspec))
 print('  ---- Running Phot: {}'.format(runphot))
 
 inputdict = {}
-inputdict['priordict'] = {}
-# set some flat priors for defining the prior volume
-inputdict['priordict']['Teff']   = {'uniform':[5000.0,6500.0]}
-inputdict['priordict']['log(g)'] = {'uniform':[4.0,5.0]}
-inputdict['priordict']['[Fe/H]'] = {'uniform':[-0.1,0.1]}
-inputdict['priordict']['Dist']   = {'uniform':[5.0,20.0]}
-inputdict['priordict']['Av']     = {'uniform':[0.0,1.0]}
-inputdict['priordict']['Inst_R'] = {'uniform':[25000.0,42000.0]}
-
-inputdict['output'] = 'OUTPUTFILE_new.dat'
 
 if runspec:
 	inputdict['spec'] = {}
-	# inputdict['specANNpath'] = '/Users/pcargile/Astro/GITREPOS/ThePayne/data/specANN/Hecto_T2K_C3K.h5'
 	inputdict['specANNpath'] = '/Users/pcargile/Astro/ThePayne/Hecto_C3K_v2/C3K_Hecto_v2.h5'
 
 	if runmock:
@@ -52,18 +41,6 @@ if runspec:
 		# set an additional guassian prior on the instrument profile
 		# inputdict['priordict']['Inst_R'] = {'gaussian':[47000.0,1000.0]}
 
-
-	# inputdict['priordict']['blaze_coeff'] = ([
-	# 	[0.0720479608681,0.0525086134796],
-	# 	[-0.261792998145,0.0575258483974],
-	# 	[0.000243761834872,0.00702220288182],
-	# 	[-0.0495597298557,0.043602355668],
-	# 	[0.0315056023735,0.035893863888],
-	# 	[-0.0127712929987,0.0297117232166],
-	# 	[0.0301115761372,0.0351109513734],
-	# 	[0.000130673860212,0.0106496054721],
-	# 	[0.00425294373254,0.0189812284416]
-	# 	])
 
 if runphot:
 	inputdict['phot'] = {}
@@ -92,14 +69,31 @@ if runphot:
 			'WISE_W1','WISE_W2'])
 	inputdict['phot'] = {fn:[p_i,0.05*p_i] for fn,p_i in zip(filterarr,phot)}
 
-
-
+# set parameter for sampler
 inputdict['sampler'] = {}
-inputdict['sampler']['samplemethod'] = 'rwalk'
+inputdict['sampler']['samplemethod'] = 'unif'
 inputdict['sampler']['npoints'] = 40
-inputdict['sampler']['samplertype'] = 'multi'
+inputdict['sampler']['samplertype'] = 'single'
 inputdict['sampler']['flushnum'] = 10
-inputdict['sampler']['delta_logz_final']=0.5
+inputdict['sampler']['delta_logz_final'] = 0.1
+inputdict['sampler']['bootstrap'] = 0
+inputdict['sampler']['slices'] = 10
+
+# set some flat priors for defining the prior volume
+inputdict['priordict'] = {}
+inputdict['priordict']['Teff']   = {'uniform':[5000.0,6500.0]}
+inputdict['priordict']['log(g)'] = {'uniform':[4.0,5.0]}
+inputdict['priordict']['[Fe/H]'] = {'uniform':[-0.1,0.1]}
+inputdict['priordict']['[a/Fe]'] = {'uniform':[-0.1,0.1]}
+inputdict['priordict']['Vrad']   = {'uniform':[-5.0,5.0]}
+inputdict['priordict']['Vrot']   = {'uniform':[0.0,5.0]}
+inputdict['priordict']['Inst_R'] = {'uniform':[25000.0,55000.0]}
+
+inputdict['priordict']['Dist']   = {'uniform':[5.0,20.0]}
+inputdict['priordict']['Av']     = {'uniform':[0.0,1.0]}
+inputdict['priordict']['log(R)'] = {'uniform':[-0.1,0.1]}
+
+inputdict['output'] = 'demoout.dat'
 
 
 FS = fitstar.FitPayne()
@@ -130,5 +124,6 @@ print('--------------')
 
 sys.stdout.flush()
 result = FS.run(inputdict=inputdict)
+sys.stdout.flush()
 
 
