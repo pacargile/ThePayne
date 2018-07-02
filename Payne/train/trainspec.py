@@ -13,7 +13,13 @@ with warnings.catch_warnings():
 	import h5py
 import time,sys,os,glob
 from datetime import datetime
-from itertools import imap
+try:
+	# Python 2.x
+	from itertools import imap
+except ImportError:
+	# Python 3.x
+	imap=map
+
 from multiprocessing import Pool
 
 import matplotlib
@@ -593,13 +599,12 @@ class TrainSpec(object):
 				# cycle through the different states
 				for jj in optimizer.state_dict()['state'].keys():
 					for ll in optimizer.state_dict()['state'][jj].keys():
-	  					try:
+						try:
 							# check to see if it is a Tensor or an Int
 							data = optimizer.state_dict()['state'][jj][ll].numpy()
 						except AttributeError:
 							# create an int array to save in the HDF5 file
 							data = np.array([optimizer.state_dict()['state'][jj][ll]])
-		          
 						th5.create_dataset(
 							'opt_{0}/optimizer/state/{1}/{2}'.format(wavelength,jj,ll),
 							data=data,compression='gzip')

@@ -58,6 +58,7 @@ class FitPayne(object):
 		self.spec_bool = False
 		self.phot_bool = False
 		self.normspec_bool = False
+		self.imf_bool = False
 
 		# determine if input has an observed spectrum
 		if 'spec' in inputdict.keys():
@@ -141,8 +142,8 @@ class FitPayne(object):
 			# check to see if user wants to invoke an IMF prior on log(g)
 			if 'IMF' in inputdict['priordict'].keys():
 				self.imf_bool = True
-			else:
-				self.imf_bool = False
+
+				
 
 		# run the fitter
 		return self({
@@ -226,7 +227,12 @@ class FitPayne(object):
 		samplemethod = samplerdict.get('samplemethod','unif')
 		delta_logz_final = samplerdict.get('delta_logz_final',0.01)
 		flushnum = samplerdict.get('flushnum',10)
-		maxiter = samplerdict.get('maxiter',sys.maxint)
+		try:
+			# Python 2.x
+			maxiter = samplerdict.get('maxiter',sys.maxint)
+		except AttributeError:
+			# Python 3.x
+			maxiter = samplerdict.get('maxiter',sys.maxsize)
 
 		# set start time
 		starttime = datetime.now()

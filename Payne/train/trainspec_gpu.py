@@ -10,7 +10,12 @@ with warnings.catch_warnings():
 	import h5py
 import time,sys,os
 from datetime import datetime
-from itertools import imap
+try:
+	# Python 2.x
+	from itertools import imap
+except ImportError:
+	# Python 3.x
+	imap=map
 import torch.multiprocessing as multiprocessing
 from torch.multiprocessing import Pool
 
@@ -338,7 +343,7 @@ class TrainSpec_GPU(object):
 				# cycle through the different states
 				for jj in optimizer.state_dict()['state'].keys():
 					for ll in optimizer.state_dict()['state'][jj].keys():
-	  					try:
+						try:
 							# check to see if it is a Tensor or an Int
 							data = optimizer.state_dict()['state'][jj][ll].cpu().numpy()
 						except AttributeError:
