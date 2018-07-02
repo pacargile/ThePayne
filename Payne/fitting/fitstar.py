@@ -314,8 +314,6 @@ class FitPayne(object):
 
 			ncall += nc
 
-			ncall += nc
-
 			if self.verbose:
 				# format/output results
 				if logz < -1e6:
