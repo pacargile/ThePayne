@@ -42,6 +42,9 @@ Then in Python
 import Payne
 ```
 
+The user either need to train a new ANN for an observed spectrum and photometry. Or contact <pcargile@cfa.harvard.edu> to get the latest C3K based ANN. 
+
+
 The Payne is pure python.
 See the [tutorial](demo/) for fitting a solar mock with photometric and spectroscopic data. To run demo:
 ```
@@ -49,9 +52,6 @@ cd demo/
 python runPayne.py
 ```
 The script contains options for fitting solar mock or observed spectra and/or photometry.
-
-The user either need to train a new ANN for an observed spectrum and photometry. Or contact <pcargile@cfa.harvard.edu> to get the latest C3K based ANN. 
-
 
 License
 --------
