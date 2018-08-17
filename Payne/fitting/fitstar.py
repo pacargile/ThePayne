@@ -59,6 +59,7 @@ class FitPayne(object):
 		self.phot_bool = False
 		self.normspec_bool = False
 		self.imf_bool = False
+		self.photscale_bool = False
 
 		# determine if input has an observed spectrum
 		if 'spec' in inputdict.keys():
@@ -139,11 +140,12 @@ class FitPayne(object):
 			# stick phot into fitargs
 			self.fitargs['obs_phot'] = {kk:inputdict['phot'][kk] for kk in inputdict['phot'].keys()}
 
+			# determine if fitting dist and rad or a scale constant
+			self.photscale_bool = inputdict.get('photscale',False)
+
 			# check to see if user wants to invoke an IMF prior on log(g)
 			if 'IMF' in inputdict['priordict'].keys():
 				self.imf_bool = True
-
-				
 
 		# run the fitter
 		return self({
@@ -153,7 +155,7 @@ class FitPayne(object):
 			'runbools':(
 				[self.spec_bool,self.phot_bool,
 				self.normspec_bool,self.oldnnbool,
-				self.imf_bool])
+				self.imf_bool,self.photscale_bool])
 			})
 
 	def __call__(self,indicts):
@@ -180,10 +182,14 @@ class FitPayne(object):
 				self.ndim = 10
 			else:
 				self.ndim = 6
+			if self.photscale_bool:
+				self.ndim = self.ndim-1
 
 		if self.normspec_bool:
 			if self.phot_bool:
 				self.ndim = 10+self.polyorder+1
+				if self.photscale_bool:
+					self.ndim = self.ndim-1
 			else:
 				self.ndim = 7+self.polyorder+1
 
@@ -196,8 +202,16 @@ class FitPayne(object):
 		# initialize the likelihood class
 		self.likeobj = self.likelihood(fitargs,runbools)
 
-		# run sampler and return sampler object
-		return self.runsampler(samplerdict)
+		runsamplertype = samplerdict.get('samplertype','Nested')
+
+		if runsamplertype == 'Nested':
+			# run sampler and return sampler object
+			return self.runsampler(samplerdict)
+		elif runsamplertype == 'Dynamic':
+			return self.rundysampler(samplerdict)
+		else:
+			print('Did not understand sampler type, return nothing')
+			return
 
 	def _initoutput(self):
 		# init output file
@@ -214,19 +228,26 @@ class FitPayne(object):
 			if not self.spec_bool:
 				self.outff.write('Teff logg FeH ')
 
-			self.outff.write('logR Dist Av ')
+			if self.photscale_bool:
+				self.outff.write('logA Av ')
+			else:
+				self.outff.write('logR Dist Av ')
+
 		self.outff.write('log(lk) log(vol) log(wt) h nc log(z) delta(log(z))')
 		self.outff.write('\n')
 
 	def runsampler(self,samplerdict):
 		# pull out user defined sampler variables
 		npoints = samplerdict.get('npoints',200)
-		samplertype = samplerdict.get('samplertype','multi')
+		samplertype = samplerdict.get('samplerbounds','multi')
 		bootstrap = samplerdict.get('bootstrap',0)
 		update_interval = samplerdict.get('update_interval',0.6)
 		samplemethod = samplerdict.get('samplemethod','unif')
 		delta_logz_final = samplerdict.get('delta_logz_final',0.01)
 		flushnum = samplerdict.get('flushnum',10)
+		numslice = samplerdict.get('slices',5)
+		numwalks = samplerdict.get('walks',25)
+
 		try:
 			# Python 2.x
 			maxiter = samplerdict.get('maxiter',sys.maxint)
@@ -253,6 +274,8 @@ class FitPayne(object):
 			sample=samplemethod,
 			update_interval=update_interval,
 			bootstrap=bootstrap,
+			walks=numwalks,
+			slices=numslice,
 			)
 
 		sys.stdout.flush()
@@ -346,4 +369,52 @@ class FitPayne(object):
 		if self.verbose:
 			print('RUN TIME: {0}'.format(finishtime-starttime))
 
-		return dy_sampler		
+		return dy_sampler
+
+	def rundysampler(self,samplerdict):
+		# pull out user defined sampler variables
+		npoints = samplerdict.get('npoints',200)
+		samplertype = samplerdict.get('samplerbounds','multi')
+		bootstrap = samplerdict.get('bootstrap',0)
+		update_interval = samplerdict.get('update_interval',0.6)
+		samplemethod = samplerdict.get('samplemethod','unif')
+		delta_logz_final = samplerdict.get('delta_logz_final',0.01)
+		flushnum = samplerdict.get('flushnum',10)
+		numslice = samplerdict.get('slices',5)
+		numwalks = samplerdict.get('walks',25)
+
+		try:
+			# Python 2.x
+			maxiter = samplerdict.get('maxiter',sys.maxint)
+		except AttributeError:
+			# Python 3.x
+			maxiter = samplerdict.get('maxiter',sys.maxsize)
+
+		# set start time
+		starttime = datetime.now()
+		if self.verbose:
+			print(
+				'Start Dynesty w/ {0} number of samples, Ndim = {1}, and w/ stopping criteria of dlog(z) = {2}: {3}'.format(
+					npoints,self.ndim,delta_logz_final,starttime))
+		sys.stdout.flush()
+
+		# initialize sampler object
+		dy_sampler = dynesty.DynamicNestedSampler(
+			lnprobfn,
+			self.priorobj.priortrans,
+			self.ndim,
+			logl_args=[self.likeobj,self.priorobj],
+			nlive=npoints,
+			bound=samplertype,
+			sample=samplemethod,
+			update_interval=update_interval,
+			bootstrap=bootstrap,
+			walks=numwalks,
+			slices=numslice,
+			)
+
+		sys.stdout.flush()
+
+		dy_sampler.run_nested()
+
+		return dy_sampler

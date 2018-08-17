@@ -8,6 +8,7 @@ apj*
 *~
 *.pyc
 junk*
+*pycache*
 Payne.egg-info/
 build/
 _build/

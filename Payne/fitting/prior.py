@@ -32,7 +32,9 @@ class prior(object):
 		self.spec_bool = runbools[0]
 		self.phot_bool = runbools[1]
 		self.normspec_bool = runbools[2]
-		self.imf_bool = runbools[3]
+		self.oldnnbool = runbools[3]
+		self.imf_bool = runbools[4]
+		self.photscale_bool = runbools[5]
 
 	def priortrans(self,upars):
 		# split upars based on the runbools
@@ -40,9 +42,15 @@ class prior(object):
 			Teff,logg,FeH,aFe,radvel,rotvel,inst_R = upars[:7]
 		elif (self.spec_bool and self.phot_bool):
 			Teff,logg,FeH,aFe,radvel,rotvel,inst_R = upars[:7]
-			logR,Dist,Av = upars[-3:]
+			if self.photscale_bool:
+				logA,Av = upars[-2:]
+			else:
+				logR,Dist,Av = upars[-3:]
 		else:
-			Teff,logg,FeH,logR,Dist,Av = upars
+			if self.photscale_bool:
+				Teff,logg,FeH,logA,Av = upars
+			else:
+				Teff,logg,FeH,logR,Dist,Av = upars
 
 		# determine what paramters go into the spec function and 
 		# calculate prior transformation for spectrum
@@ -51,7 +59,10 @@ class prior(object):
 
 			if self.normspec_bool:
 				if self.phot_bool:
-					upolypars = upars[7:-3]
+					if self.photscale_bool:
+						upolypars = upars[7:-2]
+					else:
+						upolypars = upars[7:-3]
 				else:
 					upolypars = upars[7:]
 				for pp in upolypars:
@@ -63,7 +74,10 @@ class prior(object):
 		# determine what paramters go into the phot function and 
 		# calcuate prior transformation for SED
 		if self.phot_bool:
-			uphotpars = [Teff,logg,FeH,logR,Dist,Av]
+			if self.photscale_bool:
+				uphotpars = [Teff,logg,FeH,logA,Av]
+			else:
+				uphotpars = [Teff,logg,FeH,logR,Dist,Av]
 			photPT = self.priortrans_phot(uphotpars)
 		else:
 			photPT = []
@@ -172,27 +186,40 @@ class prior(object):
 			outarr = []
 
 		# pull SED only parameters and do prior transformation
-		ulogR  = upars[3]
-		uDist = upars[4]
-		uAv   = upars[5]
+		if self.photscale_bool:
+			ulogA = upars[3]
+			uAv   = upars[4]
 
-		if 'log(R)' in self.priordict.keys():
-			logR = (max(self.priordict['log(R)'])-min(self.priordict['log(R)']))*ulogR + min(self.priordict['log(R)'])
-		else:
-			logR = (3.0 - -2.0)*ulogR + -2.0
+			if 'log(A)' in self.priordict.keys():
+				logA = (max(self.priordict['log(A)'])-min(self.priordict['log(A)']))*ulogA + min(self.priordict['log(A)'])
+			else:
+				logA = (7.0 - -3.0)*ulogA + -3.0
 
-		if 'Dist' in self.priordict.keys():
-			Dist = (max(self.priordict['Dist'])-min(self.priordict['Dist']))*uDist + min(self.priordict['Dist'])
+			outarr.append(logA)
+
 		else:
-			Dist = (100000.0 - 0.0)*uDist + 0.0
+			ulogR  = upars[3]
+			uDist = upars[4]
+			uAv   = upars[5]
+
+			if 'log(R)' in self.priordict.keys():
+				logR = (max(self.priordict['log(R)'])-min(self.priordict['log(R)']))*ulogR + min(self.priordict['log(R)'])
+			else:
+				logR = (3.0 - -2.0)*ulogR + -2.0
+
+			if 'Dist' in self.priordict.keys():
+				Dist = (max(self.priordict['Dist'])-min(self.priordict['Dist']))*uDist + min(self.priordict['Dist'])
+			else:
+				Dist = (100000.0 - 0.0)*uDist + 0.0
+
+			outarr.append(logR)
+			outarr.append(Dist)
 
 		if 'Av' in self.priordict.keys():
 			Av = (max(self.priordict['Av'])-min(self.priordict['Av']))*uAv + min(self.priordict['Av'])
 		else:
 			Av = (5.0-0.0)*uAv + 0.0
 
-		outarr.append(logR)
-		outarr.append(Dist)
 		outarr.append(Av)
 
 		return outarr
@@ -203,21 +230,33 @@ class prior(object):
 		if len(self.additionalpriors.keys()) == 0:
 			return 0.0
 
-		# split pars based on the runbools
+		# split upars based on the runbools
 		if (self.spec_bool and not self.phot_bool):
 			Teff,logg,FeH,aFe,radvel,rotvel,inst_R = pars[:7]
 		elif (self.spec_bool and self.phot_bool):
 			Teff,logg,FeH,aFe,radvel,rotvel,inst_R = pars[:7]
-			logR,Dist,Av = pars[-3:]
+			if self.photscale_bool:
+				logA,Av = pars[-2:]
+			else:
+				logR,Dist,Av = pars[-3:]
 		else:
-			Teff,logg,FeH,logR,Dist,Av = pars
+			if self.photscale_bool:
+				Teff,logg,FeH,logA,Av = pars
+			else:
+				Teff,logg,FeH,logR,Dist,Av = pars
 
-		# determine what paramters go into the spec function
+
+		# determine what paramters go into the spec function and 
+		# calculate prior transformation for spectrum
 		if self.spec_bool:
 			specpars = [Teff,logg,FeH,aFe,radvel,rotvel,inst_R]
+
 			if self.normspec_bool:
 				if self.phot_bool:
-					polypars = pars[7:-3]
+					if self.photscale_bool:
+						polypars = pars[7:-2]
+					else:
+						polypars = pars[7:-3]
 				else:
 					polypars = pars[7:]
 				for pp in polypars:
@@ -230,7 +269,11 @@ class prior(object):
 
 		# determine what paramters go into the phot function
 		if self.phot_bool:
-			photpars = [Teff,logg,FeH,logR,Dist,Av]
+			if self.photscale_bool:
+				photpars = [Teff,logg,FeH,logA,Av]
+			else:
+				photpars = [Teff,logg,FeH,logR,Dist,Av]
+
 			lnP_phot = self.lnprior_phot(photpars)
 			if lnP_phot == -np.inf:
 				return -np.inf
@@ -296,15 +339,19 @@ class prior(object):
 		pardict['Teff']   = pars[0]
 		pardict['log(g)'] = pars[1]
 		pardict['[Fe/H]'] = pars[2]
-		pardict['log(R)'] = pars[3]
-		pardict['Dist']   = pars[4]
-		pardict['Av']     = pars[5]
-		pardict['Parallax'] = 1000.0/pardict['Dist']
+		if self.photscale_bool:
+			pardict['log(A)'] = pars[3]
+			pardict['Av']     = pars[4]
+		else:
+			pardict['log(R)'] = pars[3]
+			pardict['Dist']   = pars[4]
+			pardict['Av']     = pars[5]
+			pardict['Parallax'] = 1000.0/pardict['Dist']
 
 		# check to see if any of these parameter are included in additionalpriors dict
 		if len(self.additionalpriors.keys()) > 0:
 			for kk in self.additionalpriors.keys():
-				if kk in ['Teff','log(g)','[Fe/H]','log(R)','Dist','Av','Parallax']:
+				if kk in ['Teff','log(g)','[Fe/H]','log(R)','Dist','log(A)','Av','Parallax']:
 					# if prior is Gaussian
 					if 'gaussian' in self.additionalpriors[kk].keys():
 						lnprior += -0.5 * (((pardict[kk]-self.additionalpriors[kk]['gaussian'][0])**2.0)/
@@ -313,26 +360,6 @@ class prior(object):
 						if ((pardict[kk] < self.additionalpriors[kk]['flat'][0]) or 
 							(pardict[kk] > self.additionalpriors[kk]['flat'][1])):
 							return -np.inf
-					elif 'broken' in self.additionalpriors[kk].keys():
-						# broken expects 4 values:
-						#   - uniform prior from val0 to val1
-						#   - exponential decay from val1 to val2 with decay rate of val3
-						#   - prob = 0 for par_i < val0 and par_i > val2
-						if pardict[kk] < self.additionalpriors[kk]['broken'][0]:
-							return -np.inf
-						elif pardict[kk] > self.additionalpriors[kk]['broken'][2]:
-							return -np.inf
-						elif (
-							(pardict[kk] >= self.additionalpriors[kk]['broken'][1]) and
-							(pardict[kk] <= self.additionalpriors[kk]['broken'][2])
-							):
-							# exponential decay with 10% e-fold 
-							lnprior += (
-								-1.0*((pardict[kk]-self.additionalpriors[kk]['broken'][1])**2.0)/
-								self.additionalpriors[kk]['broken'][3]
-								)
-						else:
-							pass
 					elif 'beta' in self.additionalpriors[kk].keys():
 						raise IOError('Beta Prior not implimented yet!!!')
 					elif 'log-normal' in self.additionalpriors[kk].keys():
