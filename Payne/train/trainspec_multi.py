@@ -406,7 +406,7 @@ class TrainSpec_multi(object):
 		model.xmax = np.array([np.log10(15000.0),5.5,0.5,0.6])
 
 		# initialize the loss function
-		loss_fn = torch.nn.MSELoss()
+		loss_fn = torch.nn.MSELoss(reduction='sum')
 		# loss_fn = torch.nn.SmoothL1Loss(size_average=False)
 		# loss_fn = torch.nn.KLDivLoss(size_average=False)
 
