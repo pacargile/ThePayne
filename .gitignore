@@ -16,5 +16,6 @@ data/
 demo/*.dat
 demo/*.log
 demo/*.pdf
+demo/*.png
 demo/*.h5
 Payne/sandbox/
