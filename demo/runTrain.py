@@ -1,10 +1,13 @@
 import Payne
-TS = Payne.train.TrainSpec(
-	waverange=[5000.0,5001.0],
-	numtrain=50,
-	niter=3000,
-	epochs=10,
-	resolution=1000.0,
-	output='test_train.h5',
+TS = Payne.train.TrainSpec_multi(
+	waverange=[5000.0,5000.05],
+	numtrain=1000,
+	niter=50000,
+	epochs=25,
+	resolution=80000.0,
+	pixpernet=3,
+	output='test3',
+	logepoch=True,
+	adaptivetrain=True,
 	)
 TS.run()

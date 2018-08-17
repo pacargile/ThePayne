@@ -28,6 +28,8 @@ class pullspectra(object):
 		# load MIST models
 		self.MIST = h5py.File(self.MISTpath+'/MIST_1.2_EEPtrk.h5','r')
 		self.MISTindex = list(self.MIST['index'])
+		# convert btye strings to python strings
+		self.MISTindex = [x.decode("utf-8") for x in self.MISTindex]
 
 		self.FeHarr = []
 		self.alphaarr = []
@@ -267,16 +269,18 @@ class pullspectra(object):
 				randomg = np.random.randn()*1.5
 
 				# check to see if randomT is an issue for log10
-				if 10.0**logt_MIST_i + np.random.randn()*1000.0 <= 0.0:
+				if 10.0**logt_MIST_i + randomT <= 0.0:
 					randomT = np.abs(randomT)
-
+					
 				with warnings.catch_warnings():
 					warnings.filterwarnings('error')
 					try:
 						logt_MIST = np.log10(10.0**logt_MIST_i + randomT)				
 						logg_MIST = logg_MIST_i + randomg
 					except Warning:
-						print('Caught a MIST parameter that does not make sense: {0} {1} {2} {3}'.format(randomT,logt_MIST_i,randomg,logg_MIST_i))
+						print(
+							'Caught a MIST parameter that does not make sense: {0} {1} {2} {3}'.format(
+								randomT,10.0**logt_MIST_i,randomg,logg_MIST_i))
 						logt_MIST = logt_MIST_i
 						logg_MIST = logg_MIST_i
 
@@ -527,18 +531,18 @@ class pullspectra(object):
 				inlabels,resolution=resolution, waverange=waverange)
 
 		# select individual pixels
-		pixelarr = np.array(spectra[:,pixelnum]).T
+		pixelarr = np.array(spectra[:,pixelnum])
 		labels = np.array(labels)
 
-		# determine if an of the pixels are NaNs
-		mask = np.ones_like(pixelarr,dtype=bool)
-		nanval = np.nonzero(np.isnan(pixelarr))
-		numnan = len(nanval[0])
-		mask[np.nonzero(np.isnan(pixelarr))] = False
+		# # determine if an of the pixels are NaNs
+		# mask = np.ones_like(pixelarr,dtype=bool)
+		# nanval = np.nonzero(np.isnan(pixelarr))
+		# numnan = len(nanval[0])
+		# mask[np.nonzero(np.isnan(pixelarr))] = False
 
-		# remove nan pixel values and labels
-		pixelarr = pixelarr[mask]
-		labels = labels[mask]
+		# # remove nan pixel values and labels
+		# pixelarr = pixelarr[mask]
+		# labels = labels[mask]
 		
 		return pixelarr, labels, wavelength
 

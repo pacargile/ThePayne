@@ -313,6 +313,26 @@ class prior(object):
 						if ((pardict[kk] < self.additionalpriors[kk]['flat'][0]) or 
 							(pardict[kk] > self.additionalpriors[kk]['flat'][1])):
 							return -np.inf
+					elif 'broken' in self.additionalpriors[kk].keys():
+						# broken expects 4 values:
+						#   - uniform prior from val0 to val1
+						#   - exponential decay from val1 to val2 with decay rate of val3
+						#   - prob = 0 for par_i < val0 and par_i > val2
+						if pardict[kk] < self.additionalpriors[kk]['broken'][0]:
+							return -np.inf
+						elif pardict[kk] > self.additionalpriors[kk]['broken'][2]:
+							return -np.inf
+						elif (
+							(pardict[kk] >= self.additionalpriors[kk]['broken'][1]) and
+							(pardict[kk] <= self.additionalpriors[kk]['broken'][2])
+							):
+							# exponential decay with 10% e-fold 
+							lnprior += (
+								-1.0*((pardict[kk]-self.additionalpriors[kk]['broken'][1])**2.0)/
+								self.additionalpriors[kk]['broken'][3]
+								)
+						else:
+							pass
 					elif 'beta' in self.additionalpriors[kk].keys():
 						raise IOError('Beta Prior not implimented yet!!!')
 					elif 'log-normal' in self.additionalpriors[kk].keys():

@@ -23,8 +23,21 @@ class GenMod(object):
 		# initialize the Payne Spectrum Predictor
 		self.PP = PayneSpecPredict(nnpath)
 
-	def _initphotnn(self,filterarray,nnpath=None):
-		self.filterarray = filterarray
+	def _initphotnn(self,filterarray=None,nnpath=None):
+		if type(filterarray) == type(None):
+			# if filterarray is None, then pull a default set of photo ANN
+			self.filterarray = (
+				['2MASS_{}'.format(x) for x in ['J','H','Ks']]+
+				['Bessell_{}'.format(x) for x in ['U','B','V','R','I']]+
+				['DECam_{}'.format(x) for x in ['u','g','r','i','z','Y']]+
+				['SDSS_{}'.format(x) for x in ['u','g','r','i','z']]+
+				['PS_{}'.format(x) for x in ['g','r','i','z','w','y']]+
+				['Gaia_{}_DR2Rev'.format(x) for x in ['G','BP','RP']]+
+				['GALEX_FUV','GALEX_NUV']+
+				['WISE_{}'.format(x) for x in ['W1','W2','W3','W4']]
+				)
+		else:
+			self.filterarray = filterarray
 
 		from ..predict.predictsed import FastPayneSEDPredict
 		self.fppsed = FastPayneSEDPredict(
