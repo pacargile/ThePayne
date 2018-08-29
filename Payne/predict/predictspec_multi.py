@@ -25,7 +25,9 @@ class Net(nn.Module):
         super(Net, self).__init__()
         self.lin1 = nn.Linear(D_in, H)
         self.lin2 = nn.Linear(H,H)
-        self.lin3 = nn.Linear(H, D_out)
+        self.lin3 = nn.Linear(H,H)
+        self.lin4 = nn.Linear(H, D_out)
+        # self.lin3 = nn.Linear(H,D_out)
     """
     def forward(self, x):
         x_i = self.encode(x)
@@ -40,7 +42,9 @@ class Net(nn.Module):
         x_i = self.encode(x)
         out1 = torch.sigmoid(self.lin1(x_i))
         out2 = torch.sigmoid(self.lin2(out1))
-        y_i = self.lin3(out2)
+        out3 = torch.sigmoid(self.lin3(out2))
+        y_i = self.lin4(out3)
+        # y_i = self.lin3(out2)
         return y_i     
 
     def encode(self,x):
@@ -61,7 +65,7 @@ class readNN(object):
         super(readNN, self).__init__()
         D_in = nnh5['model/lin1.weight'].shape[1]
         H = nnh5['model/lin1.weight'].shape[0]
-        D_out = nnh5['model/lin3.weight'].shape[0]
+        D_out = nnh5['model/lin4.weight'].shape[0]
         self.model = Net(D_in,H,D_out)
         self.model.xmin = xmin#torch.from_numpy(xmin).type(dtype)
         self.model.xmax = xmax#torch.from_numpy(xmax).type(dtype)
@@ -140,8 +144,10 @@ class PayneSpecPredict(object):
         # wavelength N-D array for predicted spectrum
         self.NN['wavelength_arr']  = self.NN['file']['wavelength']
         # array of ANN index since to match up wave and model
-        self.NN['ANN_ind'] = list(self.NN['wavelength_arr'])
+        self.NN['ANN_ind'] = [int(x) for x in self.NN['wavelength_arr']]
         self.NN['ANN_ind'].sort()
+        self.NN['ANN_ind'] = ['{}'.format(x) for x in self.NN['ANN_ind']]
+
         # flattened wavelength array
         self.NN['wavelength'] = np.concatenate(
             [self.NN['wavelength_arr'][ii].__array__() for ii in self.NN['ANN_ind']]

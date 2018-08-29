@@ -388,6 +388,9 @@ class pullspectra(object):
 		spectra = []
 		wavelength_o = []
 
+		if isinstance(inlabels[0],float):
+			inlabels = [inlabels]
+
 		for li in inlabels:
 			# select the C3K spectra at that [Fe/H] and [alpha/Fe]
 			teff_i  = li[0]
@@ -396,8 +399,8 @@ class pullspectra(object):
 			alpha_i = li[3]
 
 			# find nearest value to FeH and aFe
-			FeH_i   = self.FeHarr[np.argmin(np.abs(self.FeHarr-FeH_i))]
-			alpha_i = self.alphaarr[np.argmin(np.abs(self.alphaarr-alpha_i))]
+			FeH_i   = self.FeHarr[np.argmin(np.abs(np.array(self.FeHarr)-FeH_i))]
+			alpha_i = self.alphaarr[np.argmin(np.abs(np.array(self.alphaarr)-alpha_i))]
 
 			# select the C3K spectra for these alpha and FeH
 			C3K_i = self.C3K[alpha_i][FeH_i]

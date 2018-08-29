@@ -5,6 +5,10 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import StepLR,ReduceLROnPlateau
 
+from torch.multiprocessing import Pool
+
+# from multiprocessing import Pool
+
 import traceback
 import numpy as np
 import warnings
@@ -20,10 +24,9 @@ except ImportError:
 	# Python 3.x
 	imap=map
 
-from multiprocessing import Pool
 
 import matplotlib
-matplotlib.use('AGG')
+# matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 matplotlib.pyplot.ioff()
 
@@ -34,9 +37,9 @@ class Net(nn.Module):
 		super(Net, self).__init__()
 		self.lin1 = nn.Linear(D_in, H)
 		self.lin2 = nn.Linear(H,H)
-		# self.lin3 = nn.Linear(H,H)
-		# self.lin4 = nn.Linear(H, D_out)
-		self.lin3 = nn.Linear(H,D_out)
+		self.lin3 = nn.Linear(H,H)
+		self.lin4 = nn.Linear(H, D_out)
+		# self.lin3 = nn.Linear(H,D_out)
 	"""
 	def forward(self, x):
 		x_i = self.encode(x)
@@ -51,7 +54,9 @@ class Net(nn.Module):
 		x_i = self.encode(x)
 		out1 = torch.sigmoid(self.lin1(x_i))
 		out2 = torch.sigmoid(self.lin2(out1))
-		y_i = self.lin3(out2)
+		out3 = torch.sigmoid(self.lin3(out2))
+		y_i = self.lin4(out3)
+		# y_i = self.lin3(out2)
 		return y_i     
 
 	def encode(self,x):
@@ -259,7 +264,7 @@ class TrainSpec_multi(object):
 
 			pool = Pool(processes=ncpus)
 			# init the map for the pixel training using the pool imap
-			mapfn = pool.imap
+			mapfn = pool.map
 
 		else:
 			# init the map for the pixel training using the standard serial imap
@@ -419,6 +424,8 @@ class TrainSpec_multi(object):
 		scheduler = StepLR(optimizer,3,gamma=0.75)
 		# scheduler = ReduceLROnPlateau(optimizer,mode='min',factor=0.1)
 
+		print('Pixels: {0}-{1}, Wave: {2}-{3}, Start Training...'.format(
+			startpix,stoppix,wavestart,wavestop))
 		for epoch_i in range(self.epochs):
 			# adjust the optimizer lr
 			scheduler.step()

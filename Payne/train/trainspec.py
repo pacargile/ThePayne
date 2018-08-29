@@ -23,7 +23,7 @@ except ImportError:
 from multiprocessing import Pool
 
 import matplotlib
-matplotlib.use('AGG')
+# matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 matplotlib.pyplot.ioff()
 
