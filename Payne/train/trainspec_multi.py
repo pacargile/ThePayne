@@ -455,13 +455,19 @@ class TrainSpec_multi(object):
 							'--> WL: {0:6.2f}-{1:6.2f} -- Pix: {2}-{3} -- Ep: {4} -- St [{5:d}/{6:d}] -- Time/step: {7} -- Loss: {8:.7f}'.format(
 							wavestart,wavestop,startpix,stoppix,epoch_i+1,t+1, self.niter, datetime.now()-steptime, loss.item())
 						)
-						sys.stdout.flush()
+						sys.stdout.flush()						
 
 					return loss
 
 				# Calling the step function on an Optimizer makes an update to its parameters
 				optimizer.step(closure)
 
+				print(optimizer.state_dict())
+
+				# # check to see if loss isn't changing by more than 0.01% after 10K iterations
+				# if t > 10000:
+				# 	if t % 10 == 0:
+						
 			# # re-draw spectra for next epoch
 			# spectra_o,labels_o,wavelength = pullspectra_i(
 			# 	self.numtrain,resolution=self.resolution, waverange=self.waverange,
