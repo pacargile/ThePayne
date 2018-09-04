@@ -158,6 +158,29 @@ class FitPayne(object):
 				self.imf_bool,self.photscale_bool])
 			})
 
+	def _initoutput(self):
+		# init output file
+		self.outff = open(self.output,'w')
+		self.outff.write('Iter ')
+		if self.spec_bool:
+			self.outff.write('Teff logg FeH aFe Vrad Vrot Inst_R ')
+
+			if self.normspec_bool:
+				for ii in range(self.polyorder+1):
+					self.outff.write('pc_{0} '.format(ii))
+
+		if self.phot_bool:
+			if not self.spec_bool:
+				self.outff.write('Teff logg FeH aFe ')
+
+			if self.photscale_bool:
+				self.outff.write('logA Av ')
+			else:
+				self.outff.write('logR Dist Av ')
+
+		self.outff.write('log(lk) log(vol) log(wt) h nc log(z) delta(log(z))')
+		self.outff.write('\n')
+
 	def __call__(self,indicts):
 		'''
 		call instance so that run_dynesty can be called with multiprocessing
@@ -181,7 +204,7 @@ class FitPayne(object):
 			if self.spec_bool:
 				self.ndim = 10
 			else:
-				self.ndim = 6
+				self.ndim = 7
 			if self.photscale_bool:
 				self.ndim = self.ndim-1
 
@@ -206,37 +229,15 @@ class FitPayne(object):
 
 		if runsamplertype == 'Nested':
 			# run sampler and return sampler object
-			return self.runsampler(samplerdict)
+			return self._runsampler(samplerdict)
 		elif runsamplertype == 'Dynamic':
-			return self.rundysampler(samplerdict)
+			return self._rundysampler(samplerdict)
 		else:
 			print('Did not understand sampler type, return nothing')
 			return
 
-	def _initoutput(self):
-		# init output file
-		self.outff = open(self.output,'w')
-		self.outff.write('Iter ')
-		if self.spec_bool:
-			self.outff.write('Teff logg FeH aFe Vrad Vrot Inst_R ')
 
-			if self.normspec_bool:
-				for ii in range(self.polyorder+1):
-					self.outff.write('pc_{0} '.format(ii))
-
-		if self.phot_bool:
-			if not self.spec_bool:
-				self.outff.write('Teff logg FeH ')
-
-			if self.photscale_bool:
-				self.outff.write('logA Av ')
-			else:
-				self.outff.write('logR Dist Av ')
-
-		self.outff.write('log(lk) log(vol) log(wt) h nc log(z) delta(log(z))')
-		self.outff.write('\n')
-
-	def runsampler(self,samplerdict):
+	def _runsampler(self,samplerdict):
 		# pull out user defined sampler variables
 		npoints = samplerdict.get('npoints',200)
 		samplertype = samplerdict.get('samplerbounds','multi')
@@ -371,7 +372,7 @@ class FitPayne(object):
 
 		return dy_sampler
 
-	def rundysampler(self,samplerdict):
+	def _rundysampler(self,samplerdict):
 		# pull out user defined sampler variables
 		npoints = samplerdict.get('npoints',200)
 		samplertype = samplerdict.get('samplerbounds','multi')

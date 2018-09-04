@@ -416,7 +416,7 @@ class TrainSpec_multi(object):
 		# loss_fn = torch.nn.KLDivLoss(size_average=False)
 
 		# initialize the optimizer
-		learning_rate = 0.05
+		learning_rate = 0.01
 		# optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 		optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 
@@ -426,12 +426,16 @@ class TrainSpec_multi(object):
 
 		print('Pixels: {0}-{1}, Wave: {2}-{3}, Start Training...'.format(
 			startpix,stoppix,wavestart,wavestop))
-		for epoch_i in range(self.epochs):
+
+		for epoch_i in range(self.epochs):	
 			# adjust the optimizer lr
 			scheduler.step()
 			lr_i = optimizer.param_groups[0]['lr']
 
 			epochtime = datetime.now()
+
+			bestloss = np.inf
+			stopcounter = 0
 
 			for t in range(self.niter):
 				steptime = datetime.now()
@@ -452,7 +456,7 @@ class TrainSpec_multi(object):
 					
 					if (t+1) % 5000 == 0:
 						print (
-							'--> WL: {0:6.2f}-{1:6.2f} -- Pix: {2}-{3} -- Ep: {4} -- St [{5:d}/{6:d}] -- Time/step: {7} -- Loss: {8:.7f}'.format(
+							'--> WL: {0:6.2f}-{1:6.2f} -- Pix: {2}-{3} -- Ep: {4} -- St [{5:d}/{6:d}] -- Time/step: {7} -- Train Loss: {8:.7f}'.format(
 							wavestart,wavestop,startpix,stoppix,epoch_i+1,t+1, self.niter, datetime.now()-steptime, loss.item())
 						)
 						sys.stdout.flush()						
@@ -460,13 +464,18 @@ class TrainSpec_multi(object):
 					return loss
 
 				# Calling the step function on an Optimizer makes an update to its parameters
-				optimizer.step(closure)
+				loss_i = optimizer.step(closure)
 
-				print(optimizer.state_dict())
-
-				# # check to see if loss isn't changing by more than 0.01% after 10K iterations
-				# if t > 10000:
-				# 	if t % 10 == 0:
+				# first allow it to train 10K steps
+				if t > 20000:
+					# check to see if it hits our fit tolerance limit
+					if np.abs(loss_i.item()-bestloss) < 1e-4:
+						stopcounter += 1
+						if stopcounter >=1000:
+							break
+					else:
+						stopcounter = 0
+					bestloss = loss_i.item()
 						
 			# # re-draw spectra for next epoch
 			# spectra_o,labels_o,wavelength = pullspectra_i(
@@ -627,7 +636,7 @@ class TrainSpec_multi(object):
 			Y_train_Tensor = Y_valid_Tensor
 
 			print (
-				'Eph [{4:d}/{5:d}] -- WL: {0:.5f}-{1:.5f} -- Pix: {2}-{3} -- Step Time: {6}, LR: {7:.5f}, max(|Res|): {8:.5f}'.format(
+				'Eph [{4:d}/{5:d}] -- WL: {0:.5f}-{1:.5f} -- Pix: {2}-{3} -- Step Time: {6}, LR: {7:.5f}, Valid max(|Res|): {8:.5f}'.format(
 					wavestart, wavestop, startpix,stoppix, epoch_i+1, self.epochs, datetime.now()-epochtime,
 					lr_i,np.nanmax(np.abs(valid_residual)))
 				)

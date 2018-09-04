@@ -48,9 +48,9 @@ class prior(object):
 				logR,Dist,Av = upars[-3:]
 		else:
 			if self.photscale_bool:
-				Teff,logg,FeH,logA,Av = upars
+				Teff,logg,FeH,aFe,logA,Av = upars
 			else:
-				Teff,logg,FeH,logR,Dist,Av = upars
+				Teff,logg,FeH,aFe,logR,Dist,Av = upars
 
 		# determine what paramters go into the spec function and 
 		# calculate prior transformation for spectrum
@@ -75,9 +75,9 @@ class prior(object):
 		# calcuate prior transformation for SED
 		if self.phot_bool:
 			if self.photscale_bool:
-				uphotpars = [Teff,logg,FeH,logA,Av]
+				uphotpars = [Teff,logg,FeH,aFe,logA,Av]
 			else:
-				uphotpars = [Teff,logg,FeH,logR,Dist,Av]
+				uphotpars = [Teff,logg,FeH,aFe,logR,Dist,Av]
 			photPT = self.priortrans_phot(uphotpars)
 		else:
 			photPT = []
@@ -115,7 +115,7 @@ class prior(object):
 			FeH = (max(self.priordict['[Fe/H]'])-min(self.priordict['[Fe/H]']))*uFeH + min(self.priordict['[Fe/H]'])
 		else:
 			# FeH     = (self.PP.NN['x_max'][2]-self.PP.NN['x_min'][2])*uFeH + self.PP.NN['x_min'][2]
-			FeH  = (0.5 - -2.0)*uFeH + -2.0
+			FeH  = (0.5 - -4.0)*uFeH + -4.0
 
 		if '[a/Fe]' in self.priordict.keys():
 			aFe = (max(self.priordict['[a/Fe]'])-min(self.priordict['[a/Fe]']))*uaFe + min(self.priordict['[a/Fe]'])
@@ -165,6 +165,7 @@ class prior(object):
 			uTeff   = upars[0]
 			ulogg   = upars[1]
 			uFeH    = upars[2]
+			uaFe    = upars[3]
 
 			if 'Teff' in self.priordict.keys():
 				Teff = (max(self.priordict['Teff'])-min(self.priordict['Teff']))*uTeff + min(self.priordict['Teff'])
@@ -179,9 +180,14 @@ class prior(object):
 			if '[Fe/H]' in self.priordict.keys():
 				FeH = (max(self.priordict['[Fe/H]'])-min(self.priordict['[Fe/H]']))*uFeH + min(self.priordict['[Fe/H]'])
 			else:
-				FeH  = (0.5 - -2.0)*uFeH + -2.0
+				FeH  = (0.5 - -4.0)*uFeH + -4.0
+
+			if '[a/Fe]' in self.priordict.keys():
+				aFe = (max(self.priordict['[a/Fe]'])-min(self.priordict['[a/Fe]']))*uaFe + min(self.priordict['[a/Fe]'])
+			else:
+				aFe  = (0.6 - -0.2)*uaFe + -0.2
 			
-			outarr = [Teff,logg,FeH]
+			outarr = [Teff,logg,FeH,aFe]
 		else:
 			outarr = []
 
@@ -241,9 +247,9 @@ class prior(object):
 				logR,Dist,Av = pars[-3:]
 		else:
 			if self.photscale_bool:
-				Teff,logg,FeH,logA,Av = pars
+				Teff,logg,FeH,aFe,logA,Av = pars
 			else:
-				Teff,logg,FeH,logR,Dist,Av = pars
+				Teff,logg,FeH,aFe,logR,Dist,Av = pars
 
 
 		# determine what paramters go into the spec function and 
@@ -270,9 +276,9 @@ class prior(object):
 		# determine what paramters go into the phot function
 		if self.phot_bool:
 			if self.photscale_bool:
-				photpars = [Teff,logg,FeH,logA,Av]
+				photpars = [Teff,logg,FeH,aFe,logA,Av]
 			else:
-				photpars = [Teff,logg,FeH,logR,Dist,Av]
+				photpars = [Teff,logg,FeH,aFe,logR,Dist,Av]
 
 			lnP_phot = self.lnprior_phot(photpars)
 			if lnP_phot == -np.inf:
@@ -336,22 +342,24 @@ class prior(object):
 
 		# pull out the pars and put into a dictionary
 		pardict = {}
-		pardict['Teff']   = pars[0]
-		pardict['log(g)'] = pars[1]
-		pardict['[Fe/H]'] = pars[2]
+		if not self.spec_bool:
+			pardict['Teff']   = pars[0]
+			pardict['log(g)'] = pars[1]
+			pardict['[Fe/H]'] = pars[2]
+			pardict['[a/Fe]'] = pars[3]
 		if self.photscale_bool:
-			pardict['log(A)'] = pars[3]
-			pardict['Av']     = pars[4]
-		else:
-			pardict['log(R)'] = pars[3]
-			pardict['Dist']   = pars[4]
+			pardict['log(A)'] = pars[4]
 			pardict['Av']     = pars[5]
+		else:
+			pardict['log(R)'] = pars[4]
+			pardict['Dist']   = pars[5]
+			pardict['Av']     = pars[6]
 			pardict['Parallax'] = 1000.0/pardict['Dist']
 
 		# check to see if any of these parameter are included in additionalpriors dict
 		if len(self.additionalpriors.keys()) > 0:
 			for kk in self.additionalpriors.keys():
-				if kk in ['Teff','log(g)','[Fe/H]','log(R)','Dist','log(A)','Av','Parallax']:
+				if kk in ['Teff','log(g)','[Fe/H]','[a/Fe]','log(R)','Dist','log(A)','Av','Parallax']:
 					# if prior is Gaussian
 					if 'gaussian' in self.additionalpriors[kk].keys():
 						lnprior += -0.5 * (((pardict[kk]-self.additionalpriors[kk]['gaussian'][0])**2.0)/

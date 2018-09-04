@@ -73,9 +73,10 @@ class GenMod(object):
 		Teff = pars[0]
 		logg = pars[1]
 		FeH  = pars[2]
-		logR = pars[3]
-		Dist = pars[4]
-		Av   = pars[5]
+		aFe  = pars[3]
+		logR = pars[4]
+		Dist = pars[5]
+		Av   = pars[6]
 
 		logTeff = np.log10(Teff)
 
@@ -86,6 +87,7 @@ class GenMod(object):
 		photpars['logt'] = logTeff
 		photpars['logg'] = logg
 		photpars['feh']  = FeH
+		photpars['afe']  = aFe
 		photpars['logl'] = logL
 		photpars['av']   = Av
 		photpars['dist'] = Dist
@@ -113,8 +115,9 @@ class GenMod(object):
 		Teff = pars[0]
 		logg = pars[1]
 		FeH  = pars[2]
-		logA = pars[3]
-		Av   = pars[4]
+		aFe  = pars[3]
+		logA = pars[4]
+		Av   = pars[5]
 
 		logTeff = np.log10(Teff)
 
@@ -123,6 +126,7 @@ class GenMod(object):
 		photpars['logt'] = logTeff
 		photpars['logg'] = logg
 		photpars['feh']  = FeH
+		photpars['aFe']  = aFe
 		photpars['logA'] = logA
 		photpars['av']   = Av
 

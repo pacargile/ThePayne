@@ -60,9 +60,9 @@ class likelihood(object):
 				logR,Dist,Av = pars[-3:]
 		else:
 			if self.photscale_bool:
-				Teff,logg,FeH,logA,Av = pars
+				Teff,logg,FeH,aFe,logA,Av = pars
 			else:
-				Teff,logg,FeH,logR,Dist,Av = pars
+				Teff,logg,FeH,aFe,logR,Dist,Av = pars
 
 		# determine what paramters go into the spec function
 		if self.spec_bool:
@@ -83,9 +83,9 @@ class likelihood(object):
 		# determine what paramters go into the phot function
 		if self.phot_bool:
 			if self.photscale_bool:
-				photpars = [Teff,logg,FeH,logA,Av]
+				photpars = [Teff,logg,FeH,aFe,logA,Av]
 			else:
-				photpars = [Teff,logg,FeH,logR,Dist,Av]
+				photpars = [Teff,logg,FeH,aFe,logR,Dist,Av]
 		else:
 			photpars = None
 

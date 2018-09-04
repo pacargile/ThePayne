@@ -8,7 +8,7 @@ print('----- Teff = 5770.0, log(g) = 4.44 -------')
 print('-----  [Fe/H] = 0.0, log(L) = 0.0  -------')
 print('-----    Av = 0.5, Dist = 10.0     -------')
 
-runspec = True 
+runspec = True
 runphot = True
 runmock = True
 
@@ -50,11 +50,11 @@ if runphot:
 		# MOCK PHOT
 		phot = ([5.05683976,5.4852947,4.47431828,
 			5.56655009,5.05124561,4.84585131,4.74454356,
-			3.79796834,3.42029949,3.33746428,
+			3.79796834,3.42029949,#3.33746428,
 			3.2936935,3.31818059])
 		filterarr = (['Gaia_G_DR2Rev','Gaia_BP_DR2Rev','Gaia_RP_DR2Rev',
 			'PS_g','PS_r','PS_i','PS_z',
-			'2MASS_J','2MASS_H','2MASS_Ks',
+			'2MASS_J','2MASS_H',#'2MASS_Ks',
 			'WISE_W1','WISE_W2'])
 
 	else:
@@ -71,11 +71,11 @@ if runphot:
 
 # set parameter for sampler
 inputdict['sampler'] = {}
-inputdict['sampler']['samplemethod'] = 'unif'
-inputdict['sampler']['npoints'] = 40
-inputdict['sampler']['samplertype'] = 'single'
+inputdict['sampler']['samplemethod'] = 'slice'
+inputdict['sampler']['npoints'] = 200
+inputdict['sampler']['samplerbounds'] = 'single'
 inputdict['sampler']['flushnum'] = 10
-inputdict['sampler']['delta_logz_final'] = 0.1
+inputdict['sampler']['delta_logz_final'] = 0.01
 inputdict['sampler']['bootstrap'] = 0
 inputdict['sampler']['slices'] = 10
 
