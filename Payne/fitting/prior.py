@@ -313,7 +313,7 @@ class prior(object):
 					if 'gaussian' in self.additionalpriors[kk].keys():
 						lnprior += -0.5 * (((pardict[kk]-self.additionalpriors[kk]['gaussian'][0])**2.0)/
 							(self.additionalpriors[kk]['gaussian'][1]**2.0))
-					elif 'flat' in self.additionalpriors[kk].keys():
+					elif 'uniform' in self.additionalpriors[kk].keys():
 						if ((pardict[kk] < self.additionalpriors[kk]['flat'][0]) or 
 							(pardict[kk] > self.additionalpriors[kk]['flat'][1])):
 							return -np.inf
@@ -364,7 +364,7 @@ class prior(object):
 					if 'gaussian' in self.additionalpriors[kk].keys():
 						lnprior += -0.5 * (((pardict[kk]-self.additionalpriors[kk]['gaussian'][0])**2.0)/
 							(self.additionalpriors[kk]['gaussian'][1]**2.0))
-					elif 'flat' in self.additionalpriors[kk].keys():
+					elif 'uniform' in self.additionalpriors[kk].keys():
 						if ((pardict[kk] < self.additionalpriors[kk]['flat'][0]) or 
 							(pardict[kk] > self.additionalpriors[kk]['flat'][1])):
 							return -np.inf
