@@ -3,14 +3,17 @@ from astropy.table import Table
 import numpy as np
 import sys
 
-print('-------- RUNNING MOCK SOLAR DEMO ---------')
-print('----- Teff = 5770.0, log(g) = 4.44 -------')
-print('-----  [Fe/H] = 0.0, log(L) = 0.0  -------')
-print('-----    Av = 0.5, Dist = 10.0     -------')
-
 runspec = True
 runphot = True
 runmock = True
+
+if runmock:
+	print('-------- RUNNING MOCK SOLAR DEMO ---------')
+	print('----- Teff = 5770.0, log(g) = 4.44 -------')
+	print('-----  [Fe/H] = 0.0, log(L) = 0.0  -------')
+	print('-----    Av = 0.5, Dist = 10.0     -------')
+else:
+	print('-------- RUNNING OBS SOLAR DEMO ---------')
 
 print('  ---- Running Spec: {}'.format(runspec))
 print('  ---- Running Phot: {}'.format(runphot))
@@ -26,13 +29,15 @@ if runspec:
 		inputdict['spec']['obs_wave'] = demospec['WAVE']
 		inputdict['spec']['obs_flux'] = demospec['FLUX']
 		# error of SNR = 50
-		inputdict['spec']['obs_eflux'] = demospec['FLUX']/20.0
+		inputdict['spec']['obs_eflux'] = demospec['FLUX']/100.0
 		inputdict['spec']['normspec'] = False
 		inputdict['spec']['convertair'] = False
 		# set an additional guassian prior on the instrument profile
 		# inputdict['priordict']['Inst_R'] = {'gaussian':[32000.0,1000.0]}
 	else:
 		sunspec = Table.read('ATLAS.Sun_47000.txt.gz',format='ascii')
+		sunspec = sunspec[(sunspec['waveobs'] >= 514.5) & (sunspec['waveobs'] <= 532.5)]
+		sunspec = sunspec[(sunspec['flux'] != 0.0) & (sunspec['err'] != 0.0)]
 		inputdict['spec']['obs_wave'] = sunspec['waveobs']*10.0
 		inputdict['spec']['obs_flux'] = sunspec['flux']
 		inputdict['spec']['obs_eflux'] = sunspec['err']
@@ -50,11 +55,11 @@ if runphot:
 		# MOCK PHOT
 		phot = ([5.05683976,5.4852947,4.47431828,
 			5.56655009,5.05124561,4.84585131,4.74454356,
-			3.79796834,3.42029949,#3.33746428,
+			3.79796834,3.42029949,3.33746428,
 			3.2936935,3.31818059])
 		filterarr = (['Gaia_G_DR2Rev','Gaia_BP_DR2Rev','Gaia_RP_DR2Rev',
 			'PS_g','PS_r','PS_i','PS_z',
-			'2MASS_J','2MASS_H',#'2MASS_Ks',
+			'2MASS_J','2MASS_H','2MASS_Ks',
 			'WISE_W1','WISE_W2'])
 
 	else:
@@ -67,7 +72,7 @@ if runphot:
 			'PS_g','PS_r','PS_i','PS_z',
 			'2MASS_J','2MASS_H','2MASS_Ks',
 			'WISE_W1','WISE_W2'])
-	inputdict['phot'] = {fn:[p_i,0.05*p_i] for fn,p_i in zip(filterarr,phot)}
+	inputdict['phot'] = {fn:[p_i,0.01*p_i] for fn,p_i in zip(filterarr,phot)}
 
 # set parameter for sampler
 inputdict['sampler'] = {}
