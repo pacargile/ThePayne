@@ -126,7 +126,7 @@ class GenMod(object):
 		photpars['logt'] = logTeff
 		photpars['logg'] = logg
 		photpars['feh']  = FeH
-		photpars['aFe']  = aFe
+		photpars['afe']  = aFe
 		photpars['logA'] = logA
 		photpars['av']   = Av
 
