@@ -22,11 +22,6 @@ except ImportError:
 
 from multiprocessing import Pool
 
-import matplotlib
-# matplotlib.use('AGG')
-import matplotlib.pyplot as plt
-matplotlib.pyplot.ioff()
-
 from ..utils.pullspectra import pullspectra
 
 class Net(nn.Module):  
@@ -63,6 +58,11 @@ class Net(nn.Module):
 class TrainSpec(object):
 	"""docstring for TrainSpec"""
 	def __init__(self, **kwargs):
+		import matplotlib
+		# matplotlib.use('AGG')
+		import matplotlib.pyplot as plt
+		matplotlib.pyplot.ioff()
+
 		# number of models to train on
 		if 'numtrain' in kwargs:
 			self.numtrain = kwargs['numtrain']
