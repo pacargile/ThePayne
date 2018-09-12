@@ -24,12 +24,6 @@ except ImportError:
 	# Python 3.x
 	imap=map
 
-
-import matplotlib
-# matplotlib.use('AGG')
-import matplotlib.pyplot as plt
-matplotlib.pyplot.ioff()
-
 from ..utils.pullspectra import pullspectra
 
 class Net(nn.Module):  
@@ -75,6 +69,12 @@ class Net(nn.Module):
 class TrainSpec_multi(object):
 	"""docstring for TrainSpec"""
 	def __init__(self, **kwargs):
+
+		import matplotlib
+		# matplotlib.use('AGG')
+		import matplotlib.pyplot as plt
+		matplotlib.pyplot.ioff()
+		
 		# number of models to train on
 		if 'numtrain' in kwargs:
 			self.numtrain = kwargs['numtrain']
