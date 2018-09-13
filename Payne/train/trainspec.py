@@ -62,6 +62,7 @@ class TrainSpec(object):
 		# matplotlib.use('AGG')
 		import matplotlib.pyplot as plt
 		matplotlib.pyplot.ioff()
+		self.plt = plt
 
 		# number of models to train on
 		if 'numtrain' in kwargs:
@@ -453,7 +454,7 @@ class TrainSpec(object):
 						logfile.write(' {0}'.format(res))
 						logfile.write('\n')
 
-				fig = plt.figure()
+				fig = self.plt.figure()
 				ax = fig.add_subplot(111)
 				# residsize = ((10 * 
 				# 	(max(np.abs(valid_residual))-np.abs(valid_residual))/
@@ -482,7 +483,7 @@ class TrainSpec(object):
 				fig.savefig(
 					self.pdfdir+'/ValidLog_pixel{0}_wave{1}_epoch{2}.pdf'.format(
 						pixel_no+1,self.wavelength[pixel_no],epoch_i+1))
-				plt.close(fig)
+				self.plt.close(fig)
 
 			# check if user wants to do adaptive training
 			if self.adaptivetrain:

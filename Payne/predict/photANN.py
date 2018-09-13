@@ -88,7 +88,7 @@ class ANN(object):
     else:
       inputD = x.shape[0]
 
-    inputVar = Variable(torch.from_numpy(x).type(dtype)).resize(inputD,4)
+    inputVar = Variable(torch.from_numpy(x).type(dtype)).resize(inputD,5)
     outpars = self.model(inputVar)
     return outpars.data.numpy().squeeze()
 

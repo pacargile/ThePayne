@@ -3,7 +3,7 @@ from astropy.table import Table
 import numpy as np
 import sys
 
-runspec = True
+runspec = False
 runphot = True
 runmock = True
 
@@ -53,14 +53,13 @@ if runphot:
 
 	if runmock:
 		# MOCK PHOT
-		phot = ([5.05683976,5.4852947,4.47431828,
-			5.56655009,5.05124561,4.84585131,4.74454356,
-			3.79796834,3.42029949,3.33746428,
-			3.2936935,3.31818059])
-		filterarr = (['Gaia_G_DR2Rev','Gaia_BP_DR2Rev','Gaia_RP_DR2Rev',
-			'PS_g','PS_r','PS_i','PS_z',
+		phot = ([6.34406175,5.07894377,4.62912848,4.52416682,4.50593773,
+			3.65719927,3.32468104,3.28475372,
+			3.27660632,3.29905389,3.26541975])
+
+		filterarr = (['SDSS_u','SDSS_g','SDSS_r','SDSS_i','SDSS_z',
 			'2MASS_J','2MASS_H','2MASS_Ks',
-			'WISE_W1','WISE_W2'])
+			'WISE_W1','WISE_W2','WISE_W3',])
 
 	else:
 		phot = ([
@@ -72,17 +71,54 @@ if runphot:
 			'PS_g','PS_r','PS_i','PS_z',
 			'2MASS_J','2MASS_H','2MASS_Ks',
 			'WISE_W1','WISE_W2'])
-	inputdict['phot'] = {fn:[p_i,0.01*p_i] for fn,p_i in zip(filterarr,phot)}
+	inputdict['phot'] = {fn:[p_i,0.01] for fn,p_i in zip(filterarr,phot)}
 
 # set parameter for sampler
 inputdict['sampler'] = {}
+inputdict['sampler']['samplerbounds'] ='Nested'
 inputdict['sampler']['samplemethod'] = 'slice'
-inputdict['sampler']['npoints'] = 200
-inputdict['sampler']['samplerbounds'] = 'single'
-inputdict['sampler']['flushnum'] = 10
-inputdict['sampler']['delta_logz_final'] = 0.01
+inputdict['sampler']['npoints'] = 250
+inputdict['sampler']['samplerbounds'] = 'multi'
+inputdict['sampler']['flushnum'] = 100
+inputdict['sampler']['delta_logz_final'] = 0.001
 inputdict['sampler']['bootstrap'] = 0
-inputdict['sampler']['slices'] = 10
+# inputdict['sampler']['slices'] = 500
+
+# set some flat priors for defining the prior volume
+inputdict['priordict'] = {}
+inputdict['priordict']['Teff']   = {'uniform':[3000.0,17000.0]}
+inputdict['priordict']['log(g)'] = {'uniform':[1.0,5.5]}
+inputdict['priordict']['[Fe/H]'] = {'uniform':[-4.0,0.5]}
+inputdict['priordict']['[a/Fe]'] = {'uniform':[-0.2,0.6]}
+inputdict['priordict']['Vrad'] = {'uniform':[-700.0,700.0]}
+# gmi = inputdict['phot']['PS_g'][0]-inputdict['phot']['PS_i'][0]
+# inputdict['priordict']['Vrot'] = (
+# 	{'uniform':[0.0,400.0],
+# 	'gaussian':[0.0,500.0/((5.0+gmi)**2.0)]}) 
+inputdict['priordict']['Vrot']   = {'uniform':[0.0,5.0]}
+
+
+# inputdict['priordict']['Dist']   = {'uniform':[1.0,200.0]}
+# inputdict['priordict']['log(R)'] = {'uniform':[-0.1,0.1]}
+inputdict['photscale'] = True
+inputdict['priordict']['log(A)'] = {'uniform':[-3.0,7.0]}
+inputdict['priordict']['Av']     = {'uniform':[0.0,1.0]}
+
+# set an additional guassian prior on the instrument profile
+inputdict['priordict']['Inst_R'] = (
+	{'uniform':[27000.0,38000.0],
+	'gaussian':[32000.0,1000.0]})
+
+"""
+# set parameter for sampler
+inputdict['sampler'] = {}
+inputdict['sampler']['samplerbounds'] ='Nested'
+inputdict['sampler']['samplemethod'] = 'slice'
+inputdict['sampler']['npoints'] = 250
+inputdict['sampler']['samplerbounds'] = 'multi'
+inputdict['sampler']['flushnum'] = 500
+inputdict['sampler']['delta_logz_final'] = 0.001
+inputdict['sampler']['bootstrap'] = 0
 
 # set some flat priors for defining the prior volume
 inputdict['priordict'] = {}
@@ -94,11 +130,12 @@ inputdict['priordict']['Vrad']   = {'uniform':[-5.0,5.0]}
 inputdict['priordict']['Vrot']   = {'uniform':[0.0,5.0]}
 inputdict['priordict']['Inst_R'] = {'uniform':[25000.0,55000.0]}
 
-inputdict['priordict']['Dist']   = {'uniform':[5.0,20.0]}
+# inputdict['priordict']['Dist']   = {'uniform':[5.0,20.0]}
 inputdict['priordict']['Av']     = {'uniform':[0.0,1.0]}
-inputdict['priordict']['log(R)'] = {'uniform':[-0.1,0.1]}
+# inputdict['priordict']['log(R)'] = {'uniform':[-0.1,0.1]}
+"""
 
-inputdict['output'] = 'demoout.dat'
+inputdict['output'] = 'demoout_solsedmock.dat'
 
 
 FS = fitstar.FitPayne()

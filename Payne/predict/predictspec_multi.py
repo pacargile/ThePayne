@@ -251,6 +251,8 @@ class PayneSpecPredict(object):
 
         if '[alpha/Fe]' in kwargs:
             self.inputdict['afe'] = kwargs['[alpha/Fe]']
+        elif '[a/Fe]' in kwargs:
+            self.inputdict['afe'] = kwargs['[a/Fe]']
         elif 'aFe' in kwargs:
             self.inputdict['afe'] = kwargs['aFe']
         elif 'afe' in kwargs:

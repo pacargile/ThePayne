@@ -193,8 +193,8 @@ class prior(object):
 
 		# pull SED only parameters and do prior transformation
 		if self.photscale_bool:
-			ulogA = upars[3]
-			uAv   = upars[4]
+			ulogA = upars[4]
+			uAv   = upars[5]
 
 			if 'log(A)' in self.priordict.keys():
 				logA = (max(self.priordict['log(A)'])-min(self.priordict['log(A)']))*ulogA + min(self.priordict['log(A)'])
@@ -204,9 +204,9 @@ class prior(object):
 			outarr.append(logA)
 
 		else:
-			ulogR  = upars[3]
-			uDist = upars[4]
-			uAv   = upars[5]
+			ulogR  = upars[4]
+			uDist = upars[5]
+			uAv   = upars[6]
 
 			if 'log(R)' in self.priordict.keys():
 				logR = (max(self.priordict['log(R)'])-min(self.priordict['log(R)']))*ulogR + min(self.priordict['log(R)'])

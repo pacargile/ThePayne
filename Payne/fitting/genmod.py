@@ -131,7 +131,6 @@ class GenMod(object):
 		photpars['av']   = Av
 
 		# create filter list and arrange photometry to this list
-
 		sed = self.fppsed.sed(**photpars)
 
 		outdict = {ff_i:sed_i for sed_i,ff_i in zip(sed,self.filterarray)}
