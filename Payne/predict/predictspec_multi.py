@@ -103,7 +103,9 @@ class fastreadNN(object):
         self.b2 = np.expand_dims(np.array([nn.model.lin2.bias.data.numpy() for nn in nnlist]), -1)
         self.w3 = np.array([nn.model.lin3.weight.data.numpy() for nn in nnlist])
         self.b3 = np.expand_dims(np.array([nn.model.lin3.bias.data.numpy() for nn in nnlist]), -1)
-
+        self.w4 = np.array([nn.model.lin4.weight.data.numpy() for nn in nnlist])
+        self.b4 = np.expand_dims(np.array([nn.model.lin4.bias.data.numpy() for nn in nnlist]), -1)
+        
         self.set_minmax(nnlist[0])
 
     def set_minmax(self, nn):
@@ -128,7 +130,8 @@ class fastreadNN(object):
         """
         a1 = self.sigmoid(np.matmul(self.w1,  self.encode(x)) + self.b1)
         a2 = self.sigmoid(np.matmul(self.w2, a1) + self.b2)
-        y = np.matmul(self.w3, a2) + self.b3
+        a3 = self.sigmoid(np.matmul(self.w3, a2) + self.b3)
+        y = np.matmul(self.w4, a3) + self.b4
         return np.squeeze(y)
 
 class PayneSpecPredict(object):
@@ -160,26 +163,26 @@ class PayneSpecPredict(object):
         self.NN['x_min'] = np.array(self.NN['file']['xmin'])
         self.NN['x_max'] = np.array(self.NN['file']['xmax'])
 
-        # OLD SLOW PYTORCH CODE
-        # dictionary of trained NN models for predictions
-        self.NN['model'] = {}
-        for ii in self.NN['ANN_ind']:
-            self.NN['model'][ii] = readNN(
+        # # OLD SLOW PYTORCH CODE
+        # # dictionary of trained NN models for predictions
+        # self.NN['model'] = {}
+        # for ii in self.NN['ANN_ind']:
+        #     self.NN['model'][ii] = readNN(
+        #         nnh5=self.NN['file']['model/{0}'.format(ii)],
+        #         xmin=self.NN['x_min'],
+        #         xmax=self.NN['x_max'],
+        #     )
+
+        # NEW SMART MATRIX APPROACH
+        nnlist = (
+            [readNN(
                 nnh5=self.NN['file']['model/{0}'.format(ii)],
                 xmin=self.NN['x_min'],
-                xmax=self.NN['x_max'],
+                xmax=self.NN['x_max'])
+                for ii in self.NN['ANN_ind']
+                ]
             )
-
-        # # NEW SMART MATRIX APPROACH
-        # nnlist = (
-        #     [readNN(
-        #         nnh5=self.NN['file']['model_{0}_{1}'.format(WW[0],WW[-1])],
-        #         xmin=self.NN['x_min'],
-        #         xmax=self.NN['x_max'])
-        #         for WW in self.NN['wavelength']
-        #         ]
-        #     )
-        # self.anns = fastreadNN(nnlist, self.NN['wavelength'])
+        self.anns = fastreadNN(nnlist, self.NN['wavelength'])
 
     def predictspec(self,labels):
         '''
@@ -193,20 +196,20 @@ class PayneSpecPredict(object):
         predicted flux from the NN
         '''
 
-        # OLD SLOW PYTORCH CODE
-        self.predict_flux = np.array([])
-        for ii in self.NN['ANN_ind']:
-            predval = self.NN['model'][ii].eval(labels)
-            if predval.shape == np.array(1).shape:
-                predval = np.array([predval])
-            self.predict_flux = np.concatenate([self.predict_flux,predval])
+        # # OLD SLOW PYTORCH CODE
+        # self.predict_flux = np.array([])
+        # for ii in self.NN['ANN_ind']:
+        #     predval = self.NN['model'][ii].eval(labels)
+        #     if predval.shape == np.array(1).shape:
+        #         predval = np.array([predval])
+        #     self.predict_flux = np.concatenate([self.predict_flux,predval])
 
         # if self.predict_flux.ndim == 1:
         #     self.predict_flux = self.predict_flux.reshape(1,len(self.NN['ANN_ind']))
         # self.predict_flux = np.concatenate(self.predict_flux)
 
-        # # NEW SMART MATRIX APPROACH
-        # predict_flux = self.anns.eval(labels)
+        # NEW SMART MATRIX APPROACH
+        self.predict_flux = self.anns.eval(labels)
 
         return self.predict_flux
 

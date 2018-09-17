@@ -508,9 +508,13 @@ class TrainSpec_multi(object):
 			if valid_residual.ndim == 1:
 				valid_residual = valid_residual.reshape(1,self.numtrain)
 
-			# if any(np.isnan(valid_residual)):
-			# 	print('Found a NaN validation Tensor')
-			# 	print(Y_pred_valid_Tensor)
+			# check to make sure valid_residual isn't all nan's, if so			
+			if np.isnan(valid_residual).all():
+				print('Found an all NaN validation Tensor')
+				print(X_valid)
+				print(Y_valid)
+				print(Y_pred_valid)
+				raise ValueError
 
 			# create log of the validation step if user wants
 			if self.logepoch:				
