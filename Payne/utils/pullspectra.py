@@ -40,9 +40,12 @@ class pullspectra(object):
 			self.alphaarr.append(float(indinf.split('_')[-1][3:-8]))
 
 		# remove the super metal-rich models that only have aFe = 0
-		self.FeHarr.remove(0.75)
-		self.FeHarr.remove(1.00)
-		self.FeHarr.remove(1.25)
+		if 0.75 in self.FeHarr:
+			self.FeHarr.remove(0.75)
+		if 1.00 in self.FeHarr:
+			self.FeHarr.remove(1.00)
+		if 1.25 in self.FeHarr:
+			self.FeHarr.remove(1.25)
 
 		# determine the MIST FeH and aFe arrays
 		self.MISTFeHarr = []
