@@ -105,7 +105,7 @@ class fastreadNN(object):
         self.b3 = np.expand_dims(np.array([nn.model.lin3.bias.data.numpy() for nn in nnlist]), -1)
         self.w4 = np.array([nn.model.lin4.weight.data.numpy() for nn in nnlist])
         self.b4 = np.expand_dims(np.array([nn.model.lin4.bias.data.numpy() for nn in nnlist]), -1)
-        
+
         self.set_minmax(nnlist[0])
 
     def set_minmax(self, nn):
@@ -123,7 +123,8 @@ class fastreadNN(object):
         return xp.T
 
     def sigmoid(self, a):
-        return 1. / (1 + np.exp(-a))
+        with np.errstate(over='ignore'):
+            return 1. / (1 + np.exp(-a))
 
     def eval(self, x):
         """With some annying shape changes
@@ -132,7 +133,7 @@ class fastreadNN(object):
         a2 = self.sigmoid(np.matmul(self.w2, a1) + self.b2)
         a3 = self.sigmoid(np.matmul(self.w3, a2) + self.b3)
         y = np.matmul(self.w4, a3) + self.b4
-        return np.squeeze(y)
+        return np.squeeze(y).ravel()
 
 class PayneSpecPredict(object):
     """
