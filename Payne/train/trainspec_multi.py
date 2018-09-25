@@ -468,6 +468,13 @@ class TrainSpec_multi(object):
 				# Calling the step function on an Optimizer makes an update to its parameters
 				loss_i = optimizer.step(closure)
 
+				if np.isnan(loss_i.item()):
+					print(loss_i)
+					print(y_pred_train_Tensor)
+					print(Y_train_Tensor)
+					print('LOSS ARE NANS')
+					raise ValueError
+
 				# first allow it to train 10K steps
 				if t > 20000:
 					# check to see if it hits our fit tolerance limit
@@ -511,9 +518,9 @@ class TrainSpec_multi(object):
 			# check to make sure valid_residual isn't all nan's, if so			
 			if np.isnan(valid_residual).all():
 				print('Found an all NaN validation Tensor')
-				print(X_valid)
-				print(Y_valid)
-				print(Y_pred_valid)
+				print('X_valid: ',np.isnan(X_valid).any())
+				print('Y_valid: ',np.isnan(Y_valid).any())
+				print('Y_pred_valid: ',np.isnan(Y_pred_valid).any())
 				raise ValueError
 
 			# create log of the validation step if user wants
