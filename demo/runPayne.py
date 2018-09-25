@@ -3,8 +3,8 @@ from astropy.table import Table
 import numpy as np
 import sys
 
-runspec = False
-runphot = True
+runspec = True
+runphot = False
 runmock = True
 
 if runmock:
@@ -22,7 +22,8 @@ inputdict = {}
 
 if runspec:
 	inputdict['spec'] = {}
-	inputdict['specANNpath'] = '/Users/pcargile/Astro/ThePayne/Hecto_C3K_v2/C3K_Hecto_v2.h5'
+	# inputdict['specANNpath'] = '/Users/pcargile/Astro/ThePayne/Hecto_C3K_v2/C3K_Hecto_v2.h5'
+	inputdict['specANNpath'] = '/Users/pcargile/Astro/ThePayne/Hecto_C3K_v3/trainedANN/C3KANN_RVS31.h5'
 
 	if runmock:
 		demospec = Table.read('demo_spec.fits',format='fits')
@@ -71,13 +72,13 @@ if runphot:
 			'PS_g','PS_r','PS_i','PS_z',
 			'2MASS_J','2MASS_H','2MASS_Ks',
 			'WISE_W1','WISE_W2'])
-	inputdict['phot'] = {fn:[p_i,0.01] for fn,p_i in zip(filterarr,phot)}
+	inputdict['phot'] = {fn:[p_i,0.05] for fn,p_i in zip(filterarr,phot)}
 
 # set parameter for sampler
 inputdict['sampler'] = {}
 inputdict['sampler']['samplerbounds'] ='Nested'
 inputdict['sampler']['samplemethod'] = 'slice'
-inputdict['sampler']['npoints'] = 250
+inputdict['sampler']['npoints'] = 125
 inputdict['sampler']['samplerbounds'] = 'multi'
 inputdict['sampler']['flushnum'] = 100
 inputdict['sampler']['delta_logz_final'] = 0.001
@@ -135,7 +136,7 @@ inputdict['priordict']['Av']     = {'uniform':[0.0,1.0]}
 # inputdict['priordict']['log(R)'] = {'uniform':[-0.1,0.1]}
 """
 
-inputdict['output'] = 'demoout_solsedmock.dat'
+inputdict['output'] = 'demoout_multispec.dat'
 
 
 FS = fitstar.FitPayne()

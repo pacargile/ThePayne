@@ -14,7 +14,8 @@ class GenMod(object):
 		
 	def _initspecnn(self,nnpath=None,oldnn=False):
 		if oldnn == False:
-			from ..predict.predictspec import PayneSpecPredict
+			from ..predict.predictspec_multi import PayneSpecPredict
+			# from ..predict.predictspec import PayneSpecPredict
 		else:
 			from ..predict.oldpredictspec import PaynePredict
 
