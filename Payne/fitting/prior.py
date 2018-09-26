@@ -146,7 +146,7 @@ class prior(object):
 			upolycoef = upars[8:]
 
 			# spec_scale = (2.0*self.fitargs['obs_flux_fit'].max()-0.0)*uspec_scale + 0.0
-			spec_scale = (2.0-0.0)*uspec_scale + 0.0
+			spec_scale = (1.0-0.0)*uspec_scale + 0.0
 			outarr.append(spec_scale)
 
 			# use a 5-sigma limit on uniform priors for polycoef
