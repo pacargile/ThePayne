@@ -55,9 +55,8 @@ class ANN(object):
       self.nnpath = nnpath
     else:
       # define aliases for the MIST isochrones and C3K/CKC files
-      self.nnpath  = Payne.__abspath__+'data/nnMIST/'
+      self.nnpath  = Payne.__abspath__+'data/photANN/'
 
-    self.nnpath = nnpath
     self.nnh5 = self.nnpath+'nnMIST_{0}.h5'.format(ff)
 
     if self.verbose:
