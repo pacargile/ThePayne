@@ -456,6 +456,10 @@ class TrainSpec_multi(object):
 					# Backward pass: compute gradient of the loss with respect to model parameters
 					loss.backward()
 					
+					if np.isnan(loss.item()):
+						print(y_pred_train_Tensor)
+						print(Y_train_Tensor)
+
 					if (t+1) % 5000 == 0:
 						print (
 							'--> WL: {0:6.2f}-{1:6.2f} -- Pix: {2}-{3} -- Ep: {4} -- St [{5:d}/{6:d}] -- Time/step: {7} -- Train Loss: {8:.7f}'.format(
@@ -470,8 +474,6 @@ class TrainSpec_multi(object):
 
 				if np.isnan(loss_i.item()):
 					print(loss_i)
-					print(y_pred_train_Tensor)
-					print(Y_train_Tensor)
 					print('LOSS ARE NANS')
 					raise ValueError
 
