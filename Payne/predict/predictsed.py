@@ -4,6 +4,22 @@
 import numpy as np
 from .photANN import ANN, fastANN
 
+_ALLFILTERS = (
+    ['2MASS_H', '2MASS_J', '2MASS_Ks', 
+    'Bessell_B', 'Bessell_I', 'Bessell_R', 'Bessell_U', 'Bessell_V', 
+    'DECam_g', 'DECam_i', 'DECam_r', 'DECam_u', 'DECam_Y', 'DECam_z', 
+    'Gaia_BP_DR2Rev', 'Gaia_G_DR2Rev', 'Gaia_RP_DR2Rev', 
+    'GALEX_FUV', 'GALEX_NUV', 
+    'Hipparcos_Hp', 
+    'Kepler_D51', 'Kepler_Kp', 
+    'PS_g', 'PS_i', 'PS_open', 'PS_r', 'PS_w', 'PS_y', 'PS_z', 
+    'SDSS_g', 'SDSS_i', 'SDSS_r', 'SDSS_u', 'SDSS_z', 
+    'TESS', 
+    'Tycho_B', 'Tycho_V', 
+    'UKIDSS_H', 'UKIDSS_J', 'UKIDSS_K', 'UKIDSS_Y', 'UKIDSS_Z', 
+    'WISE_W1', 'WISE_W2', 'WISE_W3', 'WISE_W4']
+    )
+
 class PayneSEDPredict(object):
 
     def __init__(self, usebands=None, nnpath=None):
@@ -39,7 +55,9 @@ class PayneSEDPredict(object):
 class FastPayneSEDPredict(object):
     
     def __init__(self, usebands=None, nnpath=None):
-        self.filternames = usebands
+        if usebands == None:
+            usebands = _ALLFILTERS
+        self.filternames = usebands        
         nnlist = [ANN(f, nnpath=nnpath, verbose=False) for f in usebands]
         self.anns = fastANN(nnlist, self.filternames)
 
