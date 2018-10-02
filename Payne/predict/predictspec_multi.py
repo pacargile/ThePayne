@@ -18,6 +18,8 @@ from scipy import constants
 speedoflight = constants.c / 1000.0
 from scipy.interpolate import UnivariateSpline
 
+import Payne
+
 from ..utils.smoothing import smoothspec
 
 class Net(nn.Module):
@@ -139,10 +141,17 @@ class PayneSpecPredict(object):
     """
     Class for taking a Payne-learned NN and predicting spectrum.
     """
-    def __init__(self, NNfilename):
+    def __init__(self, nnpath):
         self.NN = {}
+
+        if nnpath != None:
+          self.nnpath = nnpath
+        else:
+          # define aliases for the MIST isochrones and C3K/CKC files
+          self.nnpath  = Payne.__abspath__+'data/specANN/C3KANN_RVS31.h5'
+
         # name of file that contains the neural-net output
-        self.NN['filename'] = NNfilename
+        self.NN['filename'] = self.nnpath
         # restrore hdf5 file with the NN
         self.NN['file']     = h5py.File(self.NN['filename'],'r')
         # wavelength N-D array for predicted spectrum
