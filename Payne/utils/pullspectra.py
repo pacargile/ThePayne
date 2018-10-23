@@ -85,8 +85,14 @@ class pullspectra(object):
 		for aa in self.alphaarr:
 			self.C3K[aa] = {}
 			for mm in self.FeHarr:
+				# glob file name to see if feh/afe file is in c3kpath
+				fnamelist = glob.glob(self.C3Kpath+'c3k*feh{0:+4.2f}_afe{1:+3.1f}.*.h5'.format(mm,aa))
+				if len(fnamelist) == 1:
+					fname = fnamelist[0]
+				else:
+					raise IOError('Could not find suitable C3K file: FeH={0}. aFe={1}'.format(mm,aa))
 				self.C3K[aa][mm] = h5py.File(
-					self.C3Kpath+'c3k_v1.3_feh{0:+4.2f}_afe{1:+3.1f}.full.h5'.format(mm,aa),
+					fname,
 					'r', libver='latest', swmr=True)
 
 	def __call__(self,num,**kwargs):
