@@ -7,14 +7,14 @@ def smartsort(x):
 
 
 print('... Read in HDF5 files')
-NNfilearr = glob.glob('test6_w*_*.h5')
+NNfilearr = glob.glob('test3_w*_*.h5')
 NNfilearr.sort(key=smartsort)
 th5list = [h5py.File(NNfile,'r') for NNfile in NNfilearr]
 wavearr = [np.array(x['wavelength']) for x in th5list]
-Rarr = [3000.0]
+Rarr = [80000.0]
 
 print('... Create output file')
-outth5 = h5py.File('test6.h5','w')
+outth5 = h5py.File('test3.h5','w')
 outth5.create_dataset('resolution', data=Rarr, compression='gzip')
 outth5.create_dataset('xmin',data=np.array([np.log10(2500.0),-1.0,-4.0,-0.2]))
 outth5.create_dataset('xmax',data=np.array([np.log10(15000.0),5.5,0.5,0.6]))
