@@ -35,13 +35,14 @@ class PayneSEDPredict(object):
         return ANNdict
 
     def sed(self, logt=None, logg=None, feh=None, afe=None,
-            logl=None, av=0.0, dist=None, logA=None, filters=None):
+            logl=None, av=0.0, rv=3.1,
+            dist=None, logA=None, filters=None):
         """
         """
 
         if type(filters) == type(None):
         	filters = self.anns.keys()
-        BC = np.array([self.anns[f].eval([10**logt, logg, feh, afe, av])
+        BC = np.array([self.anns[f].eval([10**logt, logg, feh, afe, av, rv])
                        for f in filters])
         if (type(logl) != type(None)) and (type(dist) != type(None)):
             mu = 5 * np.log10(dist) - 5
@@ -62,10 +63,11 @@ class FastPayneSEDPredict(object):
         self.anns = fastANN(nnlist, self.filternames)
 
     def sed(self, logt=None, logg=None, feh=None, afe=None,
-            logl=None, av=0.0, dist=None, logA=None, band_indices=slice(None)):
+            logl=None, av=0.0, rv=3.1, 
+            dist=None, logA=None, band_indices=slice(None)):
         """
         """
-        BC = self.anns.eval([10**logt, logg, feh, afe, av])
+        BC = self.anns.eval([10**logt, logg, feh, afe, av, rv])
         
         if (type(logl) != type(None)) and (type(dist) != type(None)):
             mu = 5.0 * np.log10(dist) - 5.0
