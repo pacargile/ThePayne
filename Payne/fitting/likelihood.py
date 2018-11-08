@@ -110,11 +110,11 @@ class likelihood(object):
 
 
 		if self.spec_bool:
-				specpars = [parsdict[pp] for pp in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R']]
-				if self.normspec_bool:
-					specpars = specpars + [parsdict[pp] for pp in self.fitpars_i if 'pc' in pp]
-			else:
-				specpars = None
+			specpars = [parsdict[pp] for pp in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R']]
+			if self.normspec_bool:
+				specpars = specpars + [parsdict[pp] for pp in self.fitpars_i if 'pc' in pp]
+		else:
+			specpars = None
 
 		if self.phot_bool:
 			photpars = [parsdict[pp] for pp in ['Teff','log(g)','[Fe/H]','[a/Fe]']]
