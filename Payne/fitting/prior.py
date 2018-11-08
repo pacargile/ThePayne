@@ -438,7 +438,7 @@ class prior(object):
 		else:
 			photPrior = 0.0
 
-		return mistPrior + specPrior + photPrior
+		return specPrior + photPrior
 	def lnprior_spec(self,pardict,verbose=True):
 		lnprior = 0.0
 
