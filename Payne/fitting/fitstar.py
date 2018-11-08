@@ -8,20 +8,6 @@ import dynesty
 
 from .fitutils import airtovacuum
 
-def lnprobfn(pars,likeobj,priorobj):
-	# first pass pars into priorfn
-	lnprior = priorobj.lnpriorfn(pars)
-
-	# check to see if outside of a flat prior
-	if lnprior == -np.inf:
-		return -np.inf
-
-	lnlike = likeobj.lnlikefn(pars)
-	if lnlike == -np.inf:
-		return -np.inf
-	
-	return lnprior + lnlike	
-
 class FitPayne(object):
 	"""docstring for FitPayne"""
 	def __init__(self,**kwargs):
@@ -61,6 +47,25 @@ class FitPayne(object):
 		self.imf_bool = False
 		self.photscale_bool = False
 
+		# create array of all possible fit parameters
+		self.fitpars = ([
+			'Teff',
+			'log(g)',
+			'[Fe/H]',
+			'[a/Fe]',
+			'Vrad',
+			'Vrot',
+			'Inst_R',
+			'log(R)',
+			'Dist',
+			'log(A)',
+			'Av',
+			'Rv',
+			])
+
+		# build a dictionary with bool switches for parameters
+		self.fitpars_bool = {pp:False for pp in self.fitpars}
+
 		# determine if input has an observed spectrum
 		if 'spec' in inputdict.keys():
 			self.spec_bool = True
@@ -88,6 +93,10 @@ class FitPayne(object):
 			if inputdict['spec'].get('convertair',True):
 				# shift data to vacuum to match C3K
 				self.fitargs['obs_wave_fit'] = airtovacuum(self.fitargs['obs_wave_fit'])
+
+			# turn on spectroscopic parameters in fitpars_bool
+			for pp in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R']:
+				self.fitpars_bool[pp] = True
 
 			# determine if user wants to fit the continuum normalization
 			if 'normspec' in inputdict['spec'].keys():
@@ -119,6 +128,12 @@ class FitPayne(object):
 					if self.verbose:
 						print('... Fitting a Blaze function with polyoder: {0}'.format(self.polyorder))
 					self.fitargs['norm_polyorder'] = self.polyorder
+
+					# add pc terms to fitargs
+					for ii in range(self.polyorder):
+						self.fitpars.append('pc_{}'.format(ii))
+						self.fitpars_bool['pc_{}'.format(ii)] = True
+
 					# re-scale the wavelength array from -1 to 1 for the Cheb poly
 					self.fitargs['obs_wave_fit_norm'] = (
 						self.fitargs['obs_wave_fit'] - self.fitargs['obs_wave_fit'].min())
@@ -137,12 +152,25 @@ class FitPayne(object):
 			self.fitargs['photANNpath'] = photANNpath
 			self.phot_bool = True
 
+			# turn on photometric parameters in fitpars_bool
+			for pp in ['Teff','log(g)','[Fe/H]','[a/Fe]','Av']:
+				self.fitpars_bool[pp] = True
+
 			# stick phot into fitargs
 			self.fitargs['obs_phot'] = {kk:inputdict['phot'][kk] for kk in inputdict['phot'].keys()}
 
 			# determine if fitting dist and rad or a scale constant
 			self.photscale_bool = inputdict.get('photscale',False)
+			if self.photscale_bool:
+				self.fitpars_bool['log(A)'] = True
+			else:
+				self.fitpars_bool['log(R)'] = True
+				self.fitpars_bool['Dist'] = True
 
+			self.Rvfree_bool = inputdict.get('Rvfree',False)
+			if self.Rvfree_bool:
+				self.fitpars_bool['Rv'] = True
+				
 			# check to see if user wants to invoke an IMF prior on log(g)
 			if 'IMF' in inputdict['priordict'].keys():
 				self.imf_bool = True
@@ -150,36 +178,46 @@ class FitPayne(object):
 		# run the fitter
 		return self({
 			'fitargs':self.fitargs,
+			'fitpars':[self.fitpars,self.fitpars_bool],			
 			'sampler':self.samplerdict,
 			'priordict':self.priordict,
 			'runbools':(
 				[self.spec_bool,self.phot_bool,
-				self.normspec_bool,self.oldnnbool,
+				self.normspec_bool,
 				self.imf_bool,self.photscale_bool])
 			})
 
-	def _initoutput(self):
+	def _initoutput(self,parnames):
 		# init output file
 		self.outff = open(self.output,'w')
 		self.outff.write('Iter ')
-		if self.spec_bool:
-			self.outff.write('Teff logg FeH aFe Vrad Vrot Inst_R ')
-
-			if self.normspec_bool:
-				for ii in range(self.polyorder+1):
-					self.outff.write('pc_{0} '.format(ii))
-
-		if self.phot_bool:
-			if not self.spec_bool:
-				self.outff.write('Teff logg FeH aFe ')
-
-			if self.photscale_bool:
-				self.outff.write('logA Av ')
-			else:
-				self.outff.write('logR Dist Av ')
-
+		for pp in parnames:
+			self.outff.write('{} '.format(pp))
 		self.outff.write('log(lk) log(vol) log(wt) h nc log(z) delta(log(z))')
 		self.outff.write('\n')
+
+	# def _initoutput(self):
+	# 	# init output file
+	# 	self.outff = open(self.output,'w')
+	# 	self.outff.write('Iter ')
+	# 	if self.spec_bool:
+	# 		self.outff.write('Teff logg FeH aFe Vrad Vrot Inst_R ')
+
+	# 		if self.normspec_bool:
+	# 			for ii in range(self.polyorder+1):
+	# 				self.outff.write('pc_{0} '.format(ii))
+
+	# 	if self.phot_bool:
+	# 		if not self.spec_bool:
+	# 			self.outff.write('Teff logg FeH aFe ')
+
+	# 		if self.photscale_bool:
+	# 			self.outff.write('logA Av ')
+	# 		else:
+	# 			self.outff.write('logR Dist Av ')
+
+	# 	self.outff.write('log(lk) log(vol) log(wt) h nc log(z) delta(log(z))')
+	# 	self.outff.write('\n')
 
 	def __call__(self,indicts):
 		'''
@@ -192,38 +230,51 @@ class FitPayne(object):
 	def run_dynesty(self,indicts):
 		# split indicts
 		fitargs = indicts['fitargs']
+		fitpars = indicts['fitpars']
 		priordict = indicts['priordict']
 		samplerdict = indicts['sampler']
 		runbools = indicts['runbools']
 
 		# determine the number of dims
-		if self.spec_bool:
-			self.ndim = 7
+		self.ndim = 0
+		for pp in fitpars[0]:
+			if fitpars[1][pp]:
+				self.ndim += 1
 
-		if self.phot_bool:
-			if self.spec_bool:
-				self.ndim = 10
-			else:
-				self.ndim = 7
-			if self.photscale_bool:
-				self.ndim = self.ndim-1
+		# # split indicts
+		# fitargs = indicts['fitargs']
+		# priordict = indicts['priordict']
+		# samplerdict = indicts['sampler']
+		# runbools = indicts['runbools']
 
-		if self.normspec_bool:
-			if self.phot_bool:
-				self.ndim = 10+self.polyorder+1
-				if self.photscale_bool:
-					self.ndim = self.ndim-1
-			else:
-				self.ndim = 7+self.polyorder+1
+		# # determine the number of dims
+		# if self.spec_bool:
+		# 	self.ndim = 7
 
-		# initialize the output file
-		self._initoutput()
+		# if self.phot_bool:
+		# 	if self.spec_bool:
+		# 		self.ndim = 10
+		# 	else:
+		# 		self.ndim = 7
+		# 	if self.photscale_bool:
+		# 		self.ndim = self.ndim-1
+
+		# if self.normspec_bool:
+		# 	if self.phot_bool:
+		# 		self.ndim = 10+self.polyorder+1
+		# 		if self.photscale_bool:
+		# 			self.ndim = self.ndim-1
+		# 	else:
+		# 		self.ndim = 7+self.polyorder+1
+
+		# # initialize the output file
+		# self._initoutput()
 
 		# initialize the prior class
-		self.priorobj = self.prior(priordict,runbools)
+		self.priorobj = self.prior(priordict,fitpars,runbools)
 
 		# initialize the likelihood class
-		self.likeobj = self.likelihood(fitargs,runbools)
+		self.likeobj = self.likelihood(fitargs,fitpars,runbools)
 
 		runsamplertype = samplerdict.get('samplertype','Nested')
 
@@ -292,11 +343,24 @@ class FitPayne(object):
 			(worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
 				h, nc, worst_it, propidx, propiter, eff, delta_logz) = results			
 
+			if it == 0:
+				# initialize the output file
+				parnames = self.likeobj.parsdict.keys()
+				self._initoutput(parnames)
+
 			self.outff.write('{0} '.format(it))
-			self.outff.write(' '.join([str(q) for q in vstar]))
+			# self.outff.write(' '.join([str(q) for q in vstar]))
+			self.outff.write(' '.join([str(self.likeobj.parsdict[q]) for q in parnames]))
 			self.outff.write(' {0} {1} {2} {3} {4} {5} {6} '.format(
 				loglstar,logvol,logwt,h,nc,logz,delta_logz))
 			self.outff.write('\n')
+
+
+			# self.outff.write('{0} '.format(it))
+			# self.outff.write(' '.join([str(q) for q in vstar]))
+			# self.outff.write(' {0} {1} {2} {3} {4} {5} {6} '.format(
+			# 	loglstar,logvol,logwt,h,nc,logz,delta_logz))
+			# self.outff.write('\n')
 
 			ncall += nc
 			nit = it
@@ -321,7 +385,7 @@ class FitPayne(object):
 						logzerr = np.inf
 						
 					sys.stdout.write("\riter: {0:d} | nc: {1:d} | ncall: {2:d} | eff(%): {3:6.3f} | "
-						"logz: {4:6.3f} +/- {5:6.3f} | dlogz: {6:6.3f} > {7:6.3f}   | mean(time):  {8}  "
+						"logz: {4:6.3f} +/- {5:6.3f} | dlogz: {6:6.3f} > {7:6.3f}   | mean(time):  {8:7.5f}  "
 						.format(nit, nc, ncall, eff, 
 							logz, logzerr, delta_logz, delta_logz_final,np.mean(deltaitertime_arr)))
 					sys.stdout.flush()
@@ -337,10 +401,18 @@ class FitPayne(object):
 
 			self.outff.write('{0} '.format(nit+it2))
 
-			self.outff.write(' '.join([str(q) for q in vstar]))
+			# self.outff.write(' '.join([str(q) for q in vstar]))
+			self.likeobj.lnlikefn(vstar)
+			self.outff.write(' '.join([str(self.likeobj.parsdict[q]) for q in parnames]))
 			self.outff.write(' {0} {1} {2} {3} {4} {5} {6} '.format(
 				loglstar,logvol,logwt,h,nc,logz,delta_logz))
 			self.outff.write('\n')
+
+
+			# self.outff.write(' '.join([str(q) for q in vstar]))
+			# self.outff.write(' {0} {1} {2} {3} {4} {5} {6} '.format(
+			# 	loglstar,logvol,logwt,h,nc,logz,delta_logz))
+			# self.outff.write('\n')
 
 			ncall += nc
 
@@ -419,3 +491,29 @@ class FitPayne(object):
 		dy_sampler.run_nested()
 
 		return dy_sampler
+
+def lnprobfn(pars,likeobj,priorobj):
+
+	lnlike = likeobj.lnlikefn(pars)
+	if lnlike == -np.inf:
+		return -np.inf
+
+	lnprior = priorobj.lnpriorfn(likeobj.parsdict)
+	if lnprior == -np.inf:
+		return -np.inf
+	
+	return lnprior + lnlike	
+
+# def lnprobfn(pars,likeobj,priorobj):
+# 	# first pass pars into priorfn
+# 	lnprior = priorobj.lnpriorfn(pars)
+
+# 	# check to see if outside of a flat prior
+# 	if lnprior == -np.inf:
+# 		return -np.inf
+
+# 	lnlike = likeobj.lnlikefn(pars)
+# 	if lnlike == -np.inf:
+# 		return -np.inf
+	
+# 	return lnprior + lnlike	
