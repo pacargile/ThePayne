@@ -63,10 +63,10 @@ class ANN(object):
       print('... Phot ANN: Reading in {0}'.format(self.nnh5))
     th5 = h5py.File(self.nnh5,'r')
     
-    D_in = th5['model/lin1.weight'].shape[1]
-    H = th5['model/lin1.weight'].shape[0]
-    D_out = th5['model/lin3.weight'].shape[0]
-    self.model = Net(D_in,H,D_out)
+    self.D_in = th5['model/lin1.weight'].shape[1]
+    self.H = th5['model/lin1.weight'].shape[0]
+    self.D_out = th5['model/lin3.weight'].shape[0]
+    self.model = Net(self.D_in,self.H,self.D_out)
     # self.model.xmin = np.amin(np.array(th5['test/X']),axis=0)
     # self.model.xmax = np.amax(np.array(th5['test/X']),axis=0)
     self.model.xmin = np.array(list(th5['xmin']))#np.amin(np.array(th5['test/X']),axis=0)
@@ -87,7 +87,7 @@ class ANN(object):
     else:
       inputD = x.shape[0]
 
-    inputVar = Variable(torch.from_numpy(x).type(dtype)).resize(inputD,6)
+    inputVar = Variable(torch.from_numpy(x).type(dtype)).resize(inputD,self.D_in)
     outpars = self.model(inputVar)
     return outpars.data.numpy().squeeze()
 

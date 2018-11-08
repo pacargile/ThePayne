@@ -35,14 +35,20 @@ class PayneSEDPredict(object):
         return ANNdict
 
     def sed(self, logt=None, logg=None, feh=None, afe=None,
-            logl=None, av=0.0, rv=3.1,
+            logl=None, av=0.0, rv=None,
             dist=None, logA=None, filters=None):
         """
         """
 
         if type(filters) == type(None):
         	filters = self.anns.keys()
-        BC = np.array([self.anns[f].eval([10**logt, logg, feh, afe, av, rv])
+
+        if type(rv) == type(None):
+            inpars = [10.0**logt,logg,feh,afe,av]
+        else:
+            inpars = [10.0**logt,logg,feh,afe,av,rv]
+
+        BC = np.array([self.anns[f].eval(inpars)
                        for f in filters])
         if (type(logl) != type(None)) and (type(dist) != type(None)):
             mu = 5 * np.log10(dist) - 5
@@ -63,11 +69,17 @@ class FastPayneSEDPredict(object):
         self.anns = fastANN(nnlist, self.filternames)
 
     def sed(self, logt=None, logg=None, feh=None, afe=None,
-            logl=None, av=0.0, rv=3.1, 
+            logl=None, av=0.0, rv=None, 
             dist=None, logA=None, band_indices=slice(None)):
         """
         """
-        BC = self.anns.eval([10**logt, logg, feh, afe, av, rv])
+
+        if type(rv) == type(None):
+            inpars = [10.0**logt,logg,feh,afe,av]
+        else:
+            inpars = [10.0**logt,logg,feh,afe,av,rv]
+
+        BC = self.anns.eval(inpars)
         
         if (type(logl) != type(None)) and (type(dist) != type(None)):
             mu = 5.0 * np.log10(dist) - 5.0
@@ -76,7 +88,6 @@ class FastPayneSEDPredict(object):
             m = 5.0*logA - 10.0*(logt - np.log10(5770.0)) - 0.26 - BC
         else:
             raise IOError('cannot understand input pars into sed function')
-
 
         try:
             return m[band_indices]

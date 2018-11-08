@@ -127,7 +127,7 @@ class likelihood(object):
 			if 'Rv' in self.fitpars_i:
 				photpars = photpars + [parsdict['Rv']]
 			else:
-				photpars = photpars + [3.1]
+				photpars = photpars + [None]
 		else:
 			photpars = None
 
