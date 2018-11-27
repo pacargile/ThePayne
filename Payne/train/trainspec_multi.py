@@ -109,12 +109,23 @@ class TrainSpec_multi(object):
 		# check for user defined ranges for C3K spectra
 		if 'Teff' in kwargs:
 			Teffrange = kwargs['Teff']
+		else:
+			Teffrange = None
+
 		if 'logg' in kwargs:
 			loggrange = kwargs['logg']
+		else:
+			loggrange = None
+
 		if 'FeH' in kwargs:
 			FeHrange = kwargs['FeH']
+		else:
+			FeHrange = None
+
 		if 'aFe' in kwargs:
 			aFerange = kwargs['aFe']
+		else:
+			aFerange = None
 
 		if 'resolution' in kwargs:
 			self.resolution = kwargs['resolution']
