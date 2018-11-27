@@ -70,12 +70,12 @@ class TrainSpec_multi(object):
 	"""docstring for TrainSpec"""
 	def __init__(self, **kwargs):
 
-		import matplotlib
-		# matplotlib.use('AGG')
-		import matplotlib.pyplot as plt
-		matplotlib.pyplot.ioff()
+		# import matplotlib
+		# # matplotlib.use('AGG')
+		# import matplotlib.pyplot as plt
+		# matplotlib.pyplot.ioff()
 
-		self.plt = plt
+		# self.plt = plt
 
 		# number of models to train on
 		if 'numtrain' in kwargs:
@@ -553,35 +553,35 @@ class TrainSpec_multi(object):
 						# logfile.write(' {0}'.format(valid_residual.T[ii]))
 						logfile.write('\n')
 
-				fig = self.plt.figure()
-				ax = fig.add_subplot(111)
-				# residsize = ((10 * 
-				# 	(max(np.abs(valid_residual))-np.abs(valid_residual))/
-				# 	(max(np.abs(valid_residual))-min(np.abs(valid_residual)))
-				# 	)**2.0) + 2.0
-				for ii,res in enumerate(valid_residual[0]):
-					residsize = ((150 * np.abs(valid_residual.T[ii]))**2.0) + 2.0
-					scsym = ax.scatter(10.0**X_valid.T[0],X_valid.T[1],s=residsize,alpha=0.5)
-				lgnd = ax.legend([scsym,scsym,scsym],
-					# ['{0:5.3f}'.format(min(np.abs(valid_residual))),
-					#  '{0:5.3f}'.format(np.median(np.abs(valid_residual))),
-					#  '{0:5.3f}'.format(max(np.abs(valid_residual)))],
-					['0.0','0.5','1.0'],
-					 loc='upper left',
-					)
-				lgnd.legendHandles[0]._sizes = [2]
-				lgnd.legendHandles[1]._sizes = [202]
-				lgnd.legendHandles[2]._sizes = [402]
-				# ax.invert_yaxis()
-				# ax.invert_xaxis()
-				ax.set_xlim(16000,3000)
-				ax.set_ylim(6,-1.5)
-				ax.set_xlabel('Teff')
-				ax.set_ylabel('log(g)')
-				fig.savefig(
-					self.pdfdir+'/ValidLog_pix{0}_{1}_wave{2}_{3}_epoch{4}.png'.format(
-						startpix,stoppix,wavestart,wavestop,epoch_i+1),fmt='PNG',dpi=128)
-				self.plt.close(fig)
+				# fig = self.plt.figure()
+				# ax = fig.add_subplot(111)
+				# # residsize = ((10 * 
+				# # 	(max(np.abs(valid_residual))-np.abs(valid_residual))/
+				# # 	(max(np.abs(valid_residual))-min(np.abs(valid_residual)))
+				# # 	)**2.0) + 2.0
+				# for ii,res in enumerate(valid_residual[0]):
+				# 	residsize = ((150 * np.abs(valid_residual.T[ii]))**2.0) + 2.0
+				# 	scsym = ax.scatter(10.0**X_valid.T[0],X_valid.T[1],s=residsize,alpha=0.5)
+				# lgnd = ax.legend([scsym,scsym,scsym],
+				# 	# ['{0:5.3f}'.format(min(np.abs(valid_residual))),
+				# 	#  '{0:5.3f}'.format(np.median(np.abs(valid_residual))),
+				# 	#  '{0:5.3f}'.format(max(np.abs(valid_residual)))],
+				# 	['0.0','0.5','1.0'],
+				# 	 loc='upper left',
+				# 	)
+				# lgnd.legendHandles[0]._sizes = [2]
+				# lgnd.legendHandles[1]._sizes = [202]
+				# lgnd.legendHandles[2]._sizes = [402]
+				# # ax.invert_yaxis()
+				# # ax.invert_xaxis()
+				# ax.set_xlim(16000,3000)
+				# ax.set_ylim(6,-1.5)
+				# ax.set_xlabel('Teff')
+				# ax.set_ylabel('log(g)')
+				# fig.savefig(
+				# 	self.pdfdir+'/ValidLog_pix{0}_{1}_wave{2}_{3}_epoch{4}.png'.format(
+				# 		startpix,stoppix,wavestart,wavestop,epoch_i+1),fmt='PNG',dpi=128)
+				# self.plt.close(fig)
 
 			# check if user wants to do adaptive training
 			if self.adaptivetrain:
