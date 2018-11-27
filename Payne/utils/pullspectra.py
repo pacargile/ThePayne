@@ -133,24 +133,20 @@ class pullspectra(object):
 
 		'''
 
-		if 'Teff' in kwargs:
-			Teffrange = kwargs['Teff']
-		else:
+		Teffrange = kwargs.get('Teff',None)
+		if Teffrange == None:
 			Teffrange = [2500.0,15000.0]
 
-		if 'logg' in kwargs:
-			loggrange = kwargs['logg']
-		else:
+		loggrange = kwargs.get('logg',None)
+		if loggrange == None:
 			loggrange = [-1.0,5.0]
 
-		if 'FeH' in kwargs:
-			fehrange = kwargs['FeH']
-		else:
+		fehrange = kwargs.get('FeH',None)
+		if fehrange == None:
 			fehrange = [min(self.FeHarr),max(self.FeHarr)]
 
-		if 'aFe' in kwargs:
-			aFerange = kwargs['aFe']
-		else:
+		aFerange = kwargs.get('aFe',None)
+		if aFerange == None:
 			aFerange = [min(self.alphaarr),max(self.alphaarr)]
 
 		if 'resolution' in kwargs:
