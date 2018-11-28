@@ -549,6 +549,7 @@ class TrainSpec_multi(object):
 					for ii,res in enumerate(valid_residual[0]):
 						logfile.write('{0} '.format(ii+1))
 						logfile.write(np.array2string(X_valid[ii],separator=' ',max_line_width=np.inf).replace('[','').replace(']',''))
+						logfile.write(' ')
 						logfile.write(np.array2string(valid_residual.T[ii],separator=' ',max_line_width=np.inf).replace('[','').replace(']',''))
 						# logfile.write(' {0}'.format(valid_residual.T[ii]))
 						logfile.write('\n')
