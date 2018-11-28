@@ -108,24 +108,24 @@ class TrainSpec_multi(object):
 
 		# check for user defined ranges for C3K spectra
 		if 'Teff' in kwargs:
-			Teffrange = kwargs['Teff']
+			self.Teffrange = kwargs['Teff']
 		else:
-			Teffrange = None
+			self.Teffrange = None
 
 		if 'logg' in kwargs:
-			loggrange = kwargs['logg']
+			self.loggrange = kwargs['logg']
 		else:
-			loggrange = None
+			self.loggrange = None
 
 		if 'FeH' in kwargs:
-			FeHrange = kwargs['FeH']
+			self.FeHrange = kwargs['FeH']
 		else:
-			FeHrange = None
+			self.FeHrange = None
 
 		if 'aFe' in kwargs:
-			aFerange = kwargs['aFe']
+			self.aFerange = kwargs['aFe']
 		else:
-			aFerange = None
+			self.aFerange = None
 
 		if 'resolution' in kwargs:
 			self.resolution = kwargs['resolution']
@@ -182,7 +182,8 @@ class TrainSpec_multi(object):
 		pullspectra_o = pullspectra(MISTpath=self.MISTpath,C3Kpath=self.C3Kpath)
 		self.spectra_o,self.labels_o,self.wavelength = pullspectra_o(
 			self.numtrain,resolution=self.resolution, waverange=self.waverange,
-			MISTweighting=True)
+			MISTweighting=True,
+			Teff=self.Teffrange,logg=self.loggrange,FeH=self.FeHrange,aFe=self.aFerange)
 		self.spectra = self.spectra_o
 		# self.spectra_o,self.labels_o,self.wavelength = pullspectra_o.pullpixel(
 		# 	num=self.numtrain,resolution=self.resolution, waverange=self.waverange,
@@ -508,6 +509,7 @@ class TrainSpec_multi(object):
 			spectra_o, labels_o, wavelength = pullspectra_i.pullpixel(
 				pixelarr,num=self.numtrain,resolution=self.resolution, waverange=self.waverange,
 				MISTweighting=True,excludelabels=old_labels_o,
+				Teff=self.Teffrange,logg=self.loggrange,FeH=self.FeHrange,aFe=self.aFerange
 				)
 
 			# create X tensor
