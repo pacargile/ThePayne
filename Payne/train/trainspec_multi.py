@@ -146,7 +146,8 @@ class TrainSpec_multi(object):
 			self.outfilename = 'TESTOUT.h5'
 
 		self.restartfile = kwargs.get('restartfile',False)
-		print('... Restarting File: {0}'.format(self.restartfile))
+		if self.restartfile != False:
+			print('... Restarting File: {0}'.format(self.restartfile))
 
 		if 'saveopt' in kwargs:
 			self.saveopt = kwargs['saveopt']
@@ -231,29 +232,10 @@ class TrainSpec_multi(object):
 
 		'''
 
-		# initialize the output HDf5 file, return the datasets to populate
-		# outfile,wave_h5 = self.initout(restartfile=self.restartfile)
-
 		# number of pixels to train
 		numspecpixels = self.spectra.shape[1]
 		if inpixelarr == []:
-			if self.restartfile == False:
-				pixellist = range(numspecpixels)
-			else:
-				# read all files already created
-				alreadyrunfiles = glob.glob('OUTH5/*.h5')
-				# parse wavelength array out of already run files
-				runwave = (
-					[float(x.split('/')[-1].split('_')[-1].replace('w','').replace('.h5',''))
-					for x in alreadyrunfiles]
-					)
-				pixellist = []
-				possiblepixellist = range(numspecpixels)
-				for ii in possiblepixellist:
-					if float('{0:13.8f}'.format(self.wavelength[ii])) not in runwave:
- 						pixellist.append(ii)
-
-				# pixellist = list(np.argwhere(np.array(wave_h5) == 0.0).flatten())
+			pixellist = range(numspecpixels)
 		else:
 			pixellist = inpixelarr
 
@@ -350,41 +332,41 @@ class TrainSpec_multi(object):
 		# formally close the output file
 		# outfile.close()
 
-	def initout(self,restartfile=False):
-		'''
-		function to save all of the information into 
-		a single HDF5 file
-		'''
+	# def initout(self,restartfile=False):
+	# 	'''
+	# 	function to save all of the information into 
+	# 	a single HDF5 file
+	# 	'''
 
-		if restartfile == False:
-			# create output HDF5 file
-			outfile = h5py.File(self.outfilename,'w', libver='latest', swmr=True)
+	# 	if restartfile == False:
+	# 		# create output HDF5 file
+	# 		outfile = h5py.File(self.outfilename,'w', libver='latest', swmr=True)
 
-			# add datesets for values that are already defined
-			label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
-			resol_h5 = outfile.create_dataset('resolution',data=np.array([self.resolution]),compression='gzip')
+	# 		# add datesets for values that are already defined
+	# 		label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
+	# 		resol_h5 = outfile.create_dataset('resolution',data=np.array([self.resolution]),compression='gzip')
 
-			# define vectorized wavelength array, model array, and optimizer array
-			wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
-			# model_h5 = outfile.create_dataset('model_arr', (len(self.wavelength),), compression='gzip')
-			# opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
+	# 		# define vectorized wavelength array, model array, and optimizer array
+	# 		wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
+	# 		# model_h5 = outfile.create_dataset('model_arr', (len(self.wavelength),), compression='gzip')
+	# 		# opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
 
-			outfile.flush()
+	# 		outfile.flush()
 
-		else:
-			# read in training file from restarted run
-			outfile  = h5py.File(restartfile,'r+', libver='latest', swmr=True)
+	# 	else:
+	# 		# read in training file from restarted run
+	# 		outfile  = h5py.File(restartfile,'r+', libver='latest', swmr=True)
 
-			# add datesets for values that are already defined
-			label_h5 = outfile['labels']
-			resol_h5 = outfile['resolution']
+	# 		# add datesets for values that are already defined
+	# 		label_h5 = outfile['labels']
+	# 		resol_h5 = outfile['resolution']
 
-			# define vectorized arrays
-			wave_h5  = outfile['wavelength']
-			# model_h5 = outfile['model_arr']
-			# opt_h5   = outfile['opt_arr']
+	# 		# define vectorized arrays
+	# 		wave_h5  = outfile['wavelength']
+	# 		# model_h5 = outfile['model_arr']
+	# 		# opt_h5   = outfile['opt_arr']
 
-		return outfile,wave_h5
+	# 	return outfile,wave_h5
 
 	def train_pixel(self,pixelarr):
 		'''
@@ -414,11 +396,21 @@ class TrainSpec_multi(object):
 		Y_train = np.array(self.spectra[:,pixelarr])
 		Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
 
-		# determine the acutal D_out for this batch of pixels
-		D_out = len(pixelarr)
+		# determine if user wants to start from old file, or
+		# create a new ANN model
+		if self.restartfile != False:
+			# read in the file for the previous run 
+			nnfile = h5py.File(self.restartfile,'r')
 
-		# initialize the model
-		model = Net(self.D_in,self.H,D_out)
+			# create a model
+			model = readNN(nnfile)
+
+		else:
+			# determine the acutal D_out for this batch of pixels
+			D_out = len(pixelarr)
+
+			# initialize the model
+			model = Net(self.D_in,self.H,D_out)
 
 		# set min and max pars to grid bounds for encoding
 		model.xmin = np.array([np.log10(2500.0),-1.0,-4.0,-0.2])
@@ -678,52 +670,70 @@ class TrainSpec_multi(object):
 
 		return [pixelarr, model, optimizer, datetime.now()-starttime]
 
-	def h5model_write(self,model,th5,wavelength):
-		'''
-		Write trained model to HDF5 file
-		'''
-		try:
-			for kk in model.state_dict().keys():
-				th5.create_dataset('model_{0}/model/{1}'.format(wavelength,kk),
-					data=model.state_dict()[kk].numpy(),
-					compression='gzip')
-		except RuntimeError:
-			print('!!! PROBLEM WITH WRITING TO HDF5 FOR WAVELENGTH = {0} !!!'.format(wavelength))
-			raise
-		# th5.flush()
+	# def h5model_write(self,model,th5,wavelength):
+	# 	'''
+	# 	Write trained model to HDF5 file
+	# 	'''
+	# 	try:
+	# 		for kk in model.state_dict().keys():
+	# 			th5.create_dataset('model_{0}/model/{1}'.format(wavelength,kk),
+	# 				data=model.state_dict()[kk].numpy(),
+	# 				compression='gzip')
+	# 	except RuntimeError:
+	# 		print('!!! PROBLEM WITH WRITING TO HDF5 FOR WAVELENGTH = {0} !!!'.format(wavelength))
+	# 		raise
+	# 	# th5.flush()
 
-	def h5opt_write(self,optimizer,th5,wavelength):
-		'''
-		Write current state of the optimizer to HDF5 file
-		'''
-		for kk in optimizer.state_dict().keys():
-			# cycle through the top keys
-			if kk == 'state':
-				# cycle through the different states
-				for jj in optimizer.state_dict()['state'].keys():
-					for ll in optimizer.state_dict()['state'][jj].keys():
-						try:
-							# check to see if it is a Tensor or an Int
-							data = optimizer.state_dict()['state'][jj][ll].numpy()
-						except AttributeError:
-							# create an int array to save in the HDF5 file
-							data = np.array([optimizer.state_dict()['state'][jj][ll]])
-						th5.create_dataset(
-							'opt_{0}/optimizer/state/{1}/{2}'.format(wavelength,jj,ll),
-							data=data,compression='gzip')
-			elif kk == 'param_groups':
-				pgdict = optimizer.state_dict()['param_groups'][0]
-				for jj in pgdict.keys():
-					try:
-						th5.create_dataset(
-							'opt_{0}/optimizer/param_groups/{1}'.format(wavelength,jj),
-							data=np.array(pgdict[jj]),compression='gzip')
-					except TypeError:
-						th5.create_dataset(
-							'opt_{0}/optimizer/param_groups/{1}'.format(wavelength,jj),
-							data=np.array([pgdict[jj]]),compression='gzip')
+	# def h5opt_write(self,optimizer,th5,wavelength):
+	# 	'''
+	# 	Write current state of the optimizer to HDF5 file
+	# 	'''
+	# 	for kk in optimizer.state_dict().keys():
+	# 		# cycle through the top keys
+	# 		if kk == 'state':
+	# 			# cycle through the different states
+	# 			for jj in optimizer.state_dict()['state'].keys():
+	# 				for ll in optimizer.state_dict()['state'][jj].keys():
+	# 					try:
+	# 						# check to see if it is a Tensor or an Int
+	# 						data = optimizer.state_dict()['state'][jj][ll].numpy()
+	# 					except AttributeError:
+	# 						# create an int array to save in the HDF5 file
+	# 						data = np.array([optimizer.state_dict()['state'][jj][ll]])
+	# 					th5.create_dataset(
+	# 						'opt_{0}/optimizer/state/{1}/{2}'.format(wavelength,jj,ll),
+	# 						data=data,compression='gzip')
+	# 		elif kk == 'param_groups':
+	# 			pgdict = optimizer.state_dict()['param_groups'][0]
+	# 			for jj in pgdict.keys():
+	# 				try:
+	# 					th5.create_dataset(
+	# 						'opt_{0}/optimizer/param_groups/{1}'.format(wavelength,jj),
+	# 						data=np.array(pgdict[jj]),compression='gzip')
+	# 				except TypeError:
+	# 					th5.create_dataset(
+	# 						'opt_{0}/optimizer/param_groups/{1}'.format(wavelength,jj),
+	# 						data=np.array([pgdict[jj]]),compression='gzip')
 
-		# th5.flush()
+	# 	# th5.flush()
+
+def readNN(nnpath,xmin=None,xmax=None):
+	D_in = nnh5['model/lin1.weight'].shape[1]
+	H = nnh5['model/lin1.weight'].shape[0]
+	D_out = nnh5['model/lin4.weight'].shape[0]
+	model = Net(D_in,H,D_out)
+	model.xmin = xmin#torch.from_numpy(xmin).type(dtype)
+	model.xmax = xmax#torch.from_numpy(xmax).type(dtype)
+
+	newmoddict = {}
+	for kk in nnh5['model'].keys():
+		nparr = np.array(nnh5['model'][kk])
+		torarr = torch.from_numpy(nparr).type(dtype)
+		newmoddict[kk] = torarr    
+	model.load_state_dict(newmoddict)
+	model.eval()
+	return model
+
 
 def slicebatch(inlist,N):
 	'''
