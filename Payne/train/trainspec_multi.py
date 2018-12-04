@@ -399,11 +399,8 @@ class TrainSpec_multi(object):
 		# determine if user wants to start from old file, or
 		# create a new ANN model
 		if self.restartfile != False:
-			# read in the file for the previous run 
-			nnfile = h5py.File(self.restartfile,'r')
-
 			# create a model
-			model = readNN(nnfile)
+			model = readNN(self.restartfile,wavestart,wavestop)
 
 		else:
 			# determine the acutal D_out for this batch of pixels
@@ -717,7 +714,11 @@ class TrainSpec_multi(object):
 
 	# 	# th5.flush()
 
-def readNN(nnpath,xmin=None,xmax=None):
+def readNN(nnpath,wavestart,wavestop,xmin=None,xmax=None):
+	# read in the file for the previous run 
+	nnh5file = h5py.File(nnpath,'r')
+	nnh5 = nnh5file['model_{0}_{1}'.format(wavestart,wavestop)]
+
 	D_in = nnh5['model/lin1.weight'].shape[1]
 	H = nnh5['model/lin1.weight'].shape[0]
 	D_out = nnh5['model/lin4.weight'].shape[0]
@@ -732,6 +733,7 @@ def readNN(nnpath,xmin=None,xmax=None):
 		newmoddict[kk] = torarr    
 	model.load_state_dict(newmoddict)
 	model.eval()
+	nnh5file.close()
 	return model
 
 
