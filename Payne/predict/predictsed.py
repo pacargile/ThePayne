@@ -69,7 +69,7 @@ class FastPayneSEDPredict(object):
         self.anns = fastANN(nnlist, self.filternames)
 
     def sed(self, logt=None, logg=None, feh=None, afe=None,
-            logl=None, av=0.0, rv=None, 
+            logl=None, av=0.0, rv=3.1, 
             dist=None, logA=None, band_indices=slice(None)):
         """
         """
