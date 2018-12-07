@@ -311,8 +311,8 @@ class FitPayne(object):
 		starttime = datetime.now()
 		if self.verbose:
 			print(
-				'Start Dynesty w/ {0} number of samples, Ndim = {1}, and w/ stopping criteria of dlog(z) = {2}: {3}'.format(
-					npoints,self.ndim,delta_logz_final,starttime))
+				'Start Dynesty w/ {0} number of samples, using {1} sampler, Ndim = {2}, and w/ stopping criteria of dlog(z) = {3}: {4}'.format(
+					npoints,samplemethod,self.ndim,delta_logz_final,starttime))
 		sys.stdout.flush()
 
 		# initialize sampler object
