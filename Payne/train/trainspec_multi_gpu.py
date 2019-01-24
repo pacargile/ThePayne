@@ -527,7 +527,7 @@ class TrainSpec_multi_gpu(object):
 			
 			# Validation Forward pass: compute predicted y by passing x to the model.
 			Y_pred_valid_Tensor = model(X_valid_Tensor)
-			Y_pred_valid = Y_pred_valid_Tensor.data.numpy()
+			Y_pred_valid = Y_pred_valid_Tensor.data.cpu().numpy()
 
 			# calculate the residual at each validation label
 			valid_residual = np.squeeze(Y_valid.T-Y_pred_valid.T)
