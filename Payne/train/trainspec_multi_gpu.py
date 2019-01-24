@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 dtype = torch.cuda.FloatTensor
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -29,10 +30,10 @@ from ..utils.pullspectra import pullspectra
 class Net_GPU(nn.Module):  
 	def __init__(self, D_in, H, D_out):
 		super(Net_GPU, self).__init__()
-		self.lin1 = nn.Linear(D_in, H).cuda()
-		self.lin2 = nn.Linear(H,H).cuda()
-		self.lin3 = nn.Linear(H,H).cuda()
-		self.lin4 = nn.Linear(H, D_out).cuda()
+		self.lin1 = nn.Linear(D_in, H)
+		self.lin2 = nn.Linear(H,H)
+		self.lin3 = nn.Linear(H,H)
+		self.lin4 = nn.Linear(H, D_out)
 		# self.lin3 = nn.Linear(H,D_out)
 	"""
 	def forward(self, x):
@@ -55,7 +56,7 @@ class Net_GPU(nn.Module):
 
 	def encode(self,x):
 		# convert x into numpy to do math
-		x_np = x.data.cpu().numpy()
+		x_np = x.data.numpy()
 		try:
 			self.xmin
 			self.xmax
@@ -401,23 +402,26 @@ class TrainSpec_multi_gpu(object):
 
 		# create tensor for labels
 		X_train_Tensor = Variable(torch.from_numpy(old_labels_o).type(dtype))
+		X_train_Tensor = X_train_Tensor.to(device)
 
 		# pull fluxes at wavelength pixel
 		Y_train = np.array(self.spectra[:,pixelarr])
 		Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
+		Y_train_Tensor = Y_train_Tensor.to(device)
 
 		# determine if user wants to start from old file, or
 		# create a new ANN model
 		if self.restartfile != False:
 			# create a model
 			model = readNN(self.restartfile,wavestart,wavestop)
-
+			model.to(device)
 		else:
 			# determine the acutal D_out for this batch of pixels
 			D_out = len(pixelarr)
 
 			# initialize the model
 			model = Net_GPU(self.D_in,self.H,D_out)
+			model.to(device)
 
 		# set min and max pars to grid bounds for encoding
 		model.xmin = np.array([np.log10(2500.0),-1.0,-4.0,-0.2])
@@ -662,6 +666,8 @@ class TrainSpec_multi_gpu(object):
 			old_labels_o = labels_o
 			X_train_Tensor = X_valid_Tensor
 			Y_train_Tensor = Y_valid_Tensor
+			X_train_Tensor = X_train_Tensor.to(device)
+			Y_train_Tensor = Y_train_Tensor.to(device)
 
 			print (
 				'Eph [{4:d}/{5:d}] -- WL: {0:.5f}-{1:.5f} -- Pix: {2}-{3} -- Step Time: {6}, LR: {7:.5f}, Valid max(|Res|): {8:.5f}'.format(
