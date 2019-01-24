@@ -57,7 +57,7 @@ class Net_GPU(nn.Module):
 
 	def encode(self,x):
 		# convert x into numpy to do math
-		x_np = x.data.numpy()
+		x_np = x.data.cpu().numpy()
 		try:
 			self.xmin
 			self.xmax
