@@ -388,7 +388,7 @@ class TrainSpec_multi_gpu(object):
 			torch.cuda.set_device(multiprocessing.current_process()._identity[0]-1)
 
 		print('Pixels: {0}-{1} -- Running on GPU: {2}/{3}'.format(
-			startpix,,stoppix,
+			startpix,stoppix,
 			torch.cuda.current_device()+1,
 			torch.cuda.device_count(),
 			))
