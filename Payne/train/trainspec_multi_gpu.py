@@ -66,7 +66,7 @@ class Net_GPU(nn.Module):
 		x = (x_np-self.xmin)/(self.xmax-self.xmin)
 		return Variable(torch.from_numpy(x).type(dtype))
 
-class TrainSpec_multi(object):
+class TrainSpec_multi_gpu(object):
 	"""docstring for TrainSpec"""
 	def __init__(self, **kwargs):
 
