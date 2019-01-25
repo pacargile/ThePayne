@@ -307,7 +307,7 @@ class TrainSpec_multi_gpu(object):
 						outfile_i.create_dataset(
 							'model_{0}_{1}/model/{2}'.format(
 								wavestart_i,waveend_i,kk),
-							data=net[1].state_dict()[kk].numpy(),
+							data=net[1].state_dict()[kk].cpu().numpy(),
 							compression='gzip')
 				except RuntimeError:
 					print('!!! PROBLEM WITH WRITING TO HDF5 FOR WAVELENGTH = {0} !!!'.format(wavestart_i))
