@@ -78,7 +78,7 @@ class GenMod(object):
 		logR = pars[4]
 		Dist = pars[5]
 		Av   = pars[6]
-		Rv   = pars[7]
+		# Rv   = pars[7]
 
 		logTeff = np.log10(Teff)
 
@@ -93,7 +93,7 @@ class GenMod(object):
 		photpars['logl'] = logL
 		photpars['dist'] = Dist
 		photpars['av']   = Av
-		photpars['rv']   = Rv
+		photpars['rv']   = 3.1 #Rv
 
 		# create filter list and arrange photometry to this list
 
@@ -121,7 +121,7 @@ class GenMod(object):
 		aFe  = pars[3]
 		logA = pars[4]
 		Av   = pars[5]
-		Rv   = pars[6]
+		# Rv   = pars[6]
 
 		logTeff = np.log10(Teff)
 
@@ -133,7 +133,7 @@ class GenMod(object):
 		photpars['afe']  = aFe
 		photpars['logA'] = logA
 		photpars['av']   = Av
-		photpars['rv']   = Rv
+		photpars['rv']   = 3.1 #Rv
 
 		# create filter list and arrange photometry to this list
 		sed = self.fppsed.sed(**photpars)

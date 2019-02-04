@@ -203,7 +203,7 @@ class prior(object):
 			for pc_i in pcarr:
 				if pc_i == 'pc_0':
 					uspec_scale = upars['pc_0']
-					outdict['pc_0'] = (1.0-0.0)*uspec_scale + 0.0
+					outdict['pc_0'] = (1.0 - -1.0)*uspec_scale - 1.0
 				else:
 					pcind = int(pc_i.split('_')[-1])
 					pcmax = self.polycoefarr[pcind][0]+5.0*self.polycoefarr[pcind][1]
