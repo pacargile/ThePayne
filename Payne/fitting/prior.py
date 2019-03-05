@@ -19,6 +19,10 @@ class prior(object):
 		self.priordict['uniform'] = {}
 		self.priordict['gaussian'] = {}
 		self.priordict['tgaussian'] = {}
+		self.priordict['exp'] = {}
+		self.priordict['texp'] = {}
+		self.priordict['loguniform'] = {}
+
 
 		# put any additional priors into a dictionary so that
 		# they can be applied in the lnprior_* functions
@@ -31,12 +35,18 @@ class prior(object):
 				self.imf = inpriordict['IMF']['IMF_type']
 			else:
 				for ii in inpriordict[kk].keys():
-					if ii == 'uniform':
-						self.priordict['uniform'][kk] = inpriordict[kk]['uniform']
+					if ii == 'pv_uniform':
+						self.priordict['uniform'][kk] = inpriordict[kk]['pv_uniform']
 					elif ii == 'pv_gaussian':
 						self.priordict['gaussian'][kk] = inpriordict[kk]['pv_gaussian']
 					elif ii == 'pv_tgaussian':
 						self.priordict['tgaussian'][kk] = inpriordict[kk]['pv_tgaussian']
+					elif ii == 'pv_exp':
+						self.priordict['exp'][kk] = inpriordict[kk]['pv_exp']
+					elif ii == 'pv_texp':
+						self.priordict['texp'][kk] = inpriordict[kk]['pv_texp']
+					elif ii == 'pv_loguniform':
+						self.priordict['loguniform'][kk] = inpriordict[kk]['pv_loguniform']
 					else:
 						try:
 							self.additionalpriors[kk][ii] = inpriordict[kk][ii]
@@ -86,6 +96,9 @@ class prior(object):
 
 
 	def priortrans_spec(self,upars):
+	
+		# calcuate transformation from prior volume to parameter for all modeled parameters
+
 		outdict = {}
 
 		for namepar in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R']:
@@ -101,101 +114,16 @@ class prior(object):
 
 				elif namepar in self.priordict['tgaussian'].keys():
 					a = (self.priordict['tgaussian'][namepar][0] - self.priordict['tgaussian'][namepar][2]) / self.priordict['tgaussian'][namepar][3]
-					b = (self.priordict['tgaussian'][namepar][1] - self.priordict['tgaussian'][namepar][2]) / self.priordict['tgaussian'][namepar][3]
+					b = (self.priordict['tgaussian'][namepar][1] - self.priordict['tgaussian'][namepar][2]) / self.priordict['tgaussian'][namepar][3]					
 					par_i = truncnorm.ppf(upars_i,a,b,loc=self.priordict['tgaussian'][namepar][2],scale=self.priordict['tgaussian'][namepar][3])
+					if par_i == np.inf:
+						par_i = self.priordict['tgaussian'][namepar][1]
+				elif namepar in self.priordict['exp'].keys():
+					par_i = expon.ppf(upars_i,loc=self.priordict['exp'][namepar][0],scale=self.priordict['exp'][namepar][1])
 				else:
 					par_i = (self.defaultpars[namepar][1]-self.defaultpars[namepar][0])*upars_i + self.defaultpars[namepar][0]
 
 				outdict[namepar] = par_i
-
-		# if 'Teff' in upars.keys():
-		# 	uTeff = upars['Teff']
-		# 	if 'Teff' in self.priordict['uniform'].keys():
-		# 		Teff = (
-		# 			(max(self.priordict['uniform']['Teff'])-min(self.priordict['uniform']['Teff']))*uTeff + 
-		# 			min(self.priordict['uniform']['Teff']))
-		# 	elif 'Teff' in self.priordict['gaussian'].keys():
-		# 		Teff = norm.ppf(uTeff,loc=self.priordict['gaussian']['Teff'][0],scale=self.priordict['gaussian']['Teff'][1])
-		# 	else:
-		# 		# Teff    = ((10.0**self.PP.NN['x_max'][0])-(10.0**self.PP.NN['x_min'][0]))*uTeff + (10.0**self.PP.NN['x_min'][0])
-		# 		Teff = (17000.0 - 3000.0)*uTeff + 3000.0
-
-		# 	outdict['Teff'] = Teff
-
-		# if 'log(g)' in upars.keys():
-		# 	ulogg = upars['log(g)']
-		# 	if 'log(g)' in self.priordict['uniform'].keys():
-		# 		logg = (
-		# 			(max(self.priordict['uniform']['log(g)'])-min(self.priordict['uniform']['log(g)']))*ulogg + 
-		# 			min(self.priordict['uniform']['log(g)']))
-		# 	elif 'log(g)' in self.priordict['gaussian'].keys():
-		# 		logg = norm.ppf(uTeff,loc=self.priordict['gaussian']['log(g)'][0],scale=self.priordict['gaussian']['log(g)'][1])
-		# 	else:
-		# 		# logg    = (self.PP.NN['x_max'][1]-self.PP.NN['x_min'][1])*ulogg + self.PP.NN['x_min'][1]
-		# 		logg = (5.5 - -1.0)*ulogg + -1.0
-		# 	outdict['log(g)'] = logg
-
-		# if '[Fe/H]' in upars.keys():
-		# 	uFeH = upars['[Fe/H]']
-		# 	if '[Fe/H]' in self.priordict['uniform'].keys():
-		# 		FeH = (
-		# 			(max(self.priordict['uniform']['[Fe/H]'])-min(self.priordict['uniform']['[Fe/H]']))*uFeH + 
-		# 			min(self.priordict['uniform']['[Fe/H]']))
-		# 	elif '[Fe/H]' in self.priordict['gaussian'].keys():
-		# 		FeH = norm.ppf(uFeH,loc=self.priordict['gaussian']['[Fe/H]'][0],scale=self.priordict['gaussian']['[Fe/H]'][1])
-		# 	else:
-		# 		# FeH     = (self.PP.NN['x_max'][2]-self.PP.NN['x_min'][2])*uFeH + self.PP.NN['x_min'][2]
-		# 		FeH  = (0.5 - -2.0)*uFeH + -2.0
-		# 	outdict['[Fe/H]'] = FeH
-
-		# if '[a/Fe]' in upars.keys():
-		# 	uaFe = upars['[a/Fe]']
-		# 	if '[a/Fe]' in self.priordict['uniform'].keys():
-		# 		aFe = (
-		# 			(max(self.priordict['uniform']['[a/Fe]'])-min(self.priordict['uniform']['[a/Fe]']))*uaFe + 
-		# 			min(self.priordict['uniform']['[a/Fe]']))
-		# 	elif '[a/Fe]' in self.priordict['gaussian'].keys():
-		# 		aFe = norm.ppf(uaFe,loc=self.priordict['gaussian']['[a/Fe]'][0],scale=self.priordict['gaussian']['[a/Fe]'][1])
-		# 	else:
-		# 		# aFe     = (self.PP.NN['x_max'][3]-self.PP.NN['x_min'][3])*uaFe + self.PP.NN['x_min'][3]
-		# 		aFe = (0.6 - -0.2)*uaFe + -0.2
-		# 	outdict['[a/Fe]'] = aFe
-
-		# if 'Vrad' in upars.keys():
-		# 	uradvel = upars['Vrad']
-		# 	if 'Vrad' in self.priordict['uniform'].keys():
-		# 		radvel = (
-		# 			(max(self.priordict['uniform']['Vrad'])-min(self.priordict['uniform']['Vrad']))*uradvel + 
-		# 			min(self.priordict['uniform']['Vrad']))
-		# 	elif 'Vrad' in self.priordict['gaussian'].keys():
-		# 		radvel = norm.ppf(uradvel,loc=self.priordict['gaussian']['Vrad'][0],scale=self.priordict['gaussian']['Vrad'][1])
-		# 	else:
-		# 		radvel  = (700.0 - -700.0)*uradvel + -700.0
-		# 	outdict['Vrad'] = radvel
-
-		# if 'Vrot' in upars.keys():
-		# 	urotvel = upars['Vrot']
-		# 	if 'Vrot' in self.priordict['uniform'].keys():
-		# 		rotvel = (
-		# 			(max(self.priordict['uniform']['Vrot'])-min(self.priordict['uniform']['Vrot']))*urotvel + 
-		# 			min(self.priordict['uniform']['Vrot']))
-		# 	elif 'Vrot' in self.priordict['gaussian'].keys():
-		# 		rotvel = norm.ppf(urotvel,loc=self.priordict['gaussian']['Vrot'][0],scale=self.priordict['gaussian']['Vrot'][1])
-		# 	else:
-		# 		rotvel  = (300.0 - 0.0)*urotvel + 0.0
-		# 	outdict['Vrot'] = rotvel
-
-		# if 'Inst_R' in upars.keys():
-		# 	uinst_R = upars['Inst_R']
-		# 	if 'Inst_R' in self.priordict['uniform'].keys():
-		# 		inst_R = (
-		# 			(max(self.priordict['uniform']['Inst_R'])-min(self.priordict['uniform']['Inst_R']))*uinst_R + 
-		# 			min(self.priordict['uniform']['Inst_R']))
-		# 	elif 'Inst_R' in self.priordict['gaussian'].keys():
-		# 		inst_R = norm.ppf(uinst_R,loc=self.priordict['gaussian']['Inst_R'][0],scale=self.priordict['gaussian']['Inst_R'][1])
-		# 	else:
-		# 		inst_R = (60000.0-10000.0)*uinst_R + 10000.0
-		# 	outdict['Inst_R'] = inst_R
 
 		# if fitting a blaze function, do transformation for polycoef
 		pcarr = [x_i for x_i in upars.keys() if 'pc' in x_i]
@@ -203,19 +131,19 @@ class prior(object):
 			for pc_i in pcarr:
 				if pc_i == 'pc_0':
 					uspec_scale = upars['pc_0']
-					outdict['pc_0'] = (1.0 - -1.0)*uspec_scale - 1.0
+					outdict['pc_0'] = (1.25 - 0.75)*uspec_scale + 0.75
 				else:
 					pcind = int(pc_i.split('_')[-1])
-					pcmax = self.polycoefarr[pcind][0]+5.0*self.polycoefarr[pcind][1]
-					pcmin = self.polycoefarr[pcind][0]-5.0*self.polycoefarr[pcind][1]
+					pcmax = self.polycoefarr[pcind][0]+3.0*self.polycoefarr[pcind][1]
+					pcmin = self.polycoefarr[pcind][0]-3.0*self.polycoefarr[pcind][1]
 					outdict[pc_i] = (pcmax-pcmin)*upars[pc_i] + pcmin
 
 		return outdict
 
-
 	def priortrans_phot(self,upars):
 
 		outdict = {}
+
 
 		# if only fitting the SED, pull Teff/logg/FeH and do prior transformation
 		if not self.spec_bool:
@@ -234,64 +162,14 @@ class prior(object):
 						a = (self.priordict['tgaussian'][namepar][0] - self.priordict['tgaussian'][namepar][2]) / self.priordict['tgaussian'][namepar][3]
 						b = (self.priordict['tgaussian'][namepar][1] - self.priordict['tgaussian'][namepar][2]) / self.priordict['tgaussian'][namepar][3]
 						par_i = truncnorm.ppf(upars_i,a,b,loc=self.priordict['tgaussian'][namepar][2],scale=self.priordict['tgaussian'][namepar][3])
+						if par_i == np.inf:
+							par_i = self.priordict['tgaussian'][namepar][1]
+					elif namepar in self.priordict['exp'].keys():
+						par_i = expon.ppf(upars_i,loc=self.priordict['exp'][namepar][0],scale=self.priordict['exp'][namepar][1])
 					else:
 						par_i = (self.defaultpars[namepar][1]-self.defaultpars[namepar][0])*upars_i + self.defaultpars[namepar][0]
 
 					outdict[namepar] = par_i
-
-
-			# if 'Teff' in upars.keys():
-			# 	uTeff = upars['Teff']
-			# 	if 'Teff' in self.priordict['uniform'].keys():
-			# 		Teff = (
-			# 			(max(self.priordict['uniform']['Teff'])-min(self.priordict['uniform']['Teff']))*uTeff + 
-			# 			min(self.priordict['uniform']['Teff']))
-			# 	elif 'Teff' in self.priordict['gaussian'].keys():
-			# 		Teff = norm.ppf(uTeff,loc=self.priordict['gaussian']['Teff'][0],scale=self.priordict['gaussian']['Teff'][1])
-			# 	else:
-			# 		# Teff    = ((10.0**self.PP.NN['x_max'][0])-(10.0**self.PP.NN['x_min'][0]))*uTeff + (10.0**self.PP.NN['x_min'][0])
-			# 		Teff = (17000.0 - 3000.0)*uTeff + 3000.0
-
-			# 	outdict['Teff'] = Teff
-
-			# if 'log(g)' in upars.keys():
-			# 	ulogg = upars['log(g)']
-			# 	if 'log(g)' in self.priordict['uniform'].keys():
-			# 		logg = (
-			# 			(max(self.priordict['uniform']['log(g)'])-min(self.priordict['uniform']['log(g)']))*ulogg + 
-			# 			min(self.priordict['uniform']['log(g)']))
-			# 	elif 'log(g)' in self.priordict['gaussian'].keys():
-			# 		logg = norm.ppf(uTeff,loc=self.priordict['gaussian']['log(g)'][0],scale=self.priordict['gaussian']['log(g)'][1])
-			# 	else:
-			# 		# logg    = (self.PP.NN['x_max'][1]-self.PP.NN['x_min'][1])*ulogg + self.PP.NN['x_min'][1]
-			# 		logg = (5.5 - -1.0)*ulogg + -1.0
-			# 	outdict['log(g)'] = logg
-
-			# if '[Fe/H]' in upars.keys():
-			# 	uFeH = upars['[Fe/H]']
-			# 	if '[Fe/H]' in self.priordict['uniform'].keys():
-			# 		FeH = (
-			# 			(max(self.priordict['uniform']['[Fe/H]'])-min(self.priordict['uniform']['[Fe/H]']))*uFeH + 
-			# 			min(self.priordict['uniform']['[Fe/H]']))
-			# 	elif '[Fe/H]' in self.priordict['gaussian'].keys():
-			# 		FeH = norm.ppf(uFeH,loc=self.priordict['gaussian']['[Fe/H]'][0],scale=self.priordict['gaussian']['[Fe/H]'][1])
-			# 	else:
-			# 		# FeH     = (self.PP.NN['x_max'][2]-self.PP.NN['x_min'][2])*uFeH + self.PP.NN['x_min'][2]
-			# 		FeH  = (0.5 - -2.0)*uFeH + -2.0
-			# 	outdict['[Fe/H]'] = FeH
-
-			# if '[a/Fe]' in upars.keys():
-			# 	uaFe = upars['[a/Fe]']
-			# 	if '[a/Fe]' in self.priordict['uniform'].keys():
-			# 		aFe = (
-			# 			(max(self.priordict['uniform']['[a/Fe]'])-min(self.priordict['uniform']['[a/Fe]']))*uaFe + 
-			# 			min(self.priordict['uniform']['[a/Fe]']))
-			# 	elif '[a/Fe]' in self.priordict['gaussian'].keys():
-			# 		aFe = norm.ppf(uaFe,loc=self.priordict['gaussian']['[a/Fe]'][0],scale=self.priordict['gaussian']['[a/Fe]'][1])
-			# 	else:
-			# 		# aFe     = (self.PP.NN['x_max'][3]-self.PP.NN['x_min'][3])*uaFe + self.PP.NN['x_min'][3]
-			# 		aFe = (0.6 - -0.2)*uaFe + -0.2
-			# 	outdict['[a/Fe]'] = aFe
 		for namepar in ['log(A)','log(R)','Dist','Av','Rv']:
 			if namepar in upars.keys():
 				upars_i = upars[namepar]
@@ -303,77 +181,32 @@ class prior(object):
 				elif namepar in self.priordict['gaussian'].keys():
 					par_i = norm.ppf(upars_i,loc=self.priordict['gaussian'][namepar][0],scale=self.priordict['gaussian'][namepar][1])
 
+				elif namepar in self.priordict['exp'].keys():
+					par_i = expon.ppf(upars_i,loc=self.priordict['exp'][namepar][0],scale=self.priordict['exp'][namepar][1])
+
 				elif namepar in self.priordict['tgaussian'].keys():
 					a = (self.priordict['tgaussian'][namepar][0] - self.priordict['tgaussian'][namepar][2]) / self.priordict['tgaussian'][namepar][3]
 					b = (self.priordict['tgaussian'][namepar][1] - self.priordict['tgaussian'][namepar][2]) / self.priordict['tgaussian'][namepar][3]
 					par_i = truncnorm.ppf(upars_i,a,b,loc=self.priordict['tgaussian'][namepar][2],scale=self.priordict['tgaussian'][namepar][3])
+					if par_i == np.inf:
+						par_i = self.priordict['tgaussian'][namepar][1]
+
+				elif namepar in self.priordict['texp'].keys():
+					a = (self.priordict['texp'][namepar][0] - self.priordict['texp'][namepar][2]) / self.priordict['texp'][namepar][3]
+					b = (self.priordict['texp'][namepar][1] - self.priordict['texp'][namepar][2]) / self.priordict['texp'][namepar][3]
+					par_i = truncexpon.ppf(upars_i,a,b,loc=self.priordict['texp'][namepar][2],scale=self.priordict['texp'][namepar][3])
+					if par_i == np.inf:
+						par_i = self.priordict['texp'][namepar][1]
+
+				elif namepar in self.priordict['loguniform'].keys():
+					par_i = reciprocal.ppf(upars_i, self.priordict['loguniform'][namepar][0], self.priordict['loguniform'][namepar][1])
+
 				else:
 					par_i = (self.defaultpars[namepar][1]-self.defaultpars[namepar][0])*upars_i + self.defaultpars[namepar][0]
 
 				outdict[namepar] = par_i
 
-		# if 'log(A)' in upars.keys():
-		# 	ulogA = upars['log(A)']
-		# 	if 'log(A)' in self.priordict['uniform'].keys():
-		# 		logA = (
-		# 			(max(self.priordict['uniform']['log(A)'])-min(self.priordict['uniform']['log(A)']))*ulogA + 
-		# 			min(self.priordict['uniform']['log(A)']))
-		# 	elif 'log(A)' in self.priordict['gaussian'].keys():
-		# 		logA = norm.ppf(ulogA,loc=self.priordict['gaussian']['log(A)'][0],scale=self.priordict['gaussian']['log(A)'][1])
-		# 	else:
-		# 		logA = (7.0 - -3.0)*ulogA + -3.0
-		# 	outdict['log(A)'] = logA
-
-		# if 'log(R)' in upars.keys():
-		# 	ulogR = upars['log(R)']
-		# 	if 'log(R)' in self.priordict['uniform'].keys():
-		# 		logR = (
-		# 			(max(self.priordict['uniform']['log(R)'])-min(self.priordict['uniform']['log(R)']))*ulogR + 
-		# 			min(self.priordict['uniform']['log(R)']))
-		# 	elif 'log(R)' in self.priordict['gaussian'].keys():
-		# 		logR = norm.ppf(ulogR,loc=self.priordict['gaussian']['log(R)'][0],scale=self.priordict['gaussian']['log(R)'][1])
-		# 	else:
-		# 		logR = (3.0 - -2.0)*ulogR + -2.0
-		# 	outdict['log(R)'] = logR
-
-		# if 'Dist' in upars.keys():
-		# 	uDist = upars['Dist']
-		# 	if 'Dist' in self.priordict['uniform'].keys():
-		# 		Dist = (
-		# 			(max(self.priordict['uniform']['Dist'])-min(self.priordict['uniform']['Dist']))*uDist + 
-		# 			min(self.priordict['uniform']['Dist']))
-		# 	elif 'Dist' in self.priordict['gaussian'].keys():
-		# 		Dist = norm.ppf(uDist,loc=self.priordict['gaussian']['Dist'][0],scale=self.priordict['gaussian']['Dist'][1])
-		# 	else:
-		# 		Dist = (100000.0 - 0.0)*uDist + 0.0
-		# 	outdict['Dist'] = Dist
-
-		# if 'Av' in upars.keys():
-		# 	uAv = upars['Av']
-		# 	if 'Av' in self.priordict['uniform'].keys():
-		# 		Av = (
-		# 			(max(self.priordict['uniform']['Av'])-min(self.priordict['uniform']['Av']))*uAv + 
-		# 			min(self.priordict['uniform']['Av']))
-		# 	elif 'Av' in self.priordict['gaussian'].keys():
-		# 		Av = norm.ppf(uAv,loc=self.priordict['gaussian']['Av'][0],scale=self.priordict['gaussian']['Av'][1])
-		# 	else:
-		# 		Av = (5.0-0.0)*uAv + 0.0
-		# 	outdict['Av'] = Av
-
-		# if 'Rv' in upars.keys():
-		# 	uRv = upars['Rv']
-		# 	if 'Rv' in self.priordict['uniform'].keys():
-		# 		Rv = (
-		# 			(max(self.priordict['uniform']['Rv'])-min(self.priordict['uniform']['Rv']))*uRv + 
-		# 			min(self.priordict['uniform']['Rv']))
-		# 	elif 'Rv' in self.priordict['gaussian'].keys():
-		# 		Rv = norm.ppf(uRv,loc=self.priordict['gaussian']['Rv'][0],scale=self.priordict['gaussian']['Rv'][1])
-		# 	else:
-		# 		Rv = (5.0-2.0)*uRv + 2.0
-		# 	outdict['Rv'] = Rv
-
 		return outdict
-
 
 
 	def lnpriorfn(self,pars):
@@ -400,6 +233,7 @@ class prior(object):
 			photPrior = 0.0
 
 		return specPrior + photPrior
+
 	def lnprior_spec(self,pardict,verbose=True):
 		lnprior = 0.0
 
@@ -423,13 +257,14 @@ class prior(object):
 					else:
 						pass
 
-		# if fitting a blaze function, then check for additional priors
-		if self.normspec_bool:
-			for pp in self.fitpars_i:
-				if pp[:2] == 'pc_':
-					lnprior += -0.5 * ((parsdict[pp]/self.polycoefarr[kk][1])**2.0)
+		# # if fitting a blaze function, then check for additional priors
+		# if self.normspec_bool:
+		# 	for pp in self.fitpars_i:
+		# 		if pp[:2] == 'pc_':
+		# 			lnprior += -0.5 * ((parsdict[pp]/self.polycoefarr[kk][1])**2.0)
 
 		return lnprior
+
 
 	def lnprior_phot(self,pardict,verbose=True):
 		lnprior = 0.0
@@ -473,7 +308,7 @@ class prior(object):
 
 		# apply IMF pior
 		if self.imf_bool:
-			logM = pardict_i['log(g)'] + 2.0 * pardict_i['log(R)']
+			logM = pardict['log(g)'] + 2.0 * pardict['log(R)']
 			if self.imf == 'Kroupa':
 				P_mass = self.kroupa(logM)
 			else:
