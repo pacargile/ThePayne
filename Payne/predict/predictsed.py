@@ -9,7 +9,7 @@ _ALLFILTERS = (
     'Bessell_B', 'Bessell_I', 'Bessell_R', 'Bessell_U', 'Bessell_V', 
     'DECam_g', 'DECam_i', 'DECam_r', 'DECam_u', 'DECam_Y', 'DECam_z', 
     'GaiaDR2_BP', 'GaiaDR2_G', 'GaiaDR2_RP', 
-    'GALEX_FUV', 'GALEX_NUV', 
+    # 'GALEX_FUV', 'GALEX_NUV', 
     'Hipparcos_Hp', 
     'Kepler_D51', 'Kepler_Kp', 
     'PS_g', 'PS_i', 'PS_open', 'PS_r', 'PS_w', 'PS_y', 'PS_z', 

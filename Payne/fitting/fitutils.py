@@ -1,46 +1,96 @@
 import numpy as np
 from numpy.polynomial.chebyshev import chebval
 from numpy.polynomial.chebyshev import Chebyshev as T
+from scipy.interpolate import interp1d
+from scipy import constants
+speedoflight = constants.c / 1000.0
+from scipy.optimize import minimize_scalar, minimize, brute, basinhopping, differential_evolution
 
 ### NEED TO FIX THIS CLASS ####
 class RVcalc(object):
-	"""docstring for RVcalc"""
-	def __init__(self, arg):
+	def __init__(self, **kwargs):
 		super(RVcalc, self).__init__()
-		self.arg = arg
 		
+		self.wave = kwargs.get('inwave',[])
+		self.flux = kwargs.get('influx',[])
+		self.eflux = kwargs.get('einflux',[])
+		self.modflux = kwargs.get('modflux',[])
+		self.modwave = kwargs.get('modwave',[])
 
-	def rvfit(self,wave,flux,eflux,initpars=None,normspec_bool=False,nnpath=None):
-		if initpars == None:
-			initpars = [5770.0,4.44,0.0,0.0,0.0,1.0,32000.0]
+	def __call__(self):
 		init_vrad = 0.0
 
-		fitargs['obs_wave_fit']  = wave
-		fitargs['obs_flux_fit']  = flux
-		fitargs['obs_eflux_fit'] = eflux
-		fitargs['specANNpath']   = nnpath
-		runbools = [True,False,normspec_bool]
+		args = [self.wave,self.flux,self.eflux,self.modflux,self.modwave]
 
-		from .likelihood import likelihood
-		likefn = likelihood(fitargs,runbools)
+		# return brute(
+		# 	self.chisq_rv,
+		# 	(slice(-700,700,0.1),),
+		# 	)
 
-		args = [initpars,wave,flux,eflux,normspec_bool]
-		return minimize_scalar(
-			chisq_rv, init_vrad, args=args, 
-			bounds=(-500,500),method='bounded',
-			options={'disp': 0, 'maxiter': 2000, 'xatol': 1e-10})
+		return minimize(
+			self.chisq_rv,
+			init_vrad,
+			method='Nelder-Mead',
+			tol=10E-10,
+			options={'maxiter':1E6}
+			)
 
-	def chisq_rv(self,rv,args):
-		initpars = args[0]
-		wave = args[1]
-		flux = args[2]
-		eflux = args[3]
-		normspec_bool = args[4]
-		initpars[4] = rv
-		modwave,modflux = self.genspec(initpars,outwave=wave,normspec_bool=normspec_bool)
+	def chisq_rv(self,rv):
+		wave = self.wave
+		flux = self.flux
+		eflux = self.eflux
+		modflux = self.modflux
+		modwave = self.modwave
+
+		# adjust model to new rv
+		modwave_i = modwave*(1.0+(rv/speedoflight))
+
+		# interpolate ict back to wave so that chi-sq can be computed
+		modflux_i = interp1d(modwave_i,modflux,kind='linear',bounds_error=False,fill_value=1.0)(wave)
+
 		chisq = np.sum([((m-o)**2.0)/(s**2.0) for m,o,s in zip(
-			modflux,flux,eflux)])
+			modflux_i,flux,eflux)])
 		return chisq
+
+class PCcalc(object):
+	def __init__(self, **kwargs):
+		super(PCcalc, self).__init__()
+		
+		self.wave = kwargs.get('inwave',[])
+		self.flux = kwargs.get('influx',[])
+		self.eflux = kwargs.get('einflux',[])
+		self.modflux = kwargs.get('modflux',[])
+		self.modwave = kwargs.get('modwave',[])
+		self.numpoly = kwargs.get('numpoly',4)
+
+	def __call__(self):
+		init_pc = [1.0] + [0.0 for _ in range(self.numpoly-1)]
+		args = [self.wave,self.flux,self.eflux,self.modflux,self.modwave]
+
+		return minimize(
+			self.chisq_pc,
+			init_pc,
+			method='Nelder-Mead',
+			tol=10E-10,
+			options={'maxiter':1E6}
+			)
+
+	def chisq_pc(self,pc):
+		wave = self.wave
+		flux = self.flux
+		eflux = self.eflux
+		modflux = self.modflux
+		modwave = self.modwave
+
+		polymod = polycalc(pc,wave)
+
+		# interpolate ict back to wave so that chi-sq can be computed
+		flux_i = flux / interp1d(modwave,modflux,kind='linear',bounds_error=False,fill_value=1.0)(wave)
+
+		chisq = np.sum([((m-o)**2.0)/(s**2.0) for m,o,s in zip(
+			polymod,flux_i,eflux)])
+		return chisq
+
 
 def polycalc(coef,inwave):
 	# define obs wave on normalized scale
@@ -49,7 +99,8 @@ def polycalc(coef,inwave):
 	# build poly coef
 	c = np.insert(coef[1:],0,0)
 	poly = chebval(x,c)
-	epoly = np.exp(coef[0]+poly)
+	# epoly = np.exp(coef[0]+poly)
+	epoly = coef[0]+poly
 	return epoly
 
 def airtovacuum(inwave):
