@@ -22,18 +22,19 @@ class RVcalc(object):
 
 		args = [self.wave,self.flux,self.eflux,self.modflux,self.modwave]
 
-		# return brute(
-		# 	self.chisq_rv,
-		# 	(slice(-700,700,0.1),),
-		# 	)
-
-		return minimize(
+		outfn = brute(
 			self.chisq_rv,
-			init_vrad,
-			method='Nelder-Mead',
-			tol=10E-10,
-			options={'maxiter':1E6}
+			(slice(-700,700,0.1),),
 			)
+		return outfn
+
+		# return minimize(
+		# 	self.chisq_rv,
+		# 	init_vrad,
+		# 	method='Nelder-Mead',
+		# 	tol=10E-10,
+		# 	options={'maxiter':1E6}
+		# 	)
 
 	def chisq_rv(self,rv):
 		wave = self.wave
@@ -71,8 +72,8 @@ class PCcalc(object):
 			self.chisq_pc,
 			init_pc,
 			method='Nelder-Mead',
-			tol=10E-10,
-			options={'maxiter':1E6}
+			tol=10E-15,
+			options={'maxiter':1E4}
 			)
 
 	def chisq_pc(self,pc):
@@ -97,11 +98,11 @@ def polycalc(coef,inwave):
 	x = inwave - inwave.min()
 	x = 2.0*(x/x.max())-1.0
 	# build poly coef
-	c = np.insert(coef[1:],0,0)
-	poly = chebval(x,c)
+	# c = np.insert(coef[1:],0,0)
+	poly = chebval(x,coef)
 	# epoly = np.exp(coef[0]+poly)
-	epoly = coef[0]+poly
-	return epoly
+	# epoly = coef[0]+poly
+	return poly
 
 def airtovacuum(inwave):
 	"""
