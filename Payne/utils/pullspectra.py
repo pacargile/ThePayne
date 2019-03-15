@@ -36,8 +36,10 @@ class pullspectra(object):
 
 		# determine the FeH and aFe arrays for C3K
 		for indinf in glob.glob(self.C3Kpath+'*'):
-			self.FeHarr.append(float(indinf.split('_')[-2][3:]))
-			self.alphaarr.append(float(indinf.split('_')[-1][3:-8]))
+			feh_i =  float(indinf.partition('feh')[-1][:5])
+			afe_i =  float(indinf.partition('afe')[-1][:4])
+			self.FeHarr.append(feh_i)
+			self.alphaarr.append(afe_i)
 
 		# remove the super metal-rich models that only have aFe = 0
 		if 0.75 in self.FeHarr:
