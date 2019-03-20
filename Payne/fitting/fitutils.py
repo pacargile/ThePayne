@@ -6,7 +6,8 @@ from scipy import constants
 speedoflight = constants.c / 1000.0
 from scipy.optimize import minimize_scalar, minimize, brute, basinhopping, differential_evolution
 
-### NEED TO FIX THIS CLASS ####
+from ..utils.smoothing import smoothspec
+
 class RVcalc(object):
 	def __init__(self, **kwargs):
 		super(RVcalc, self).__init__()
@@ -53,6 +54,53 @@ class RVcalc(object):
 			modflux_i,flux,eflux)])
 		return chisq
 
+class BROADcalc(object):
+	def __init__(self, **kwargs):
+		super(BROADcalc, self).__init__()
+		
+		self.wave = kwargs.get('inwave',[])
+		self.flux = kwargs.get('influx',[])
+		self.eflux = kwargs.get('einflux',[])
+		self.modflux = kwargs.get('modflux',[])
+		self.modwave = kwargs.get('modwave',[])
+		self.inputres = kwargs.get('inres',300000.0)
+
+	def __call__(self):
+		init_broad = 32000.0
+
+		args = [self.wave,self.flux,self.eflux,self.modflux,self.modwave]
+
+		# outfn = brute(
+		# 	self.chisq_broad,
+		# 	(slice(27000.0,39000.0,0.01),),
+		# 	)
+		# return outfn
+
+		return [minimize(
+			self.chisq_broad,
+			init_broad,
+			method='Nelder-Mead',
+			tol=10E-10,
+			options={'maxiter':1E6}
+			).x]
+
+	def chisq_broad(self,broad):
+		wave = self.wave
+		flux = self.flux
+		eflux = self.eflux
+		modflux = self.modflux
+		modwave = self.modwave
+
+		# adjust model to new brodening
+		modflux_i = smoothspec(modwave,modflux,resolution=2.355*broad,
+			outwave=modwave,smoothtype='R',fftsmooth=True,inres=self.inputres,
+			)
+		chisq = np.sum([((m-o)**2.0)/(s**2.0) for m,o,s in zip(
+			modflux_i,flux,eflux)])
+		return chisq
+
+
+
 class PCcalc(object):
 	def __init__(self, **kwargs):
 		super(PCcalc, self).__init__()
@@ -68,13 +116,13 @@ class PCcalc(object):
 		init_pc = [1.0] + [0.0 for _ in range(self.numpoly-1)]
 		args = [self.wave,self.flux,self.eflux,self.modflux,self.modwave]
 
-		return minimize(
+		return [minimize(
 			self.chisq_pc,
 			init_pc,
 			method='Nelder-Mead',
 			tol=10E-15,
 			options={'maxiter':1E4}
-			)
+			).x]
 
 	def chisq_pc(self,pc):
 		wave = self.wave
