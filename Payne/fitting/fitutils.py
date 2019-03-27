@@ -1,3 +1,4 @@
+
 import numpy as np
 from numpy.polynomial.chebyshev import chebval
 from numpy.polynomial.chebyshev import Chebyshev as T
@@ -7,6 +8,32 @@ speedoflight = constants.c / 1000.0
 from scipy.optimize import minimize_scalar, minimize, brute, basinhopping, differential_evolution
 
 from ..utils.smoothing import smoothspec
+
+def polycalc(coef,inwave):
+	# define obs wave on normalized scale
+	x = inwave - inwave.min()
+	x = 2.0*(x/x.max())-1.0
+	# build poly coef
+	# c = np.insert(coef[1:],0,0)
+	poly = chebval(x,coef)
+	# epoly = np.exp(coef[0]+poly)
+	# epoly = coef[0]+poly
+	return poly
+
+def airtovacuum(inwave):
+	"""
+		Using the relationship from Ciddor (1996) and transcribed in Shetrone et al. 2015
+	"""
+	a = 0.0
+	b1 = 5.792105E-2
+	b2 = 1.67917E-3
+	c1 = 238.0185
+	c2 = 57.362
+
+	deltawave = a + (b1/(c1-(1.0/inwave**2.0))) + (b2/(c2-(1.0/inwave**2.0)))
+
+	return inwave*(deltawave+1)
+
 
 class RVcalc(object):
 	def __init__(self, **kwargs):
@@ -25,7 +52,8 @@ class RVcalc(object):
 
 		outfn = brute(
 			self.chisq_rv,
-			(slice(-700,700,0.1),),
+			#ranges=(slice(-700,700,0.1),),
+			ranges=((-1000,1000),)
 			)
 		return outfn
 
@@ -141,27 +169,66 @@ class PCcalc(object):
 		return chisq
 
 
-def polycalc(coef,inwave):
-	# define obs wave on normalized scale
-	x = inwave - inwave.min()
-	x = 2.0*(x/x.max())-1.0
-	# build poly coef
-	# c = np.insert(coef[1:],0,0)
-	poly = chebval(x,coef)
-	# epoly = np.exp(coef[0]+poly)
-	# epoly = coef[0]+poly
-	return poly
+class SEDopt(object):
+	def __init__(self, **kwargs):
+		super(SEDopt, self).__init__()
+		from Payne.predict.predictsed import FastPayneSEDPredict
 
-def airtovacuum(inwave):
-	"""
-		Using the relationship from Ciddor (1996) and transcribed in Shetrone et al. 2015
-	"""
-	a = 0.0
-	b1 = 5.792105E-2
-	b2 = 1.67917E-3
-	c1 = 238.0185
-	c2 = 57.362
+		self.inputphot = kwargs.get('inputphot',{})
+		self.fixedpars = kwargs.get('fixedpars',{})
+		self.filterarray = list(self.inputphot.keys())
+		if 'photANNpath' in self.filterarray:
+			self.filterarray.remove('photANNpath')
+		self.returnsed = kwargs.get('returnsed',False)
 
-	deltawave = a + (b1/(c1-(1.0/inwave**2.0))) + (b2/(c2-(1.0/inwave**2.0)))
 
-	return inwave*(deltawave+1)
+		self.fsed = FastPayneSEDPredict(
+			usebands=self.filterarray,
+			nnpath=self.inputphot['photANNpath'])
+
+	def __call__(self):
+		init_sed = [6000.0,0.0,3.0]
+		output = [minimize(
+			self.chisq_sed,
+			init_sed,
+			method='Nelder-Mead',
+			tol=10E-15,
+			options={'maxiter':1E4}
+			).x]
+		if self.returnsed:
+			Teff = output[0][0]
+			logTeff = np.log10(Teff)
+			logg = self.fixedpars.get('logg',4.44)
+			FeH  = output[0][1]
+			aFe  = self.fixedpars.get('aFe',0.0)
+			logA = output[0][2]
+			Av   = self.fixedpars.get('Av',0.0)
+
+			photpars = {'logt':logTeff,'logg':logg,'feh':FeH,'afe':aFe,'logA':logA,'av':Av}
+			sed = self.fsed.sed(**photpars)
+			sedmod = {ff_i:sed_i for sed_i,ff_i in zip(sed,self.filterarray)}			
+			return output, sedmod
+		else:
+			return output
+
+
+	def chisq_sed(self,pars):
+		Teff = pars[0]
+		logTeff = np.log10(Teff)
+		logg = self.fixedpars.get('logg',4.44)
+		FeH  = pars[1] #self.fixedpars.get('FeH',0.0)
+		aFe  = self.fixedpars.get('aFe',0.0)
+		logA = pars[2]
+		Av   = self.fixedpars.get('Av',0.0)
+
+		photpars = {'logt':logTeff,'logg':logg,'feh':FeH,'afe':aFe,'logA':logA,'av':Av}
+
+		sed = self.fsed.sed(**photpars)
+		sedmod = {ff_i:sed_i for sed_i,ff_i in zip(sed,self.filterarray)}
+
+		chisq = np.sum(
+				[((sedmod[kk]-self.inputphot[kk][0])**2.0)/(self.inputphot[kk][1]**2.0) 
+				for kk in self.filterarray]
+				)
+		return chisq
+

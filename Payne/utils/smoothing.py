@@ -14,7 +14,6 @@ __all__ = ["smoothspec", "smooth_wave", "smooth_vel", "smooth_lsf",
 ckms = 2.998e5
 sigma_to_fwhm = 2.355
 
-
 def smoothspec(wave, spec, resolution=None, outwave=None,
                smoothtype="vel", fftsmooth=True,
                min_wave_smooth=0, max_wave_smooth=np.inf, **kwargs):
@@ -320,7 +319,6 @@ def smooth_wave(wave, spec, outwave, sigma, nsigma=10, inres=0, in_vel=False,
         flux[i] = np.trapz(f * _spec, x) / np.trapz(f, x)
     return flux
 
-
 def smooth_wave_fft(wavelength, spectrum, outwave, sigma_out=1.0,
                     inres=0.0, **extras):
     """Smooth a spectrum in wavelength space, using FFTs.  This is fast, but
@@ -513,7 +511,6 @@ def smooth_lsf_fft(wave, spec, outwave, sigma=None, lsf=None, pix_per_sigma=2,
     # and interpolate back to the output wavelength grid.
     return np.interp(outwave, lam, spec_conv)
 
-
 def smooth_fft(dx, spec, sigma):
     """Basic math for FFT convolution with a gaussian kernel.
     :param dx:
@@ -574,7 +571,6 @@ def mask_wave(wavelength, width=1, wlo=0, whi=np.inf, outwave=None,
         wlim *= (1 + nsigma_pad / width * np.array([-1, 1]))
     mask = (wavelength > wlim[0]) & (wavelength < wlim[1])
     return mask
-
 
 def resample_wave(wavelength, spectrum, linear=False):
     """Resample spectrum, so that the number of elements is the next highest
