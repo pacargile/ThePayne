@@ -1,11 +1,10 @@
-
 import numpy as np
 from numpy.polynomial.chebyshev import chebval
 from numpy.polynomial.chebyshev import Chebyshev as T
 from scipy.interpolate import interp1d
 from scipy import constants
 speedoflight = constants.c / 1000.0
-from scipy.optimize import minimize_scalar, minimize, brute, basinhopping, differential_evolution
+from scipy.optimize import minimize_scalar, minimize, brute, basinhopping, differential_evolution, fmin
 
 from ..utils.smoothing import smoothspec
 
@@ -34,7 +33,6 @@ def airtovacuum(inwave):
 
 	return inwave*(deltawave+1)
 
-
 class RVcalc(object):
 	def __init__(self, **kwargs):
 		super(RVcalc, self).__init__()
@@ -52,18 +50,19 @@ class RVcalc(object):
 
 		outfn = brute(
 			self.chisq_rv,
-			#ranges=(slice(-700,700,0.1),),
-			ranges=((-1000,1000),)
+			# ranges=(slice(-1000,1000,1.0),),
+			ranges=((-1000,1000),),
+			Ns=10000,
 			)
 		return outfn
 
-		# return minimize(
+		# return [minimize(
 		# 	self.chisq_rv,
 		# 	init_vrad,
 		# 	method='Nelder-Mead',
 		# 	tol=10E-10,
 		# 	options={'maxiter':1E6}
-		# 	)
+		# 	).x]
 
 	def chisq_rv(self,rv):
 		wave = self.wave
@@ -98,19 +97,21 @@ class BROADcalc(object):
 
 		args = [self.wave,self.flux,self.eflux,self.modflux,self.modwave]
 
-		# outfn = brute(
-		# 	self.chisq_broad,
-		# 	(slice(27000.0,39000.0,0.01),),
-		# 	)
-		# return outfn
-
-		return [minimize(
+		outfn = brute(
 			self.chisq_broad,
-			init_broad,
-			method='Nelder-Mead',
-			tol=10E-10,
-			options={'maxiter':1E6}
-			).x]
+			ranges=((27000.0,35000.0),),
+			# (slice(27000.0,39000.0,0.01),),
+			Ns=1000,
+			)
+		return outfn
+
+		# return [minimize(
+		# 	self.chisq_broad,
+		# 	init_broad,
+		# 	method='Nelder-Mead',
+		# 	tol=10E-10,
+		# 	options={'maxiter':1E6}
+		# 	).x]
 
 	def chisq_broad(self,broad):
 		wave = self.wave
@@ -118,6 +119,9 @@ class BROADcalc(object):
 		eflux = self.eflux
 		modflux = self.modflux
 		modwave = self.modwave
+
+		if broad < 0.0:
+			return np.inf
 
 		# adjust model to new brodening
 		modflux_i = smoothspec(modwave,modflux,resolution=2.355*broad,
@@ -167,7 +171,6 @@ class PCcalc(object):
 		chisq = np.sum([((m-o)**2.0)/(s**2.0) for m,o,s in zip(
 			polymod,flux_i,eflux)])
 		return chisq
-
 
 class SEDopt(object):
 	def __init__(self, **kwargs):
