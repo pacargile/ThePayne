@@ -235,7 +235,9 @@ class FitPayne(object):
 		# initialize the likelihood class
 		self.likeobj = self.likelihood(fitargs,fitpars,runbools)
 
-		runsamplertype = samplerdict.get('samplertype','Nested')
+		runsamplertype = samplerdict.get('samplertype','Static')
+
+		print(runsamplertype)
 
 		if runsamplertype == 'Static':
 			# run sampler and return sampler object
@@ -402,6 +404,7 @@ class FitPayne(object):
 
 		return dy_sampler
 
+
 	def _rundysampler(self,samplerdict):
 		# pull out user defined sampler variables
 		npoints = samplerdict.get('npoints',200)
@@ -425,9 +428,10 @@ class FitPayne(object):
 		starttime = datetime.now()
 		if self.verbose:
 			print(
-				'Start Dynesty w/ {0} number of samples, Ndim = {1}, and w/ stopping criteria of dlog(z) = {2}: {3}'.format(
-					npoints,self.ndim,delta_logz_final,starttime))
+				'Start Dynamic Dynesty w/ {0} sampler, {1} number of samples, Ndim = {2}, and w/ stopping criteria of dlog(z) = {3}: {4}'.format(
+					samplemethod,npoints,self.ndim,delta_logz_final,starttime))
 		sys.stdout.flush()
+
 
 		# initialize sampler object
 		dy_sampler = dynesty.DynamicNestedSampler(
@@ -435,7 +439,6 @@ class FitPayne(object):
 			self.priorobj.priortrans,
 			self.ndim,
 			logl_args=[self.likeobj,self.priorobj],
-			nlive=npoints,
 			bound=samplertype,
 			sample=samplemethod,
 			update_interval=update_interval,
@@ -446,9 +449,135 @@ class FitPayne(object):
 
 		sys.stdout.flush()
 
-		dy_sampler.run_nested()
+		ncall = 0
+		nit = 0
+
+		iter_starttime = datetime.now()
+		deltaitertime_arr = []
+		for it, results in enumerate(dy_sampler.sample_initial(
+			nlive=npoints,
+			dlogz=delta_logz_final,
+			maxiter=maxiter,
+			)):
+			(worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
+				h, nc, worst_it, propidx, propiter, eff, delta_logz) = results			
+
+			ncall += nc
+			nit = it
+
+			if it == 0:
+				# initialize the output file
+				parnames = self.likeobj.parsdict.keys()
+				self._initoutput(parnames)
+
+			self.outff.write('{0} '.format(it))
+			# self.outff.write(' '.join([str(q) for q in vstar]))
+			self.outff.write(' '.join([str(self.likeobj.parsdict[q]) for q in parnames]))
+			self.outff.write(' {0} {1} {2} {3} {4} {5} {6} '.format(
+				loglstar,logvol,logwt,h,nc,logz,delta_logz))
+			self.outff.write('\n')
+
+			deltaitertime_arr.append((datetime.now()-iter_starttime).total_seconds()/float(nc))
+			iter_starttime = datetime.now()
+
+			if ((it%flushnum) == 0) or (it == maxiter):
+				self.outff.flush()
+
+				if self.verbose:
+					# format/output results
+					if logz < -1e6:
+						logz = -np.inf
+					if delta_logz > 1e6:
+						delta_logz = np.inf
+					if logzvar >= 0.:
+						logzerr = np.sqrt(logzvar)
+					else:
+						logzerr = np.nan
+					if logzerr > 1e6:
+						logzerr = np.inf
+						
+					sys.stdout.write("\riter: {0:d} | nc: {1:d} | ncall: {2:d} | eff(%): {3:6.3f} | "
+						"logz: {4:6.3f} +/- {5:6.3f} | dlogz: {6:6.3f} > {7:6.3f}   | mean(time):  {8:7.5f} | time: {9} \n"
+						.format(nit, nc, ncall, eff, 
+							logz, logzerr, delta_logz, delta_logz_final,np.mean(deltaitertime_arr),datetime.now()))
+					sys.stdout.flush()
+					deltaitertime_arr = []
+			if (it == maxiter):
+				break
+
+		sys.stdout.write('\n Finished Initial Static Run {0}\n'.format(datetime.now()-starttime))
+		sys.stdout.flush()
+
+		ncall = 0
+		nit = 0
+
+		iter_starttime = datetime.now()
+		deltaitertime_arr = []
+		for n in range(dy_sampler.batch,maxiter):
+			res = dy_sampler.results
+			res['prop'] = None # so we don't pass this around via pickling
+
+			stop, stop_vals = dy_sampler.stopping_function(res,return_vals=True)
+
+			if not stop:
+				logl_bounds = dy_sampler.weight_function(res)
+				lnz,lnzerr = res.logz[-1], res.logzerr[-1]
+				for it2,results2 in enumerate(dy_sampler.sample_batch(
+					nlive_new=npoints*2,
+					logl_bounds=logl_bounds,
+					maxiter=maxiter,
+					save_bounds=True
+					)):
+					(worst, ustar, vstar, loglstar, nc, worst_it, propidx, propiter, eff) = results2
+
+					ncall += nc
+					self.outff.write('{0} '.format(nit+it2))
+
+					# self.outff.write(' '.join([str(q) for q in vstar]))
+					self.likeobj.lnlikefn(vstar)
+					self.outff.write(' '.join([str(self.likeobj.parsdict[q]) for q in parnames]))
+					self.outff.write(' {0} {1} {2} {3} {4} {5} {6} '.format(
+						loglstar,logvol,logwt,h,nc,logz,delta_logz))
+					self.outff.write('\n')
+
+
+					deltaitertime_arr.append((datetime.now()-iter_starttime).total_seconds()/float(nc))
+					iter_starttime = datetime.now()
+
+					if ((it%flushnum) == 0) or (it == maxiter):
+						self.outff.flush()
+
+						if self.verbose:
+							# format/output results
+							if logz < -1e6:
+								logz = -np.inf
+							if delta_logz > 1e6:
+								delta_logz = np.inf
+							if logzvar >= 0.:
+								logzerr = np.sqrt(logzvar)
+							else:
+								logzerr = np.nan
+							if logzerr > 1e6:
+								logzerr = np.inf
+								
+							sys.stdout.write("\riter: {0:d} | nc: {1:d} | ncall: {2:d} | eff(%): {3:6.3f} | "
+								"logz: {4:6.3f} +/- {5:6.3f} | dlogz: {6:6.3f} > {7:6.3f}   | mean(time):  {8:7.5f} | time: {9} \n"
+								.format(nit, nc, ncall, eff, 
+									logz, logzerr, delta_logz, delta_logz_final,np.mean(deltaitertime_arr),datetime.now()))
+							sys.stdout.flush()
+							deltaitertime_arr = []
+					if (it == maxiter):
+						break
+				sys.stdout.flush()
+				dy_sampler.combine_runs()
+			else:
+				break
+
+		sys.stdout.write('\n Finished Full Dynamic Run {0}\n'.format(datetime.now()-starttime))
+		sys.stdout.flush()
 
 		return dy_sampler
+
 
 def lnprobfn(pars,likeobj,priorobj):
 

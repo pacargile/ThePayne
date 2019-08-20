@@ -43,16 +43,18 @@ class RVcalc(object):
 		self.modflux = kwargs.get('modflux',[])
 		self.modwave = kwargs.get('modwave',[])
 
-	def __call__(self):
-		init_vrad = 0.0
+	def __call__(self,**kwargs):
+		init_vread = 0.0
 
 		args = [self.wave,self.flux,self.eflux,self.modflux,self.modwave]
 
+		fitrange = kwargs.get('ranges',((-1000,1000),))
+		fitNs = kwargs.get('Ns',1000)
+
 		outfn = brute(
 			self.chisq_rv,
-			# ranges=(slice(-1000,1000,1.0),),
-			ranges=((-1000,1000),),
-			Ns=10000,
+			ranges=fitrange,
+			Ns=fitNs,
 			)
 		return outfn
 
@@ -90,18 +92,21 @@ class BROADcalc(object):
 		self.eflux = kwargs.get('einflux',[])
 		self.modflux = kwargs.get('modflux',[])
 		self.modwave = kwargs.get('modwave',[])
-		self.inputres = kwargs.get('inres',300000.0)
+		self.modres = kwargs.get('modres',300000.0)
 
-	def __call__(self):
+	def __call__(self,**kwargs):
 		init_broad = 32000.0
 
 		args = [self.wave,self.flux,self.eflux,self.modflux,self.modwave]
 
+		fitrange = kwargs.get('ranges',((27000,35000),))
+		fitNs = kwargs.get('Ns',1000)
+
+
 		outfn = brute(
 			self.chisq_broad,
-			ranges=((27000.0,35000.0),),
-			# (slice(27000.0,39000.0,0.01),),
-			Ns=1000,
+			ranges=fitrange,
+			Ns=fitNs,
 			)
 		return outfn
 
@@ -122,11 +127,19 @@ class BROADcalc(object):
 
 		if broad < 0.0:
 			return np.inf
+		elif broad >= self.modres:
+			return np.inf
+
 
 		# adjust model to new brodening
 		modflux_i = smoothspec(modwave,modflux,resolution=2.355*broad,
-			outwave=modwave,smoothtype='R',fftsmooth=True,inres=self.inputres,
+			outwave=modwave,smoothtype='R',fftsmooth=True,inres=2.355*self.modres,
 			)
+		cond = (modflux_i < 0.95) 
+		modflux_i = modflux_i[cond]
+		flux = flux[cond]
+		eflux[cond]
+
 		chisq = np.sum([((m-o)**2.0)/(s**2.0) for m,o,s in zip(
 			modflux_i,flux,eflux)])
 		return chisq
