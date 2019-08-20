@@ -59,6 +59,7 @@ class prior(object):
 		self.normspec_bool = runbools[2]
 		self.imf_bool = runbools[3]
 		self.photscale_bool = runbools[4]
+		self.carbon_bool = runbools[5]
 
 		# dictionary of default parameter ranges
 		self.defaultpars = {}
@@ -74,7 +75,7 @@ class prior(object):
 		self.defaultpars['Dist']   = [0.0,100000.0]
 		self.defaultpars['Av']     = [0.0,5.0]
 		self.defaultpars['Rv']     = [2.0,5.0]
-
+		self.defaultpars['CarbonScale'] = [0.0,2.0]
 
 	def priortrans(self,upars):
 		# build the parameter dictionary
@@ -101,7 +102,7 @@ class prior(object):
 
 		outdict = {}
 
-		for namepar in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R']:
+		for namepar in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R','CarbonScale']:
 			if namepar in upars.keys():
 				upars_i = upars[namepar]
 				if namepar in self.priordict['uniform'].keys():
@@ -241,7 +242,7 @@ class prior(object):
 		if len(self.additionalpriors.keys()) > 0:
 			for kk in self.additionalpriors.keys():
 				# check to see if additional prior is for a spectroscopic parameter
-				if kk in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R']:
+				if kk in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R','CarbonScale']:
 					# if prior is Gaussian
 					if 'gaussian' in self.additionalpriors[kk].keys():
 						lnprior += -0.5 * (((pardict[kk]-self.additionalpriors[kk]['gaussian'][0])**2.0)/

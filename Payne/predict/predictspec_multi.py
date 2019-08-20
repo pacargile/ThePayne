@@ -141,7 +141,7 @@ class PayneSpecPredict(object):
     """
     Class for taking a Payne-learned NN and predicting spectrum.
     """
-    def __init__(self, nnpath):
+    def __init__(self, nnpath, **kwargs):
         self.NN = {}
 
         if nnpath != None:
@@ -149,6 +149,8 @@ class PayneSpecPredict(object):
         else:
           # define aliases for the MIST isochrones and C3K/CKC files
           self.nnpath  = Payne.__abspath__+'data/specANN/C3KANN_RVS31.h5'
+
+        self.carbon_bool = kwargs.get('carbon_bool',False)
 
         # name of file that contains the neural-net output
         self.NN['filename'] = self.nnpath
@@ -193,6 +195,15 @@ class PayneSpecPredict(object):
                 ]
             )
         self.anns = fastreadNN(nnlist, self.NN['wavelength'])
+
+        # Turn on C2 absorption feature in RV31
+        if self.carbon_bool:
+            from ..utils.carbonmod import carbonmod
+            self.carbonfun = carbonmod(
+                inres=500000.0,
+                outres=self.NN['resolution'],
+                outwave=self.NN['wavelength'],
+                )
 
     def predictspec(self,labels):
         '''
@@ -276,6 +287,14 @@ class PayneSpecPredict(object):
         # calculate model spectrum at the native network resolution
         modspec = self.predictspec([self.inputdict[kk] for kk in ['logt','logg','feh','afe']])
         modwave = self.NN['wavelength']
+
+        if self.carbon_bool:
+            self.inputdict['CarbonScale'] = kwargs['CarbonScale']
+            if self.inputdict['CarbonScale'] != 0.0:
+                modspec = self.carbonfun.applycarbon(
+                    modspec,self.inputdict['CarbonScale']
+                    )
+                
 
         rot_vel_bool = False
         if 'rot_vel' in kwargs:

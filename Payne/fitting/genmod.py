@@ -12,7 +12,7 @@ class GenMod(object):
 		super(GenMod, self).__init__()
 		self.verbose = kwargs.get('verbose',False)
 		
-	def _initspecnn(self,nnpath=None,oldnn=False):
+	def _initspecnn(self,nnpath=None,oldnn=False,**kwargs):
 		if oldnn == False:
 			from ..predict.predictspec_multi import PayneSpecPredict
 			# from ..predict.predictspec import PayneSpecPredict
@@ -21,8 +21,10 @@ class GenMod(object):
 
 		from .fitutils import polycalc
 
+		carbon_bool = kwargs.get('carbon_bool',False)
+
 		# initialize the Payne Spectrum Predictor
-		self.PP = PayneSpecPredict(nnpath)
+		self.PP = PayneSpecPredict(nnpath,carbon_bool=carbon_bool)
 
 	def _initphotnn(self,filterarray,nnpath=None):
 		self.filterarray = filterarray
@@ -44,7 +46,8 @@ class GenMod(object):
 		# 		print('Cannot find NN HDF5 file for {0}'.format(ff))
 		# self.ANNdict = ANNdict
 
-	def genspec(self,pars,outwave=None,verbose=False,normspec_bool=False):
+	def genspec(self,pars,outwave=None,verbose=False,
+		normspec_bool=False,carbon_bool=False):
 		# define parameters from pars array
 		Teff = pars[0]
 		logg = pars[1]
@@ -55,12 +58,20 @@ class GenMod(object):
 		inst_R = pars[6]
 
 		# check to see if a polynomial is used for spectrum normalization
-		if normspec_bool:
+		if normspec_bool and not carbon_bool:
 			polycoef = pars[7:]
+		else:
+			polycoef = pars[7:-1]
+
+		if carbon_bool:
+			CarbonScale = pars[-1]
+		else:
+			CarbonScale = 0.0
+
 		# predict model flux at model wavelengths
 		modwave_i,modflux_i = self.PP.getspec(
 			Teff=Teff,logg=logg,feh=FeH,afe=aFe,rad_vel=radvel,rot_vel=rotvel,inst_R=2.355*inst_R,
-			outwave=outwave)		
+			outwave=outwave, CarbonScale=CarbonScale)		
 		# if polynomial normalization is turned on then multiply model by it
 		if normspec_bool:
 			epoly = polycalc(polycoef,outwave)

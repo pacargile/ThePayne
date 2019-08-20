@@ -30,7 +30,7 @@ setup(
     long_description=open("README.md").read(),
     package_data={"": ["README.md", "LICENSE"]},
     include_package_data=True,
-    install_requires=["numpy", "scipy", "dynesty", "torch"],
+    install_requires=["numpy", "scipy", "dynesty", "torch", "h5py", "astropy"],
 )
 
 # write top level __init__.py file with the correct absolute path to package repo

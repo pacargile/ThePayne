@@ -46,6 +46,7 @@ class FitPayne(object):
 		self.normspec_bool = False
 		self.imf_bool = False
 		self.photscale_bool = False
+		self.carbon_bool = False
 
 		# create array of all possible fit parameters
 		self.fitpars = ([
@@ -61,6 +62,7 @@ class FitPayne(object):
 			'log(A)',
 			'Av',
 			'Rv',
+			'CarbonScale',
 			])
 
 		# build a dictionary with bool switches for parameters
@@ -140,6 +142,13 @@ class FitPayne(object):
 					self.fitargs['obs_wave_fit_norm'] = (2.0 * 
 						(self.fitargs['obs_wave_fit_norm']/self.fitargs['obs_wave_fit_norm'].max())-1.0)		
 
+			# determine if user wants to fit the continuum normalization
+			if 'carbon' in inputdict['spec'].keys():
+				self.carbon_bool = True
+				self.fitpars.append('CarbonScale')
+				self.fitpars_bool['CarbonScale'] = True
+
+
 		if 'phot' in inputdict.keys():
 			# input filters
 			photfilters = inputdict['phot'].keys()
@@ -184,7 +193,8 @@ class FitPayne(object):
 			'runbools':(
 				[self.spec_bool,self.phot_bool,
 				self.normspec_bool,
-				self.imf_bool,self.photscale_bool])
+				self.imf_bool,self.photscale_bool,
+				self.carbon_bool])
 			})
 
 	def _initoutput(self,parnames):
@@ -196,28 +206,6 @@ class FitPayne(object):
 		self.outff.write('log(lk) log(vol) log(wt) h nc log(z) delta(log(z))')
 		self.outff.write('\n')
 
-	# def _initoutput(self):
-	# 	# init output file
-	# 	self.outff = open(self.output,'w')
-	# 	self.outff.write('Iter ')
-	# 	if self.spec_bool:
-	# 		self.outff.write('Teff logg FeH aFe Vrad Vrot Inst_R ')
-
-	# 		if self.normspec_bool:
-	# 			for ii in range(self.polyorder+1):
-	# 				self.outff.write('pc_{0} '.format(ii))
-
-	# 	if self.phot_bool:
-	# 		if not self.spec_bool:
-	# 			self.outff.write('Teff logg FeH aFe ')
-
-	# 		if self.photscale_bool:
-	# 			self.outff.write('logA Av ')
-	# 		else:
-	# 			self.outff.write('logR Dist Av ')
-
-	# 	self.outff.write('log(lk) log(vol) log(wt) h nc log(z) delta(log(z))')
-	# 	self.outff.write('\n')
 
 	def __call__(self,indicts):
 		'''
@@ -241,35 +229,6 @@ class FitPayne(object):
 			if fitpars[1][pp]:
 				self.ndim += 1
 
-		# # split indicts
-		# fitargs = indicts['fitargs']
-		# priordict = indicts['priordict']
-		# samplerdict = indicts['sampler']
-		# runbools = indicts['runbools']
-
-		# # determine the number of dims
-		# if self.spec_bool:
-		# 	self.ndim = 7
-
-		# if self.phot_bool:
-		# 	if self.spec_bool:
-		# 		self.ndim = 10
-		# 	else:
-		# 		self.ndim = 7
-		# 	if self.photscale_bool:
-		# 		self.ndim = self.ndim-1
-
-		# if self.normspec_bool:
-		# 	if self.phot_bool:
-		# 		self.ndim = 10+self.polyorder+1
-		# 		if self.photscale_bool:
-		# 			self.ndim = self.ndim-1
-		# 	else:
-		# 		self.ndim = 7+self.polyorder+1
-
-		# # initialize the output file
-		# self._initoutput()
-
 		# initialize the prior class
 		self.priorobj = self.prior(priordict,fitpars,runbools)
 
@@ -278,7 +237,7 @@ class FitPayne(object):
 
 		runsamplertype = samplerdict.get('samplertype','Nested')
 
-		if runsamplertype == 'Nested':
+		if runsamplertype == 'Static':
 			# run sampler and return sampler object
 			return self._runsampler(samplerdict)
 		elif runsamplertype == 'Dynamic':
@@ -311,8 +270,8 @@ class FitPayne(object):
 		starttime = datetime.now()
 		if self.verbose:
 			print(
-				'Start Dynesty w/ {0} number of samples, using {1} sampler, Ndim = {2}, and w/ stopping criteria of dlog(z) = {3}: {4}'.format(
-					npoints,samplemethod,self.ndim,delta_logz_final,starttime))
+				'Start Static Dynesty w/ {0} sampler, {1} number of samples, Ndim = {2}, and w/ stopping criteria of dlog(z) = {3}: {4}'.format(
+					samplemethod,npoints,self.ndim,delta_logz_final,starttime))
 		sys.stdout.flush()
 
 		# initialize sampler object
@@ -329,7 +288,6 @@ class FitPayne(object):
 			walks=numwalks,
 			slices=numslice,
 			)
-
 		sys.stdout.flush()
 
 		ncall = 0
@@ -503,17 +461,3 @@ def lnprobfn(pars,likeobj,priorobj):
 		return -np.inf
 	
 	return lnprior + lnlike	
-
-# def lnprobfn(pars,likeobj,priorobj):
-# 	# first pass pars into priorfn
-# 	lnprior = priorobj.lnpriorfn(pars)
-
-# 	# check to see if outside of a flat prior
-# 	if lnprior == -np.inf:
-# 		return -np.inf
-
-# 	lnlike = likeobj.lnlikefn(pars)
-# 	if lnlike == -np.inf:
-# 		return -np.inf
-	
-# 	return lnprior + lnlike	

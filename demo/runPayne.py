@@ -23,7 +23,7 @@ inputdict = {}
 
 if runspec:
 	inputdict['spec'] = {}
-	inputdict['specANNpath'] = '/Users/pcargile/Astro/GITREPOS/ThePayne/data/specANN/C3KANN_RVS31.h5'
+	inputdict['specANNpath'] = '/Users/pcargile/Astro/ThePayne/Hecto_FAL_v7.1/trainedANN/FALANN_RVS31_v7.1.h5'
 
 	if runmock:
 		with h5py.File('demodata.h5','r') as th5:
@@ -75,14 +75,14 @@ if runphot:
 
 # set parameter for sampler
 inputdict['sampler'] = {}
-inputdict['sampler']['samplerbounds'] ='Nested'
-inputdict['sampler']['samplemethod'] = 'slice'
-inputdict['sampler']['npoints'] = 125
+inputdict['sampler']['samplertype'] = 'Static'
 inputdict['sampler']['samplerbounds'] = 'multi'
-inputdict['sampler']['flushnum'] = 100
-inputdict['sampler']['delta_logz_final'] = 1.0
+inputdict['sampler']['samplemethod'] = 'walk'
+inputdict['sampler']['npoints'] = 125
+inputdict['sampler']['flushnum'] = 10
+inputdict['sampler']['delta_logz_final'] = 0.1
 inputdict['sampler']['bootstrap'] = 0
-# inputdict['sampler']['slices'] = 500
+inputdict['sampler']['walks'] = 25
 
 # set some flat priors for defining the prior volume
 inputdict['priordict'] = {}
