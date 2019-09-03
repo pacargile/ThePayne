@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats import norm, truncnorm
+from scipy.stats import norm, truncnorm, expon, truncexpon
 class prior(object):
 	"""docstring for priors"""
 	def __init__(self, inpriordict,fitpars,runbools):
@@ -121,6 +121,11 @@ class prior(object):
 						par_i = self.priordict['tgaussian'][namepar][1]
 				elif namepar in self.priordict['exp'].keys():
 					par_i = expon.ppf(upars_i,loc=self.priordict['exp'][namepar][0],scale=self.priordict['exp'][namepar][1])
+				elif namepar in self.priordict['texp'].keys():
+					b = (self.priordict['texp'][namepar][1] - self.priordict['texp'][namepar][0]) / self.priordict['texp'][namepar][2]
+					par_i = truncexpon.ppf(upars_i,b,loc=self.priordict['texp'][namepar][0],scale=self.priordict['texp'][namepar][2])
+					if par_i == np.inf:
+						par_i = self.priordict['texp'][namepar][1]
 				else:
 					par_i = (self.defaultpars[namepar][1]-self.defaultpars[namepar][0])*upars_i + self.defaultpars[namepar][0]
 
@@ -167,6 +172,11 @@ class prior(object):
 							par_i = self.priordict['tgaussian'][namepar][1]
 					elif namepar in self.priordict['exp'].keys():
 						par_i = expon.ppf(upars_i,loc=self.priordict['exp'][namepar][0],scale=self.priordict['exp'][namepar][1])
+					elif namepar in self.priordict['texp'].keys():
+						b = (self.priordict['texp'][namepar][1] - self.priordict['texp'][namepar][0]) / self.priordict['texp'][namepar][2]
+						par_i = truncexpon.ppf(upars_i,b,loc=self.priordict['texp'][namepar][0],scale=self.priordict['texp'][namepar][2])
+						if par_i == np.inf:
+							par_i = self.priordict['texp'][namepar][1]
 					else:
 						par_i = (self.defaultpars[namepar][1]-self.defaultpars[namepar][0])*upars_i + self.defaultpars[namepar][0]
 
@@ -193,9 +203,8 @@ class prior(object):
 						par_i = self.priordict['tgaussian'][namepar][1]
 
 				elif namepar in self.priordict['texp'].keys():
-					a = (self.priordict['texp'][namepar][0] - self.priordict['texp'][namepar][2]) / self.priordict['texp'][namepar][3]
-					b = (self.priordict['texp'][namepar][1] - self.priordict['texp'][namepar][2]) / self.priordict['texp'][namepar][3]
-					par_i = truncexpon.ppf(upars_i,a,b,loc=self.priordict['texp'][namepar][2],scale=self.priordict['texp'][namepar][3])
+					b = (self.priordict['texp'][namepar][1] - self.priordict['texp'][namepar][0]) / self.priordict['texp'][namepar][2]
+					par_i = truncexpon.ppf(upars_i,b,loc=self.priordict['texp'][namepar][0],scale=self.priordict['texp'][namepar][2])
 					if par_i == np.inf:
 						par_i = self.priordict['texp'][namepar][1]
 

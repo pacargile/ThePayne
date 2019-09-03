@@ -31,9 +31,19 @@ class carbonmod(object):
 			outres,outwave=outwave,smoothtype='R',
 			fftsmooth=True,inres=inres)
 
+		if type(outwave) != type(None):
+			self.applycond = outwave < 5169.0
+		else:
+			self.applycond = self.respfn['WAVE'] < 5169.0
+
 	def applycarbon(self,influx,CarbonScale):
 		# M * [A*(RF-1)+1]
-		outflux = influx * (CarbonScale * ((1.0/self.respfnratio)-1.0) + 1.0)
+		outflux = influx.copy()
+		outflux[self.applycond] = (
+			influx[self.applycond] * 
+			(CarbonScale * 
+				(self.respfnratio[self.applycond]-1.0) + 1.0)
+			)
 		return outflux
 
 	def smoothspec(self, wave, spec, sigma, outwave=None, **kwargs):
