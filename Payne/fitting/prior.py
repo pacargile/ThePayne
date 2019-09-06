@@ -140,8 +140,8 @@ class prior(object):
 					outdict['pc_0'] = (1.25 - 0.75)*uspec_scale + 0.75
 				else:
 					pcind = int(pc_i.split('_')[-1])
-					pcmax = self.polycoefarr[pcind][0]+3.0*self.polycoefarr[pcind][1]
-					pcmin = self.polycoefarr[pcind][0]-3.0*self.polycoefarr[pcind][1]
+					pcmax = self.polycoefarr[pcind][0]+5.0*self.polycoefarr[pcind][1]
+					pcmin = self.polycoefarr[pcind][0]-5.0*self.polycoefarr[pcind][1]
 					outdict[pc_i] = (pcmax-pcmin)*upars[pc_i] + pcmin
 
 		return outdict
@@ -267,12 +267,26 @@ class prior(object):
 					else:
 						pass
 
-		# # if fitting a blaze function, then check for additional priors
-		# if self.normspec_bool:
-		# 	for pp in self.fitpars_i:
-		# 		if pp[:2] == 'pc_':
-		# 			lnprior += -0.5 * ((parsdict[pp]/self.polycoefarr[kk][1])**2.0)
+		# if fitting a blaze function, then check for additional priors
+		if self.normspec_bool:
+			pcarr = [x_i for x_i in parsdict.keys() if 'pc' in x_i]
+			if len(pcarr) > 0:
+				for pc_i in pcarr:
+					if pc_i == 'pc_0':
+						pass
+					else:
+						pcind = int(pc_i.split('_')[-1])
 
+						lnprior += -0.5 * (((parsdict[pp]-self.polycoefarr[pp][0])/self.polycoefarr[pp][1])**2.0)
+
+				# 		pcmax = self.polycoefarr[pcind][0]+3.0*self.polycoefarr[pcind][1]
+				# 		pcmin = self.polycoefarr[pcind][0]-3.0*self.polycoefarr[pcind][1]
+				# 		outdict[pc_i] = (pcmax-pcmin)*upars[pc_i] + pcmin
+				# pcarr = [x_i for x_i in parsdict.keys() if 'pc' in x_i]
+
+			# if len(pcarr) > 0:
+			# 	for pp in pcarr:
+			# 		if pp != 'pc_0':
 		return lnprior
 
 
