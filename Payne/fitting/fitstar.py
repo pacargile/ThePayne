@@ -237,8 +237,6 @@ class FitPayne(object):
 
 		runsamplertype = samplerdict.get('samplertype','Static')
 
-		print(runsamplertype)
-
 		if runsamplertype == 'Static':
 			# run sampler and return sampler object
 			return self._runsampler(samplerdict)
@@ -315,13 +313,6 @@ class FitPayne(object):
 				loglstar,logvol,logwt,h,nc,logz,delta_logz))
 			self.outff.write('\n')
 
-
-			# self.outff.write('{0} '.format(it))
-			# self.outff.write(' '.join([str(q) for q in vstar]))
-			# self.outff.write(' {0} {1} {2} {3} {4} {5} {6} '.format(
-			# 	loglstar,logvol,logwt,h,nc,logz,delta_logz))
-			# self.outff.write('\n')
-
 			ncall += nc
 			nit = it
 
@@ -367,12 +358,6 @@ class FitPayne(object):
 			self.outff.write(' {0} {1} {2} {3} {4} {5} {6} '.format(
 				loglstar,logvol,logwt,h,nc,logz,delta_logz))
 			self.outff.write('\n')
-
-
-			# self.outff.write(' '.join([str(q) for q in vstar]))
-			# self.outff.write(' {0} {1} {2} {3} {4} {5} {6} '.format(
-			# 	loglstar,logvol,logwt,h,nc,logz,delta_logz))
-			# self.outff.write('\n')
 
 			ncall += nc
 

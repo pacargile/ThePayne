@@ -269,15 +269,15 @@ class prior(object):
 
 		# if fitting a blaze function, then check for additional priors
 		if self.normspec_bool:
-			pcarr = [x_i for x_i in parsdict.keys() if 'pc' in x_i]
+			pcarr = [x_i for x_i in pardict.keys() if 'pc' in x_i]
 			if len(pcarr) > 0:
-				for pc_i in pcarr:
+				for ii,pc_i in enumerate(pcarr):
 					if pc_i == 'pc_0':
 						pass
 					else:
 						pcind = int(pc_i.split('_')[-1])
 
-						lnprior += -0.5 * (((parsdict[pp]-self.polycoefarr[pp][0])/self.polycoefarr[pp][1])**2.0)
+						lnprior += -0.5 * (((pardict[pc_i]-self.polycoefarr[ii][0])/self.polycoefarr[ii][1])**2.0)
 
 				# 		pcmax = self.polycoefarr[pcind][0]+3.0*self.polycoefarr[pcind][1]
 				# 		pcmin = self.polycoefarr[pcind][0]-3.0*self.polycoefarr[pcind][1]
