@@ -18,6 +18,5 @@ demo/*.dat
 demo/*.log
 demo/*.pdf
 demo/*.png
-demo/*.fits
 demo/*.h5
 Payne/sandbox/
