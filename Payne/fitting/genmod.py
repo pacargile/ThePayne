@@ -33,6 +33,9 @@ class GenMod(object):
 		self.fppsed = FastPayneSEDPredict(
 			usebands=self.filterarray,nnpath=nnpath,
 			)
+		if self.filterarray is None:
+			self.filterarray = self.fppsed.filternames
+
 
 		# from ..predict.photANN import ANN
 

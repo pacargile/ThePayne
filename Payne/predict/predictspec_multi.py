@@ -22,7 +22,7 @@ import Payne
 
 from ..utils.smoothing import smoothspec
 
-class Net(nn.Module):
+class Net(nn.Module):  
     def __init__(self, D_in, H, D_out):
         super(Net, self).__init__()
         self.lin1 = nn.Linear(D_in, H)
@@ -33,13 +33,13 @@ class Net(nn.Module):
     """
     def forward(self, x):
         x_i = self.encode(x)
-        lin1o = self.lin1(x_i)
-        out1 = torch.sigmoid(lin1o)
-        lin2o = self.lin2(out1)
-        out2 = torch.sigmoid(lin2o)
+        out1 = F.sigmoid(self.lin1(x_i))
+        out2 = F.sigmoid(self.lin2(out1))
+        # out3 = F.sigmoid(self.lin3(out2))
+        # y_i = self.lin4(out3)
         y_i = self.lin3(out2)
-        return y_i
-    """   
+        return y_i     
+    """
     def forward(self, x):
         x_i = self.encode(x)
         out1 = torch.sigmoid(self.lin1(x_i))
@@ -50,15 +50,16 @@ class Net(nn.Module):
         return y_i     
 
     def encode(self,x):
+        # convert x into numpy to do math
+        x_np = x.data.cpu().numpy()
         try:
             self.xmin
             self.xmax
         except (NameError,AttributeError):
-            self.xmin = np.amin(x.data.numpy(),axis=0)
-            self.xmax = np.amax(x.data.numpy(),axis=0)
+            self.xmin = np.amin(x_np,axis=0)
+            self.xmax = np.amax(x_np,axis=0)
 
-        x = (x.data.numpy()-self.xmin)/(self.xmax-self.xmin)
-
+        x = (x_np-self.xmin)/(self.xmax-self.xmin)
         return Variable(torch.from_numpy(x).type(dtype))
 
 class readNN(object):
@@ -107,7 +108,7 @@ class fastreadNN(object):
         self.b3 = np.expand_dims(np.array([nn.model.lin3.bias.data.numpy() for nn in nnlist]), -1)
         self.w4 = np.array([nn.model.lin4.weight.data.numpy() for nn in nnlist])
         self.b4 = np.expand_dims(np.array([nn.model.lin4.bias.data.numpy() for nn in nnlist]), -1)
-
+        
         self.set_minmax(nnlist[0])
 
     def set_minmax(self, nn):

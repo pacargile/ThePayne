@@ -8,7 +8,7 @@ _ALLFILTERS = (
     ['2MASS_H', '2MASS_J', '2MASS_Ks', 
     'Bessell_B', 'Bessell_I', 'Bessell_R', 'Bessell_U', 'Bessell_V', 
     'DECam_g', 'DECam_i', 'DECam_r', 'DECam_u', 'DECam_Y', 'DECam_z', 
-    'GaiaDR2_BP', 'GaiaDR2_G', 'GaiaDR2_RP', 
+    'GaiaMAW_BPb', 'GaiaMAW_BPf','GaiaMAW_G', 'GaiaMAW_RP', 
     # 'GALEX_FUV', 'GALEX_NUV', 
     'Hipparcos_Hp', 
     'Kepler_D51', 'Kepler_Kp', 
