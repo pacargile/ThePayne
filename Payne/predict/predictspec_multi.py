@@ -339,7 +339,8 @@ class PayneSpecPredict(object):
                 if type(outwave) != type(None):
                     modwave = outwave
         if (inst_R_bool == False) & ('outwave' in kwargs):
-            modspec = UnivariateSpline(modwave,modspec,k=1,s=0)(kwargs['outwave'])
+            # modspec = UnivariateSpline(modwave,modspec,k=1,s=0)(kwargs['outwave'])
+            modspec = np.interp(kwargs['outwave'],modwave,modspec,right=np.nan,left=np.nan)
             modwave = kwargs['outwave']
 
         return modwave, modspec
