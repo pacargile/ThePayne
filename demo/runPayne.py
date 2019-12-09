@@ -8,7 +8,7 @@ runspec = True
 runphot = True
 runmock = False
 
-startorun = 'Sun'
+# startorun = 'Sun'
 startorun = 'Procyon'
 
 if startorun == 'Sun':
@@ -120,7 +120,7 @@ inputdict['sampler']['walks'] = 25
 
 # set some flat priors for defining the prior volume
 inputdict['priordict'] = {}
-inputdict['priordict']['Teff']   = {'pv_uniform':[4000.0,7000.0]}
+inputdict['priordict']['Teff']   = {'pv_uniform':[4000.0,8000.0]}
 inputdict['priordict']['log(g)'] = {'pv_uniform':[4.0,5.5]}
 inputdict['priordict']['[Fe/H]'] = {'pv_uniform':[-0.1,0.1]}
 inputdict['priordict']['[a/Fe]'] = {'pv_uniform':[-0.1,0.1]}
@@ -142,7 +142,6 @@ inputdict['priordict']['Inst_R'] = (
 
 inputdict['output'] = 'demoout.dat'
 
-
 FS = fitstar.FitPayne()
 print('---------------')
 if 'phot' in inputdict.keys():
@@ -162,9 +161,9 @@ if 'priordict' in inputdict.keys():
                pass
           else:
                for kk2 in inputdict['priordict'][kk].keys():
-                    if kk2 == 'uniform':
+                    if kk2 == 'pv_uniform':
                          print('       {0}: min={1} max={2}'.format(kk,inputdict['priordict'][kk][kk2][0],inputdict['priordict'][kk][kk2][1]))
-                    if kk2 == 'gaussian':
+                    if kk2 == 'pv_gaussian':
                          print('       {0}: N({1},{2})'.format(kk,inputdict['priordict'][kk][kk2][0],inputdict['priordict'][kk][kk2][1]))
 
 print('--------------')
