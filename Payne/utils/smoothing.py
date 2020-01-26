@@ -583,10 +583,10 @@ def resample_wave(wavelength, spectrum, linear=False):
     nnew = 2.0**(np.ceil(np.log2(nw)))
     if linear:
         Rgrid = np.diff(wavelength)  # in same units as ``wavelength``
-        w = np.linspace(wmin, wmax, nnew)
+        w = np.linspace(wmin, wmax, int(nnew))
     else:
         Rgrid = np.diff(np.log(wavelength))  # actually 1/R
-        lnlam = np.linspace(np.log(wmin), np.log(wmax), nnew)
+        lnlam = np.linspace(np.log(wmin), np.log(wmax), int(nnew))
         w = np.exp(lnlam)
     # Make sure the resolution really is nearly constant
     #assert Rgrid.max() / Rgrid.min() < 1.05
