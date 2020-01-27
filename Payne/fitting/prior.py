@@ -317,17 +317,96 @@ class prior(object):
 
 
      def lnpriorfn(self,pars):
-          # check to see if any priors in additionalprior dictionary,
-          # save time by quickly returning zero if there are none
-          if len(self.additionalpriors.keys()) == 0:
-               return 0.0
-
           # determine if user passed a dictionary or a list
           if isinstance(pars,list):
                # build the parameter dictionary
                parsdict = {pp:vv for pp,vv in zip(self.fitpars_i,pars)} 
           else:
                parsdict = pars
+
+          # add fixed parameters to parsdict
+          for kk in self.fixedpars.keys():
+               parsdict[kk] = self.fixedpars[kk]
+
+          # Advanced Priors
+          advPrior = 0.0
+          if self.imf_bool:
+               if 'initial_Mass' not in parsdict.keys():
+                    if np.isfinite(parsdict['log(g)']) and np.isfinite(parsdict['log(R)']):
+                         Mass = 10.0**parsdict['log(g)'] + 2.0 * parsdict['log(R)']
+               else:
+                    Mass = parsdict['initial_Mass']     
+               advPrior += float(self.AP.imf_lnprior(Mass))
+
+          if self.gal_bool:
+               if np.isfinite(parsdict['log(Age)']) & np.isfinite(parsdict['Dist']):
+                    lnp_dist,comp = self.AP.gal_lnprior(parsdict['Dist']/1000.0,return_components=True)
+                    # Compute component membership probabilities.
+                    logp_thin  = comp['number_density'][0]
+                    logp_thick = comp['number_density'][1]
+                    logp_halo  = comp['number_density'][2]
+
+                    lnprior_thin = logp_thin - lnp_dist
+                    lnprior_thick = logp_thick - lnp_dist
+                    lnprior_halo = logp_halo - lnp_dist
+
+                    advPrior += self.AP.age_lnprior(10.0**(parsdict['log(Age)']-9.0),
+                         lnp_thin=lnprior_thin,
+                         lnp_thick=lnprior_thick,
+                         lnp_halo=lnprior_halo)
+
+          # if self.gal_bool:
+          #      if np.isfinite(parsdict['Dist']):
+          #           advPrior += self.AP.gal_lnprior(parsdict['Dist']/1000.0,self.lb_coords)
+
+          if self.vrot_bool:
+               if 'initial_Mass' not in parsdict.keys():
+                    if 'log(A)' in parsdict.keys():
+                         parsdict['initial_Mass'] = 1.0
+                         parsdict['EEP'] = 350
+                    else:
+                         if np.isfinite(parsdict['log(g)']) and np.isfinite(parsdict['log(R)']):
+                              parsdict['initial_Mass'] = 10.0**(parsdict['log(g)'] + 2.0 * parsdict['log(R)'])
+                         else:
+                              parsdict['initial_Mass'] = 1.0
+                         parsdict['EEP'] = 350
+
+
+               advPrior += float(self.AP.vrot_lnprior(
+                    vrot=parsdict['Vrot'],
+                    mass=parsdict['initial_Mass'],
+                    eep=parsdict['EEP'],
+                    logg=parsdict['log(g)'],
+                    ))
+
+          if self.vtot_bool:
+               if 'Vrad' not in parsdict.keys():
+                    vrad_i = 0.0
+               else:
+                    vrad_i = parsdict['Vrad']
+
+               if np.isfinite(self.pmra) and np.isfinite(self.pmdec):
+                    mu = np.sqrt( (self.pmra**2.0) + (self.pmdec**2.0) ) / 1000.0
+               else:
+                    mu = 0.0
+
+               if np.isfinite(parsdict['Dist']):
+                    dist = parsdict['Dist']
+               else:
+                    dist = 1e+6
+
+               advPrior += float(
+                    self.AP.Vtot_lnprior(
+                         vrad=vrad_i,
+                         mu=mu,
+                         dist=dist
+                         )
+                    )
+
+          # check to see if any priors in additionalprior dictionary,
+          # save time by quickly returning zero if there are none
+          if len(self.additionalpriors.keys()) == 0:
+               return advPrior
 
           if self.spec_bool:
                specPrior = self.lnprior_spec(parsdict)
@@ -339,7 +418,7 @@ class prior(object):
           else:
                photPrior = 0.0
 
-          return specPrior + photPrior
+          return specPrior + photPrior + advPrior
 
      def lnprior_spec(self,pardict,verbose=True):
           lnprior = 0.0
