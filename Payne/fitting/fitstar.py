@@ -310,7 +310,14 @@ class FitPayne(object):
 
                if it == 0:
                     # initialize the output file
-                    parnames = self.likeobj.parsdict.keys()
+                    parnames = list(self.likeobj.parsdict.keys())
+
+                    if 'initial_Mass' in parnames:
+                         parnames.remove('initial_Mass')
+
+                    if 'EEP' in parnames:
+                         parnames.remove('EEP')
+
                     self._initoutput(parnames)
 
                self.outff.write('{0} '.format(it))
@@ -459,7 +466,14 @@ class FitPayne(object):
 
                if it == 0:
                     # initialize the output file
-                    parnames = self.likeobj.parsdict.keys()
+                    parnames = list(self.likeobj.parsdict.keys())
+
+                    if 'initial_Mass' in parnames:
+                         parnames.remove('initial_Mass')
+
+                    if 'EEP' in parnames:
+                         parnames.remove('EEP')
+
                     self._initoutput(parnames)
 
                self.outff.write('{0} '.format(it))

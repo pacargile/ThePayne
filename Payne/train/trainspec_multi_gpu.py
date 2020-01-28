@@ -85,6 +85,11 @@ class TrainSpec_multi_gpu(object):
 		else:
 			self.numtrain = 20000
 
+		if 'numtest' in kwargs:
+			self.numtest = kwargs['numtest']
+		else:
+			self.numtest = 1000
+
 		# number of iteration steps in training
 		if 'niter' in kwargs:
 			self.niter = kwargs['niter']
@@ -180,18 +185,21 @@ class TrainSpec_multi_gpu(object):
 		self.C3Kpath  = kwargs.get('C3Kpath',None)
 
 		# pull C3K spectra for training
-		print('... Pulling {0} Training Spectra'.format(self.numtrain))
+		print('... Pulling {0} Testing Spectra and saving labels'.format(self.numtest))
 		sys.stdout.flush()
 		pullspectra_o = pullspectra(MISTpath=self.MISTpath,C3Kpath=self.C3Kpath)
+		spectra_t,labels_t,wavelength_t = pullspectra_o(
+			self.numtest,resolution=self.resolution, waverange=self.waverange,
+			MISTweighting=True,
+			Teff=self.Teffrange,logg=self.loggrange,FeH=self.FeHrange,aFe=self.aFerange)
+
+		self.testlabels = labels_t.tolist()
+
 		self.spectra_o,self.labels_o,self.wavelength = pullspectra_o(
-			self.numtrain,resolution=self.resolution, waverange=self.waverange,
+			self.numtest,resolution=self.resolution, waverange=self.waverange,
 			MISTweighting=True,
 			Teff=self.Teffrange,logg=self.loggrange,FeH=self.FeHrange,aFe=self.aFerange)
 		self.spectra = self.spectra_o
-		# self.spectra_o,self.labels_o,self.wavelength = pullspectra_o.pullpixel(
-		# 	num=self.numtrain,resolution=self.resolution, waverange=self.waverange,
-		# 	MISTweighting=True)
-		# self.spectra = self.spectra_o
 
 		# N is batch size (number of points in X_train),
 		# D_in is input dimension
@@ -301,6 +309,12 @@ class TrainSpec_multi_gpu(object):
 						),'w')
 				outfile_i.create_dataset('wavelength',
 					data=self.wavelength[pixelbatchlist_i[ii]])
+				outfile_i.create_dataset('testing_labels'
+					data=np.array(self.testlist)
+					)
+				outfile_i.create_dataset('training_labels',
+					data=np.array(net[3])
+					)
 
 				try:
 					for kk in net[1].state_dict().keys():
@@ -442,6 +456,10 @@ class TrainSpec_multi_gpu(object):
 		scheduler = StepLR(optimizer,3,gamma=0.75)
 		# scheduler = ReduceLROnPlateau(optimizer,mode='min',factor=0.1)
 
+		# initalize the training list
+		trainlabels = []
+
+
 		print('Pixels: {0}-{1}, Wave: {2}-{3}, Start Training...'.format(
 			startpix,stoppix,wavestart,wavestop))
 
@@ -512,7 +530,7 @@ class TrainSpec_multi_gpu(object):
 
 			spectra_o, labels_o, wavelength = pullspectra_i.pullpixel(
 				pixelarr,num=self.numtrain,resolution=self.resolution, waverange=self.waverange,
-				MISTweighting=True,excludelabels=old_labels_o,
+				MISTweighting=True,excludelabels=old_labels_o.T.tolist()+self.testlist,
 				Teff=self.Teffrange,logg=self.loggrange,FeH=self.FeHrange,aFe=self.aFerange
 				)
 
@@ -627,7 +645,7 @@ class TrainSpec_multi_gpu(object):
 						newlabels = np.array([x+epsilon*np.random.randn(int(numaddmod)) for x in label_i]).T
 						labels_check = pullspectra_i.checklabels(newlabels)
 						# check to make sure labels_ai are unique
-						if all([x_ai not in labels_o.tolist() for x_ai in labels_check.tolist()]):
+						if all([x_ai not in labels_o.tolist()+self.testlist for x_ai in labels_check.tolist()]):
 							# print('Pixel: {0}, nosel = {1}'.format(pixel_no+1,nosel))
 							newlabelbool = True
 							break
@@ -670,6 +688,10 @@ class TrainSpec_multi_gpu(object):
 			X_train_Tensor = X_train_Tensor.to(device)
 			Y_train_Tensor = Y_train_Tensor.to(device)
 
+			# store training labels
+			trainlabels = trainlabels + labels_o.tolist()
+
+
 			print (
 				'Eph [{4:d}/{5:d}] -- WL: {0:.5f}-{1:.5f} -- Pix: {2}-{3} -- Step Time: {6}, LR: {7:.5f}, Valid max(|Res|): {8:.5f}'.format(
 					wavestart, wavestop, startpix,stoppix, epoch_i+1, self.epochs, datetime.now()-epochtime,
@@ -682,7 +704,7 @@ class TrainSpec_multi_gpu(object):
 			datetime.now()-starttime))
 		sys.stdout.flush()
 
-		return [pixelarr, model, optimizer, datetime.now()-starttime]
+		return [pixelarr, model, optimizer, trainlabels, datetime.now()-starttime]
 
 	# def h5model_write(self,model,th5,wavelength):
 	# 	'''
