@@ -309,12 +309,8 @@ class TrainSpec_multi_gpu(object):
                               ),'w')
                     outfile_i.create_dataset('wavelength',
                          data=self.wavelength[pixelbatchlist_i[ii]])
-                    outfile_i.create_dataset('testing_labels'
-                         data=np.array(self.testlist)
-                         )
-                    outfile_i.create_dataset('training_labels',
-                         data=np.array(net[3])
-                         )
+                    outfile_i.create_dataset('testing_labels',data=np.array(self.testlist))
+                    outfile_i.create_dataset('training_labels',data=np.array(net[3]))
 
                     try:
                          for kk in net[1].state_dict().keys():
