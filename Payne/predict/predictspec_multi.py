@@ -205,6 +205,8 @@ class PayneSpecPredict(object):
                 outres=self.NN['resolution'],
                 outwave=self.NN['wavelength'],
                 )
+        # close the HDF5 file
+        self.NN['file'].close()
 
     def predictspec(self,labels):
         '''
