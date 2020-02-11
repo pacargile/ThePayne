@@ -492,7 +492,7 @@ class pullspectra(object):
 			resolution = None
 
 		if 'excludelabels' in kwargs:
-			excludelabels = kwargs['excludelabels'].T.tolist()
+			excludelabels = kwargs['excludelabels']
 		else:
 			excludelabels = []
 
