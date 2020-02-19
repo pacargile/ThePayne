@@ -137,13 +137,13 @@ class PayneSpecPredict(object):
           else:
                self.inputdict['afe'] = 0.0
 
-          if 'vtur' in kwargs:
-               self.inputdict['vtur'] = kwargs['vtur']
+          if 'vmic' in kwargs:
+               self.inputdict['vmic'] = kwargs['vmic']
           else:
-               self.inputdict['vtur'] = 1.0
+               self.inputdict['vmic'] = 1.0
 
           # calculate model spectrum at the native network resolution
-          modspec = self.predictspec([self.inputdict[kk] for kk in ['teff','logg','feh','afe','vtur']])
+          modspec = self.predictspec([self.inputdict[kk] for kk in ['teff','logg','feh','afe','vmic']])
           modwave = self.anns.wavelength
 
           rot_vel_bool = False
