@@ -106,11 +106,11 @@ class PayneSpecPredict(object):
           self.inputdict = {}
 
           if 'Teff' in kwargs:
-               self.inputdict['logt'] = np.log10(kwargs['Teff'])
+               self.inputdict['teff'] = kwargs['Teff'] / 1000.0
           elif 'logt' in kwargs:
-               self.inputdict['logt'] = kwargs['logt']
+               self.inputdict['teff'] = (10.0**kwargs['logt']) / 1000.0
           else:
-               self.inputdict['logt'] = np.log10(5770.0)
+               self.inputdict['teff'] = 5770.0/1000.0
 
           if 'log(g)' in kwargs:
                self.inputdict['logg'] = kwargs['log(g)']
@@ -137,8 +137,13 @@ class PayneSpecPredict(object):
           else:
                self.inputdict['afe'] = 0.0
 
+          if 'vtur' in kwargs:
+               self.inputdict['vtur'] = kwargs['vtur']
+          else:
+               self.inputdict['vtur'] = 1.0
+
           # calculate model spectrum at the native network resolution
-          modspec = self.predictspec([self.inputdict[kk] for kk in ['logt','logg','feh','afe']])
+          modspec = self.predictspec([self.inputdict[kk] for kk in ['teff','logg','feh','afe','vtur']])
           modwave = self.anns.wavelength
 
           rot_vel_bool = False

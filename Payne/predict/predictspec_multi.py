@@ -287,6 +287,7 @@ class PayneSpecPredict(object):
         else:
             self.inputdict['afe'] = 0.0
         
+
         # calculate model spectrum at the native network resolution
         modspec = self.predictspec([self.inputdict[kk] for kk in ['logt','logg','feh','afe']])
         modwave = self.NN['wavelength']
