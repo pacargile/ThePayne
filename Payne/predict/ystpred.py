@@ -137,13 +137,24 @@ class PayneSpecPredict(object):
           else:
                self.inputdict['afe'] = 0.0
 
+          # determine if NN has vmic built into it by seeing if kwargs['vmic'] == np.nan
           if 'vmic' in kwargs:
-               self.inputdict['vmic'] = kwargs['vmic']
+               if np.isfinite(kwargs['vmic']):
+                    self.inputdict['vmic'] = kwargs['vmic']
+                    usevmicbool = True
+               else:
+                    self.inputdict['vmic'] = np.nan
+                    usevmicbool = False
           else:
-               self.inputdict['vmic'] = 1.0
+               self.inputdict['vmic'] = np.nan
+               usevmicbool = False
 
           # calculate model spectrum at the native network resolution
-          modspec = self.predictspec([self.inputdict[kk] for kk in ['teff','logg','feh','afe','vmic']])
+          if usevmicbool:
+               modspec = self.predictspec([self.inputdict[kk] for kk in ['teff','logg','feh','afe','vmic']])
+          else:
+               modspec = self.predictspec([self.inputdict[kk] for kk in ['teff','logg','feh','afe']])
+
           modwave = self.anns.wavelength
 
           rot_vel_bool = False
