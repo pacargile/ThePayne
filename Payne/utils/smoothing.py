@@ -156,7 +156,6 @@ def smoothspec(wave, spec, resolution=None, outwave=None,
 
     return smooth_method(w, s, outwave, sigma, **kwargs)
 
-
 def smooth_vel(wave, spec, outwave, sigma, nsigma=10, inres=0, **extras):
     """Smooth a spectrum in velocity space.  This is insanely slow, but general
     and correct.
