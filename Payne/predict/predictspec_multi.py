@@ -308,7 +308,7 @@ class PayneSpecPredict(object):
                 rot_vel_bool = True
                 # use B.Johnson's smoothspec to convolve with rotational broadening
                 modspec = self.smoothspec(modwave,modspec,kwargs['rot_vel'],
-                    outwave=None,smoothtype='vsini',fftsmooth=True)
+                    outwave=None,smoothtype='vel',fftsmooth=True)
 
         rad_vel_bool = False
         if 'rad_vel' in kwargs:
