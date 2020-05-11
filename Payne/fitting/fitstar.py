@@ -15,7 +15,6 @@ class FitPayne(object):
           from .prior import prior
           self.prior = prior
           self.likelihood = likelihood
-          self.oldnnbool = kwargs.get('oldnn',False)
 
      def run(self,*args,**kwargs):
           # set verbose
@@ -44,7 +43,6 @@ class FitPayne(object):
           self.spec_bool = False
           self.phot_bool = False
           self.normspec_bool = False
-          self.imf_bool = False
           self.photscale_bool = False
           self.carbon_bool = False
 
@@ -56,6 +54,7 @@ class FitPayne(object):
                '[a/Fe]',
                'Vrad',
                'Vrot',
+               'Vmic',
                'Inst_R',
                'log(R)',
                'Dist',
@@ -70,6 +69,7 @@ class FitPayne(object):
 
           # determine if input has an observed spectrum
           if 'spec' in inputdict.keys():
+               print('... fitting spectrum')
                self.spec_bool = True
                # stick observed spectrum into fitargs
                self.fitargs['obs_wave']  = inputdict['spec']['obs_wave']
@@ -78,6 +78,7 @@ class FitPayne(object):
 
                # deterimine if user defined spec ANN path
                self.fitargs['specANNpath'] = inputdict.get('specANNpath',None)
+               self.fitargs['NNtype'] = inputdict.get('NNtype','PC')
 
                # check to see if user defined some wavelength range for spectrum
                if 'wave_minmax' in inputdict['spec'].keys():
@@ -97,8 +98,12 @@ class FitPayne(object):
                     self.fitargs['obs_wave_fit'] = airtovacuum(self.fitargs['obs_wave_fit'])
 
                # turn on spectroscopic parameters in fitpars_bool
-               for pp in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R']:
-                    self.fitpars_bool[pp] = True
+               if self.fitargs['NNtype'] == 'YST2':
+                    for pp in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Vmic','Inst_R']:
+                         self.fitpars_bool[pp] = True
+               else:
+                    for pp in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R']:
+                         self.fitpars_bool[pp] = True
 
                # determine if user wants to fit the continuum normalization
                if 'normspec' in inputdict['spec'].keys():
@@ -114,7 +119,7 @@ class FitPayne(object):
                               self.polycoefarr = inputdict['priordict']['blaze_coeff']
                          elif 'polyorder' in inputdict['spec'].keys():
                               # check to see if user defined blaze poly order
-                              self.polyorder = inputdict['spec']['polyorder']
+                              self.polyorder = inputdict['spec']['polyorder']+1
                               if 'polysigma' in inputdict['spec'].keys():
                                    self.polysigma = inputdict['spec']['polysigma']
                               else:
@@ -131,7 +136,6 @@ class FitPayne(object):
                               print('... Fitting a Blaze function with polyoder: {0}'.format(self.polyorder))
                          self.fitargs['norm_polyorder'] = self.polyorder
 
-                         # add pc terms to fitargs
                          for ii in range(self.polyorder):
                               self.fitpars.append('pc_{}'.format(ii))
                               self.fitpars_bool['pc_{}'.format(ii)] = True
@@ -180,9 +184,6 @@ class FitPayne(object):
                if self.Rvfree_bool:
                     self.fitpars_bool['Rv'] = True
                     
-               # check to see if user wants to invoke an IMF prior on log(g)
-               if 'IMF' in inputdict['priordict'].keys():
-                    self.imf_bool = True
 
           self.fitargs['fixedpars'] = {}
           for kk in self.priordict.keys():
@@ -198,9 +199,10 @@ class FitPayne(object):
                'sampler':self.samplerdict,
                'priordict':self.priordict,
                'runbools':(
-                    [self.spec_bool,self.phot_bool,
+                    [self.spec_bool,
+                    self.phot_bool,
                     self.normspec_bool,
-                    self.imf_bool,self.photscale_bool,
+                    self.photscale_bool,
                     self.carbon_bool])
                })
 
@@ -265,7 +267,13 @@ class FitPayne(object):
           flushnum = samplerdict.get('flushnum',10)
           numslice = samplerdict.get('slices',5)
           numwalks = samplerdict.get('walks',25)
+          reflective_list = samplerdict.get('reflective',[])
 
+          # calc index of reflective prior par
+          reflective = []
+          for ii,par in enumerate(self.likeobj.fitpars_i):
+               if self.fitpars_bool[par] and (par in reflective_list):
+                    reflective.append(ii)
           try:
                # Python 2.x
                maxiter = samplerdict.get('maxiter',sys.maxint)
@@ -273,12 +281,19 @@ class FitPayne(object):
                # Python 3.x
                maxiter = samplerdict.get('maxiter',sys.maxsize)
 
+
+          if samplemethod == 'rwalk':
+               numws = numwalks
+          elif samplemethod == 'slice':
+               numws = numslice
+          else:
+               numws = numwalks
           # set start time
           starttime = datetime.now()
           if self.verbose:
                print(
-                    'Start Static Dynesty w/ {0} sampler, {1} number of samples, Ndim = {2}, and w/ stopping criteria of dlog(z) = {3}: {4}'.format(
-                         samplemethod,npoints,self.ndim,delta_logz_final,starttime))
+                    'Static Dynesty w/ {0} sampler, {1} walks/slices, {2} number of samples, Ndim = {3}, and w/ stopping criteria of dlog(z) = {4}: {5}'.format(
+                         samplemethod,numws,npoints,self.ndim,delta_logz_final,starttime))
           sys.stdout.flush()
 
           # initialize sampler object
@@ -290,7 +305,7 @@ class FitPayne(object):
                nlive=npoints,
                bound=samplertype,
                sample=samplemethod,
-               update_interval=update_interval,
+               # update_interval=update_interval,
                bootstrap=bootstrap,
                walks=numwalks,
                slices=numslice,
@@ -304,25 +319,40 @@ class FitPayne(object):
           deltaitertime_arr = []
 
           # start sampling
+          print('Start Sampling @ {}'.format(iter_starttime))
           for it, results in enumerate(dy_sampler.sample(dlogz=delta_logz_final)):
                (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
                     h, nc, worst_it, propidx, propiter, eff, delta_logz) = results             
 
                if it == 0:
                     # initialize the output file
-                    parnames = list(self.likeobj.parsdict.keys())
-
-                    if 'initial_Mass' in parnames:
-                         parnames.remove('initial_Mass')
-
-                    if 'EEP' in parnames:
-                         parnames.remove('EEP')
-
+                    parnames = self.likeobj.parsdict.keys()
                     self._initoutput(parnames)
 
                self.outff.write('{0} '.format(it))
                # self.outff.write(' '.join([str(q) for q in vstar]))
-               self.outff.write(' '.join([str(self.likeobj.parsdict[q]) for q in parnames]))
+               try:
+                    self.outff.write(' '.join([str(self.likeobj.parsdict[q]) for q in parnames]))
+               except:
+                    print('Sampling broke')
+                    print('worst:',worst)
+                    print('ustar:',ustar)
+                    print('vstar:',vstar)
+                    print('loglstar:',loglstar)
+                    print('logvol:',logvol)
+                    print('logwt:',logwt)
+                    print('logz:',logz)
+                    print('logzvar:',logzvar)
+                    print('h:',h)
+                    print('nc:',nc)
+                    print('worst_it:',worst_it)
+                    print('propidx:',propidx)
+                    print('propiter:',propiter)
+                    print('eff:',eff)
+                    print('delta_logz:',delta_logz)
+                    print(self.likeobj.parsdict)
+                    raise
+
                self.outff.write(' {0} {1} {2} {3} {4} {5} {6} '.format(
                     loglstar,logvol,logwt,h,nc,logz,delta_logz))
                self.outff.write('\n')
@@ -340,19 +370,24 @@ class FitPayne(object):
                          # format/output results
                          if logz < -1e6:
                               logz = -np.inf
-                         if delta_logz > 1e6:
+                         if delta_logz > 1e8:
                               delta_logz = np.inf
-                         if logzvar >= 0.:
+                         if logzvar > 0.:
                               logzerr = np.sqrt(logzvar)
                          else:
                               logzerr = np.nan
-                         if logzerr > 1e6:
+                         if logzerr > 1e8:
                               logzerr = np.inf
-                              
-                         sys.stdout.write("\riter: {0:d} | nc: {1:d} | ncall: {2:d} | eff(%): {3:6.3f} | "
-                              "logz: {4:6.3f} +/- {5:6.3f} | dlogz: {6:6.3f} > {7:6.3f}   | mean(time):  {8:7.5f}  "
-                              .format(nit, nc, ncall, eff, 
-                                   logz, logzerr, delta_logz, delta_logz_final,np.mean(deltaitertime_arr)))
+
+                         if loglstar < -1e6:
+                              loglstar = -np.inf
+                         try:
+                              sys.stdout.write("\riter: {0:d} | nc: {1:d} | ncall: {2:d} | eff(%): {3:6.3f} | "
+                                   "logz: {4:6.3f} +/- {5:6.3f} | loglk: {6:6.3f} | dlogz: {7:6.3f} > {8:6.3f}   | mean(time):  {9:7.5f} | time: {10} \n"
+                                   .format(nit, nc, ncall, eff, 
+                                        logz, logzerr, loglstar, delta_logz, delta_logz_final,np.mean(deltaitertime_arr),datetime.now()))
+                         except:
+                              print(nit, nc, ncall, eff, logz, logzerr)
                          sys.stdout.flush()
                          deltaitertime_arr = []
                if (it == maxiter):
@@ -588,11 +623,13 @@ class FitPayne(object):
 def lnprobfn(pars,likeobj,priorobj):
 
      lnlike = likeobj.lnlikefn(pars)
+
      if lnlike == -np.inf:
           return -np.inf
 
      lnprior = priorobj.lnpriorfn(likeobj.parsdict)
+
      if lnprior == -np.inf:
           return -np.inf
-     
+
      return lnprior + lnlike  

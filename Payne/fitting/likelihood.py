@@ -14,9 +14,8 @@ class likelihood(object):
           self.spec_bool = runbools[0]
           self.phot_bool = runbools[1]
           self.normspec_bool = runbools[2]
-          self.imf_bool = runbools[3]
-          self.photscale_bool = runbools[4]
-          self.carbon_bool = runbools[5]
+          self.photscale_bool = runbools[3]
+          self.carbon_bool = runbools[4]
 
           self.fixedpars = self.fitargs['fixedpars']
 
@@ -26,6 +25,7 @@ class likelihood(object):
           # initialize the ANN for spec and phot if user defined
           if self.spec_bool:
                self.GM._initspecnn(nnpath=fitargs['specANNpath'],
+                    NNtype=self.fitargs['NNtype'],
                     carbon_bool=self.carbon_bool)
           if self.phot_bool:
                self.GM._initphotnn(self.fitargs['obs_phot'].keys(),
@@ -41,39 +41,41 @@ class likelihood(object):
 
      def lnlikefn(self,pars):
           # build the parameter dictionary
-          parsdict = {pp:vv for pp,vv in zip(self.fitpars_i,pars)} 
+          self.parsdict = {pp:vv for pp,vv in zip(self.fitpars_i,pars)} 
 
           # add fixed parameters to parsdict
           for kk in self.fixedpars.keys():
-               parsdict[kk] = self.fixedpars[kk]
+               self.parsdict[kk] = self.fixedpars[kk]
 
           if self.spec_bool:
-               specpars = [parsdict[pp] for pp in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R']]
+               specpars = ([
+                    self.parsdict[pp] 
+                    if (pp in self.parsdict.keys()) else np.nan
+                    for pp in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Vmic','Inst_R'] 
+                    ])
                if self.normspec_bool:
-                    specpars = specpars + [parsdict[pp] for pp in self.fitpars_i if 'pc' in pp]
+                    specpars = specpars + [self.parsdict[pp] for pp in self.fitpars_i if 'pc' in pp]
           else:
                specpars = None
 
           if self.phot_bool:
-               photpars = [parsdict[pp] for pp in ['Teff','log(g)','[Fe/H]','[a/Fe]']]
+               photpars = [self.parsdict[pp] for pp in ['Teff','log(g)','[Fe/H]','[a/Fe]']]
                if 'log(A)' in self.fitpars_i:
-                    photpars = photpars + [parsdict['log(A)']]
+                    photpars = photpars + [self.parsdict['log(A)']]
                else:
-                    photpars = photpars + [parsdict['log(R)'],parsdict['Dist']]
-               photpars = photpars + [parsdict['Av']]
+                    photpars = photpars + [self.parsdict['log(R)'],self.parsdict['Dist']]
+               photpars = photpars + [self.parsdict['Av']]
                # include Rv if user wants, else set to 3.1
                if 'Rv' in self.fitpars_i:
-                    photpars = photpars + [parsdict['Rv']]
+                    photpars = photpars + [self.parsdict['Rv']]
                else:
                     photpars = photpars + [None]
+
           else:
                photpars = None
 
           # calculate likelihood probability
           lnlike_i = self.lnlike(specpars=specpars,photpars=photpars)
-
-          # embed the pars into self so that they can be pulled
-          self.parsdict = parsdict
 
           if lnlike_i == np.nan:
                print(pars,lnlike_i)

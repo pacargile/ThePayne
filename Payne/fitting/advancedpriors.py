@@ -10,9 +10,14 @@ TAKEN DIRECTLY FROM JOSH SPEAGLE'S BRUTUS CODE
 
 from __future__ import (print_function, division)
 
+import warnings
+from astropy.utils.exceptions import AstropyWarning
+warnings.simplefilter('ignore', category=AstropyWarning)
+from astropy.utils.exceptions import AstropyDeprecationWarning
+warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
+
 import sys
 import os
-import warnings
 from collections.abc import Iterable
 import numpy as np
 from astropy import units
@@ -30,6 +35,7 @@ try:
     from scipy.special import logsumexp
 except ImportError:
     from scipy.misc import logsumexp
+
 
 
 class AdvancedPriors(object):
@@ -559,12 +565,13 @@ class AdvancedPriors(object):
         # Compute log-probability.
         lnprior = logsumexp([logp_thin, logp_thick, logp_halo], axis=0)
 
-        # normalize it
-        lnprior = lnprior
-
         # Collect components.
         components = {}
         components['number_density'] = [logp_thin, logp_thick, logp_halo]
+        components['lnprior'] = ([
+            logp_thin - lnprior,
+            logp_thick - lnprior,
+            logp_halo - lnprior,])
 
         # Apply more sophisticated priors.
         if labels is not None:
@@ -662,6 +669,24 @@ class AdvancedPriors(object):
         else:
             return dist
 
+    def alpha_lnprior(self,**kwargs):
+        """
+        Log-prior for very low alpha stars
+        """
+
+        logg = kwargs.get('logg',4.44)
+        aFe = kwargs.get('aFe',0.0)
+        eep = kwargs.get('eep',400)
+        minalpha = kwargs.get('minalpha',0.0)
+
+        if (logg < 3.5) | (eep > 450):
+            if aFe < minalpha:
+                return -0.5*(aFe/0.05)**2.0
+            else:
+                return 0.0
+        else:
+            return 0.0
+
 
     def vrot_lnprior(self,**kwargs):
         """
@@ -686,20 +711,26 @@ class AdvancedPriors(object):
         mass = kwargs.get('mass',1.0)
         eep  = kwargs.get('eep',350)
         logg = kwargs.get('logg',4.44)
+        
+        giant = kwargs.get('giant',{'a':-10.0,'c':7.0,'n':1.0})
+        dwarf = kwargs.get('dwarf',{'a':-10.0,'c':10.0,'n':0.4})
 
         # build in the kraft break
         if mass > 1.25:
             a = -1.0
             c = 100.0
+            n = 1.0
         else:
             # giant solutions get sigmoid prior
             if (logg < 3.5) | (eep > 450):
-                a = -10.0
-                c = 7.0
+                a = giant['a']
+                c = giant['c']
+                n = giant['n']
             else:
-                a = -10.0
-                c = 25.0
-        return  a / (1.0+np.exp(-(vrot-c)))
+                a = dwarf['a']
+                c = dwarf['c']
+                n = dwarf['n']
+        return  a / (1.0+n*np.exp(-(vrot-c)))
 
 
     def Vtot_lnprior(self,**kwargs):
@@ -760,14 +791,20 @@ class AdvancedPriors(object):
 
         return_components = kwargs.get('return_components',False)
 
+        thin_p  = kwargs.get('thin', {'min':4.0,'max':14.0})
+        thick_p = kwargs.get('thick',{'min':6.0,'max':14.0,'mean':10.0,'sigma':2.0})
+        halo_p  = kwargs.get('halo', {'min':8.0,'max':14.0,'mean':12.0,'sigma':2.0})
+
         # now compute individual age probabilities
-        age_lnp_thin = self.logp_age_unif(age,age_min=4.0,age_max=14.0)
+        age_lnp_thin = self.logp_age_unif(age,age_min=thin_p['min'],age_max=thin_p['max'])
         age_lnp_thin += lnp_thin
 
-        age_lnp_thick = self.logp_age_normal(age,age_mean=10.0,age_sigma=1.0)
+        age_lnp_thick = self.logp_age_normal(age,age_min=thick_p['min'],age_max=thick_p['max'],
+            age_mean=thick_p['mean'],age_sigma=thick_p['sigma'])
         age_lnp_thick += lnp_thick
 
-        age_lnp_halo = self.logp_age_normal(age,age_mean=12.0,age_sigma=1.0)
+        age_lnp_halo = self.logp_age_normal(age,age_min=halo_p['min'],age_max=halo_p['max'],
+            age_mean=halo_p['mean'],age_sigma=halo_p['sigma'])
         age_lnp_halo += lnp_halo
 
         lnprior = logsumexp([age_lnp_thin, age_lnp_thick, age_lnp_halo],
@@ -783,7 +820,7 @@ class AdvancedPriors(object):
             return lnprior, components
 
 
-    def logp_age_normal(self,age, age_mean=4.5, age_sigma=1.0):
+    def logp_age_normal(self,age, age_min=1.0,age_max=14.0,age_mean=4.5, age_sigma=1.0):
 
         """
         Log-prior for the age in a given a gaussian component of the galaxy.
@@ -791,6 +828,10 @@ class AdvancedPriors(object):
         ----------
         age : `~numpy.ndarray` of shape (N)
             The age of the corresponding models.
+        age_min : float, optional
+            The min age. Default is `1.0`.
+        age_max : float, optional
+            The mean age. Default is `14.0`.
         age_mean : float, optional
             The mean age. Default is `4.5`.
         age_sigma : float, optional
@@ -802,11 +843,21 @@ class AdvancedPriors(object):
         """
 
         # Compute log-probability.
-        chi2 = (age_mean - age)**2 / age_sigma**2  # chi2
-        lnorm = np.log(2. * np.pi * age_sigma**2)  # normalization
-        lnprior = -0.5 * (chi2 + lnorm)
+        cond = (age >= age_min) & (age <= age_max)
 
-        return lnprior
+        if (type(age) is float) or (type(age) is np.float64):
+            if cond:
+                chi2 = (age_mean - age)**2 / age_sigma**2
+                lnorm = np.log(2. * np.pi * age_sigma**2)
+                return -0.5 * (chi2 + lnorm)
+            else:
+                return -np.inf
+
+        else:
+            lnorm = np.log(2. * np.pi * age_sigma**2)  # normalization
+            chi2 = np.inf * np.ones(len(age))
+            chi2[cond] = (age_mean - age[cond])**2 / age_sigma**2  # chi2
+            return -0.5 * (chi2 + lnorm)
 
     def logp_age_unif(self,age, age_min=1.0, age_max=14.0):
 
