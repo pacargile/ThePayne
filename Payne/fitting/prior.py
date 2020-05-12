@@ -289,8 +289,8 @@ class prior(object):
                if 'initial_Mass' not in parsdict.keys():
                     if np.isfinite(parsdict['log(g)']) and np.isfinite(parsdict['log(R)']):
                          logmass = (
-                              self.likeobj.parsdict['log(g)'] + 
-                              2.0 * self.likeobj.parsdict['log(R)'] - 
+                              parsdict['log(g)'] + 
+                              2.0 * parsdict['log(R)'] - 
                               4.437)
                          Mass = 10.0**logmass
                else:
