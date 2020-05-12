@@ -403,6 +403,17 @@ class FitPayne(object):
 
                # self.outff.write(' '.join([str(q) for q in vstar]))
                self.likeobj.lnlikefn(vstar)
+               # add inital mass and EEP if IMF and VROT priors set
+               if self.priorobj.vrot_bool:
+                    self.likeobj.parsdict['EEP'] = 350
+
+               if self.priordict.imf_bool:
+                    logmass = (
+                         self.likeobj.parsdict['log(g)'] + 
+                         2.0 * self.likeobj.parsdict['log(R)'] - 
+                         4.437)
+                    self.likeobj.parsdict['initial_Mass'] = 10.0**logmass
+
                self.outff.write(' '.join([str(self.likeobj.parsdict[q]) for q in parnames]))
                self.outff.write(' {0} {1} {2} {3} {4} {5} {6} '.format(
                     loglstar,logvol,logwt,h,nc,logz,delta_logz))
