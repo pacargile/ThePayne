@@ -407,7 +407,7 @@ class FitPayne(object):
                if self.priorobj.vrot_bool:
                     self.likeobj.parsdict['EEP'] = 350
 
-               if self.priordict.imf_bool:
+               if self.priorobj.imf_bool:
                     logmass = (
                          self.likeobj.parsdict['log(g)'] + 
                          2.0 * self.likeobj.parsdict['log(R)'] - 
