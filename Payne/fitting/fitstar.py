@@ -148,9 +148,10 @@ class FitPayne(object):
 
                # determine if user wants to fit the continuum normalization
                if 'carbon' in inputdict['spec'].keys():
-                    self.carbon_bool = True
-                    self.fitpars.append('CarbonScale')
-                    self.fitpars_bool['CarbonScale'] = True
+                    # self.carbon_bool = True
+                    # self.fitpars.append('CarbonScale')
+                    # self.fitpars_bool['CarbonScale'] = True
+                    self.carbon_bool = False
 
 
           if 'phot' in inputdict.keys():
