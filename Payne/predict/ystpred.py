@@ -33,9 +33,10 @@ class Net(object):
 
           self.wavelength = np.array(th5['wavelength'])
 
+          self.resolution = np.array(th5['resolution'])[0]
+
           th5.close()
 
-          self.resolution = 100000
 
 
      def leaky_relu(self,z):
