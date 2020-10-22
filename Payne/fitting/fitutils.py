@@ -185,66 +185,213 @@ class PCcalc(object):
 			polymod,flux_i,eflux)])
 		return chisq
 
+# class SEDopt(object):
+# 	def __init__(self, **kwargs):
+# 		super(SEDopt, self).__init__()
+# 		from Payne.predict.predictsed import FastPayneSEDPredict
+
+# 		self.inputphot = kwargs.get('inputphot',{})
+# 		self.fixedpars = kwargs.get('fixedpars',{'logg':4.44,'aFe':0.0,'Av':0.0})
+# 		self.filterarray = list(self.inputphot.keys())
+# 		if 'photANNpath' in self.filterarray:
+# 		   photANNpath = self.inputphot['photANNpath']
+# 		   self.filterarray.remove('photANNpath')
+# 		else:
+# 		   photANNpath = kwargs.get('photANNpath',None)
+
+# 		self.returnsed = kwargs.get('returnsed',False)
+
+# 		self.init_p0 = kwargs.get('initpars',
+# 		   {'Teff':6000.0,'FeH':0.0,'logg':4.44,'aFe':0.0,'logA':3.0,'Av':0.0})
+
+# 		self.tol = kwargs.get('tol',1E-15)
+# 		self.maxiter = kwargs.get('maxiter',1E5)
+
+# 		# use lum and dist or logA
+# 		if ('logL' in self.fixedpars) or ('logL' in self.init_p0):
+# 		   fitpars_i = ['Teff','logg','FeH','aFe','logL','Dist','Av']
+# 		else:
+# 		   fitpars_i = ['Teff','logg','FeH','aFe','logA','Av']
+
+# 		self.fitpars =  [x for x in fitpars_i if x not in self.fixedpars.keys()]
+
+# 		if len(self.fitpars) + len(list(self.fixedpars.keys())) != len(fitpars_i):
+# 		   print('ALL PARS MUST BE EITHER FIT OR FIXED')
+# 		   print('FIT PARS:',self.fitpars)
+# 		   print('FIX PARS:',list(self.fixedpars.keys()))
+# 		   raise(IOError)
+
+# 		self.fsed = FastPayneSEDPredict(
+# 		   usebands=self.filterarray,
+# 		   nnpath=photANNpath)
+
+# 		self.verbose = kwargs.get('verbose',False)
+
+# 	def __call__(self):
+# 		init_sed = [6000.0,0.0,3.0]
+# 		output = [minimize(
+# 			self.chisq_sed,
+# 			init_sed,
+# 			method='Nelder-Mead',
+# 			tol=10E-15,
+# 			options={'maxiter':1E4}
+# 			).x]
+# 		if self.returnsed:
+# 			Teff = output[0][0]
+# 			logTeff = np.log10(Teff)
+# 			logg = self.fixedpars.get('logg',4.44)
+# 			FeH  = output[0][1]
+# 			aFe  = self.fixedpars.get('aFe',0.0)
+# 			logA = output[0][2]
+# 			Av   = self.fixedpars.get('Av',0.0)
+
+# 			photpars = {'logt':logTeff,'logg':logg,'feh':FeH,'afe':aFe,'logA':logA,'av':Av}
+# 			sed = self.fsed.sed(**photpars)
+# 			sedmod = {ff_i:sed_i for sed_i,ff_i in zip(sed,self.filterarray)}			
+# 			return output, sedmod
+# 		else:
+# 			return output
+
+
+# 	def chisq_sed(self,pars):
+# 		Teff = pars[0]
+# 		logTeff = np.log10(Teff)
+# 		logg = self.fixedpars.get('logg',4.44)
+# 		FeH  = pars[1] #self.fixedpars.get('FeH',0.0)
+# 		aFe  = self.fixedpars.get('aFe',0.0)
+# 		logA = pars[2]
+# 		Av   = self.fixedpars.get('Av',0.0)
+
+# 		photpars = {'logt':logTeff,'logg':logg,'feh':FeH,'afe':aFe,'logA':logA,'av':Av}
+
+# 		sed = self.fsed.sed(**photpars)
+# 		sedmod = {ff_i:sed_i for sed_i,ff_i in zip(sed,self.filterarray)}
+
+# 		chisq = np.sum(
+# 				[((sedmod[kk]-self.inputphot[kk][0])**2.0)/(self.inputphot[kk][1]**2.0) 
+# 				for kk in self.filterarray]
+# 				)
+# 		return chisq
+
 class SEDopt(object):
-	def __init__(self, **kwargs):
-		super(SEDopt, self).__init__()
-		from Payne.predict.predictsed import FastPayneSEDPredict
+     def __init__(self, **kwargs):
+          super(SEDopt, self).__init__()
+          from Payne.predict.predictsed import FastPayneSEDPredict
 
-		self.inputphot = kwargs.get('inputphot',{})
-		self.fixedpars = kwargs.get('fixedpars',{})
-		self.filterarray = list(self.inputphot.keys())
-		if 'photANNpath' in self.filterarray:
-			self.filterarray.remove('photANNpath')
-		self.returnsed = kwargs.get('returnsed',False)
+          self.inputphot = kwargs.get('inputphot',{})
+          self.fixedpars = kwargs.get('fixedpars',{'logg':4.44,'aFe':0.0,'Av':0.0})
+          self.filterarray = list(self.inputphot.keys())
+          if 'photANNpath' in self.filterarray:
+               photANNpath = self.inputphot['photANNpath']
+               self.filterarray.remove('photANNpath')
+          else:
+               photANNpath = kwargs.get('photANNpath',None)
+
+          self.returnsed = kwargs.get('returnsed',False)
+
+          self.init_p0 = kwargs.get('initpars',
+               {'Teff':6000.0,'FeH':0.0,'logg':4.44,'aFe':0.0,'logA':3.0,'Av':0.0})
+
+          self.tol = kwargs.get('tol',1E-15)
+          self.maxiter = kwargs.get('maxiter',1E5)
+
+          # use lum and dist or logA
+          if ('logL' in self.fixedpars) or ('logL' in self.init_p0):
+               fitpars_i = ['Teff','logg','FeH','aFe','logL','Dist','Av']
+          else:
+               fitpars_i = ['Teff','logg','FeH','aFe','logA','Av']
+
+          self.fitpars =  [x for x in fitpars_i if x not in self.fixedpars.keys()]
+
+          if len(self.fitpars) + len(list(self.fixedpars.keys())) != len(fitpars_i):
+               print('ALL PARS MUST BE EITHER FIT OR FIXED')
+               print('FIT PARS:',self.fitpars)
+               print('FIX PARS:',list(self.fixedpars.keys()))
+               raise(IOError)
+
+          self.fsed = FastPayneSEDPredict(
+               usebands=self.filterarray,
+               nnpath=photANNpath)
+
+          self.verbose = kwargs.get('verbose',False)
+
+     def __call__(self):
+
+          p0 = [self.init_p0[x] for x in self.fitpars]
+
+          output = [minimize(
+               self.chisq_sed,
+               p0,
+               method='Nelder-Mead',
+               tol=10E-15,
+               options={'maxiter':1E5,'disp':self.verbose}
+               ).x]
+
+          if self.returnsed:
+               outfitpars = {}
+               for ii,x in enumerate(self.fitpars):
+                    outfitpars[x] = output[0][ii]
+               
+               allparsdict = dict(**outfitpars,**self.fixedpars)
+
+               if 'logL' in allparsdict.keys():
+                    photpars = ({
+                         'logt':np.log10(allparsdict['Teff']),
+                         'logg':allparsdict['logg'],
+                         'feh':allparsdict['FeH'],
+                         'afe':allparsdict['aFe'],
+                         'logl':allparsdict['logL'],
+                         'dist':allparsdict['Dist'],
+                         'av':allparsdict['Av'],
+                         })
+               else:
+                    photpars = ({
+                         'logt':np.log10(allparsdict['Teff']),
+                         'logg':allparsdict['logg'],
+                         'feh':allparsdict['FeH'],
+                         'afe':allparsdict['aFe'],
+                         'logA':allparsdict['logA'],
+                         'av':allparsdict['Av'],
+                         })
+               sed = self.fsed.sed(**photpars)
+               sedmod = {ff_i:sed_i for sed_i,ff_i in zip(sed,self.filterarray)}               
+               return output, sedmod
+          else:
+               return output
 
 
-		self.fsed = FastPayneSEDPredict(
-			usebands=self.filterarray,
-			nnpath=self.inputphot['photANNpath'])
+     def chisq_sed(self,pars):
+          outfitpars = {}
+          for ii,x in enumerate(self.fitpars):
+               outfitpars[x] = pars[ii]
 
-	def __call__(self):
-		init_sed = [6000.0,0.0,3.0]
-		output = [minimize(
-			self.chisq_sed,
-			init_sed,
-			method='Nelder-Mead',
-			tol=10E-15,
-			options={'maxiter':1E4}
-			).x]
-		if self.returnsed:
-			Teff = output[0][0]
-			logTeff = np.log10(Teff)
-			logg = self.fixedpars.get('logg',4.44)
-			FeH  = output[0][1]
-			aFe  = self.fixedpars.get('aFe',0.0)
-			logA = output[0][2]
-			Av   = self.fixedpars.get('Av',0.0)
+          allparsdict = dict(**outfitpars,**self.fixedpars)
+          if 'logL' in allparsdict.keys():
+               photpars = ({
+                    'logt':np.log10(allparsdict['Teff']),
+                    'logg':allparsdict['logg'],
+                    'feh':allparsdict['FeH'],
+                    'afe':allparsdict['aFe'],
+                    'logl':allparsdict['logL'],
+                    'dist':allparsdict['Dist'],
+                    'av':allparsdict['Av'],
+                    })
+          else:
+               photpars = ({
+                    'logt':np.log10(allparsdict['Teff']),
+                    'logg':allparsdict['logg'],
+                    'feh':allparsdict['FeH'],
+                    'afe':allparsdict['aFe'],
+                    'logA':allparsdict['logA'],
+                    'av':allparsdict['Av'],
+                    })
 
-			photpars = {'logt':logTeff,'logg':logg,'feh':FeH,'afe':aFe,'logA':logA,'av':Av}
-			sed = self.fsed.sed(**photpars)
-			sedmod = {ff_i:sed_i for sed_i,ff_i in zip(sed,self.filterarray)}			
-			return output, sedmod
-		else:
-			return output
+          sed = self.fsed.sed(**photpars)
+          sedmod = {ff_i:sed_i for sed_i,ff_i in zip(sed,self.filterarray)}
 
-
-	def chisq_sed(self,pars):
-		Teff = pars[0]
-		logTeff = np.log10(Teff)
-		logg = self.fixedpars.get('logg',4.44)
-		FeH  = pars[1] #self.fixedpars.get('FeH',0.0)
-		aFe  = self.fixedpars.get('aFe',0.0)
-		logA = pars[2]
-		Av   = self.fixedpars.get('Av',0.0)
-
-		photpars = {'logt':logTeff,'logg':logg,'feh':FeH,'afe':aFe,'logA':logA,'av':Av}
-
-		sed = self.fsed.sed(**photpars)
-		sedmod = {ff_i:sed_i for sed_i,ff_i in zip(sed,self.filterarray)}
-
-		chisq = np.sum(
-				[((sedmod[kk]-self.inputphot[kk][0])**2.0)/(self.inputphot[kk][1]**2.0) 
-				for kk in self.filterarray]
-				)
-		return chisq
+          chisq = np.sum(
+                    [((sedmod[kk]-self.inputphot[kk][0])**2.0)/(self.inputphot[kk][1]**2.0) 
+                    for kk in self.filterarray]
+                    )
+          return chisq
 
