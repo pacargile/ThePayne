@@ -297,22 +297,22 @@ class prior(object):
                     Mass = parsdict['initial_Mass']     
                advPrior += float(self.AP.imf_lnprior(Mass))
 
-          if self.gal_bool:
-               if np.isfinite(parsdict['log(Age)']) & np.isfinite(parsdict['Dist']):
-                    lnp_dist,comp = self.AP.gal_lnprior(parsdict['Dist']/1000.0,return_components=True)
-                    # Compute component membership probabilities.
-                    logp_thin  = comp['number_density'][0]
-                    logp_thick = comp['number_density'][1]
-                    logp_halo  = comp['number_density'][2]
+          # if self.gal_bool:
+          #      if np.isfinite(parsdict['Dist']):
+          #           lnp_dist,comp = self.AP.gal_lnprior(parsdict['Dist']/1000.0,return_components=True)
+          #           # Compute component membership probabilities.
+          #           logp_thin  = comp['number_density'][0]
+          #           logp_thick = comp['number_density'][1]
+          #           logp_halo  = comp['number_density'][2]
 
-                    lnprior_thin = logp_thin - lnp_dist
-                    lnprior_thick = logp_thick - lnp_dist
-                    lnprior_halo = logp_halo - lnp_dist
+          #           lnprior_thin = logp_thin - lnp_dist
+          #           lnprior_thick = logp_thick - lnp_dist
+          #           lnprior_halo = logp_halo - lnp_dist
 
-                    advPrior += self.AP.age_lnprior(10.0**(parsdict['log(Age)']-9.0),
-                         lnp_thin=lnprior_thin,
-                         lnp_thick=lnprior_thick,
-                         lnp_halo=lnprior_halo)
+          #           advPrior += self.AP.age_lnprior(10.0**(parsdict['log(Age)']-9.0),
+          #                lnp_thin=lnprior_thin,
+          #                lnp_thick=lnprior_thick,
+          #                lnp_halo=lnprior_halo)
 
           if self.vrot_bool:
                if 'initial_Mass' not in parsdict.keys():
