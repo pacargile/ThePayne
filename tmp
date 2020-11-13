@@ -101,6 +101,7 @@ class prior(object):
           self.defaultpars['[a/Fe]'] = [-0.2,0.6]
           self.defaultpars['Vrad']   = [-700.0,700.0]
           self.defaultpars['Vrot']   = [0,300.0]
+          self.defaultpars['Vmic']   = [0.5,3.0]
           self.defaultpars['Inst_R'] = [10000.0,60000.0]
           self.defaultpars['log(A)'] = [-3.0,7.0]
           self.defaultpars['log(R)'] = [-2.0,3.0]
@@ -148,7 +149,7 @@ class prior(object):
 
           outdict = {}
 
-          for namepar in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Inst_R','CarbonScale']:
+          for namepar in ['Teff','log(g)','[Fe/H]','[a/Fe]','Vrad','Vrot','Vmic','Inst_R','CarbonScale']:
                if namepar in upars.keys():
                     upars_i = upars[namepar]
                     if namepar in self.priordict['uniform'].keys():
@@ -287,7 +288,6 @@ class prior(object):
           advPrior = 0.0
           if self.imf_bool:
                if 'initial_Mass' not in parsdict.keys():
-                    # check case where there is no photometry
                     if np.isfinite(parsdict['log(g)']) and np.isfinite(parsdict['log(R)']):
                          logmass = (
                               parsdict['log(g)'] + 
@@ -298,22 +298,22 @@ class prior(object):
                     Mass = parsdict['initial_Mass']     
                advPrior += float(self.AP.imf_lnprior(Mass))
 
-          # if self.gal_bool:
-          #      if np.isfinite(parsdict['Dist']):
-          #           lnp_dist,comp = self.AP.gal_lnprior(parsdict['Dist']/1000.0,return_components=True)
-          #           # Compute component membership probabilities.
-          #           logp_thin  = comp['number_density'][0]
-          #           logp_thick = comp['number_density'][1]
-          #           logp_halo  = comp['number_density'][2]
+          if self.gal_bool:
+               if np.isfinite(parsdict['log(Age)']) & np.isfinite(parsdict['Dist']):
+                    lnp_dist,comp = self.AP.gal_lnprior(parsdict['Dist']/1000.0,return_components=True)
+                    # Compute component membership probabilities.
+                    logp_thin  = comp['number_density'][0]
+                    logp_thick = comp['number_density'][1]
+                    logp_halo  = comp['number_density'][2]
 
-          #           lnprior_thin = logp_thin - lnp_dist
-          #           lnprior_thick = logp_thick - lnp_dist
-          #           lnprior_halo = logp_halo - lnp_dist
+                    lnprior_thin = logp_thin - lnp_dist
+                    lnprior_thick = logp_thick - lnp_dist
+                    lnprior_halo = logp_halo - lnp_dist
 
-          #           advPrior += self.AP.age_lnprior(10.0**(parsdict['log(Age)']-9.0),
-          #                lnp_thin=lnprior_thin,
-          #                lnp_thick=lnprior_thick,
-          #                lnp_halo=lnprior_halo)
+                    advPrior += self.AP.age_lnprior(10.0**(parsdict['log(Age)']-9.0),
+                         lnp_thin=lnprior_thin,
+                         lnp_thick=lnprior_thick,
+                         lnp_halo=lnprior_halo)
 
           if self.vrot_bool:
                if 'initial_Mass' not in parsdict.keys():

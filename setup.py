@@ -22,6 +22,7 @@ setup(
     packages=["Payne",
               "Payne.fitting",
               "Payne.predict",
+              "Payne.jax",
               "Payne.testing",
               "Payne.train",
               "Payne.utils"],

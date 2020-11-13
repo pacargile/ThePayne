@@ -29,7 +29,7 @@ import copy
 from scipy.stats import truncnorm
 from scipy.constants import G
 
-from quantiles import quantile
+from ..utils.quantiles import quantile
 
 try:
     from scipy.special import logsumexp

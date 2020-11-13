@@ -3,11 +3,29 @@
 # 3) add extra zero-padding for FFT algorithms so they don't go funky at the
 #    edges?
 
-import numpy as np
-from numpy.fft import fft, ifft, fftfreq, rfftfreq
-from scipy.special import i1 as j1
-
+import jax.numpy as np
+import numpy as nnp
+from jax.numpy.fft import fft, rfft, irfft, ifft, fftfreq, rfftfreq
+from jax.ops import index, index_add, index_update
+from jax.scipy.special import i1 as j1
+from jax import jit,vmap
 from datetime import datetime
+
+jfft = jit(fft)
+jifft = jit(ifft)
+jfftfreq = jit(fftfreq)
+jinterp = jit(np.interp)
+jrfft = jit(rfft)
+jirfft = jit(irfft)
+jrfftfreq = rfftfreq
+
+
+# # compile the functions
+# signal = nnp.random.randn(2**10)
+# signal_jax = np.array(signal)
+# _ = jrfft(signal_jax)
+# _ = jirfft(signal_jax)
+# _ = jrfftfreq(len(signal_jax),d=1.0)
 
 __all__ = ["smoothspec", "smooth_wave", "smooth_vel", "smooth_lsf",
            "smooth_wave_fft", "smooth_vel_fft", "smooth_fft", "smooth_lsf_fft",
@@ -128,7 +146,7 @@ def smoothspec(wave, spec, resolution=None, outwave=None,
         width = 100
         sigma = resolution
 
-    # # Mask the input spectrum depending on outwave or the wave_smooth kwargs
+    # Mask the input spectrum depending on outwave or the wave_smooth kwargs
     # mask = mask_wave(wave, width=width, outwave=outwave, linear=linear,
     #                  wlo=min_wave_smooth, whi=max_wave_smooth, **kwargs)
     w = wave#[mask]
@@ -156,7 +174,10 @@ def smoothspec(wave, spec, resolution=None, outwave=None,
             else:
                 smooth_method = smooth_vel
 
-    return smooth_method(w, s, outwave, sigma, **kwargs)
+    # starttime = datetime.now()
+    out = smooth_method(w, s, outwave, sigma, **kwargs)
+    # print(smooth_method,datetime.now()-starttime)
+    return out
 
 def smooth_vel(wave, spec, outwave, sigma, nsigma=10, inres=0, **extras):
     """Smooth a spectrum in velocity space.  This is insanely slow, but general
@@ -178,9 +199,9 @@ def smooth_vel(wave, spec, outwave, sigma, nsigma=10, inres=0, **extras):
         The velocity resolution of the input spectrum (km/s), *not* FWHM.
     """
     sigma_eff_sq = sigma**2 - inres**2
-    if np.any(sigma_eff_sq) < 0.0:
-        raise ValueError("Desired velocity resolution smaller than the value"
-                         "possible for this input spectrum.".format(inres))
+    # if np.any(sigma_eff_sq) < 0.0:
+    #     raise ValueError("Desired velocity resolution smaller than the value"
+    #                      "possible for this input spectrum.".format(inres))
     # sigma_eff is in units of sigma_lambda / lambda
     sigma_eff = np.sqrt(sigma_eff_sq) / ckms
 
@@ -188,56 +209,15 @@ def smooth_vel(wave, spec, outwave, sigma, nsigma=10, inres=0, **extras):
     flux = np.zeros(len(outwave))
     for i, w in enumerate(outwave):
         x = (np.log(w) - lnwave) / sigma_eff
-        if nsigma > 0:
-            good = np.abs(x) < nsigma
-            x = x[good]
-            _spec = spec[good]
-        else:
-            _spec = spec
+        # if nsigma > 0:
+        good = np.abs(x) < nsigma
+        x = x[good]
+        _spec = spec[good]
+        # else:
+        #     _spec = spec
         f = np.exp(-0.5 * x**2)
         flux[i] = np.trapz(f * _spec, x) / np.trapz(f, x)
     return flux
-
-
-# def smooth_vel_fft(wavelength, spectrum, outwave, sigma_out, inres=0.0,
-#                    **extras):
-#     """Smooth a spectrum in velocity space, using FFTs. This is fast, but makes
-#     some assumptions about the form of the input spectrum and can have some
-#     issues at the ends of the spectrum depending on how it is padded.
-#     :param wavelength:
-#         Wavelength vector of the input spectrum. An assertion error will result
-#         if this is not a regular grid in wavelength.
-#     :param spectrum:
-#         Flux vector of the input spectrum.
-#     :param outwave:
-#         Desired output wavelength vector.
-#     :param sigma_out:
-#         Desired velocity resolution (km/s), *not* FWHM.  Scalar or length 1 array.
-#     :param inres:
-#         The velocity resolution of the input spectrum (km/s), dispersion *not*
-#         FWHM.
-#     """
-#     # The kernel width for the convolution.
-#     sigma = np.sqrt(sigma_out**2 - inres**2)
-#     if sigma <= 0:
-#         return np.interp(outwave, wavelength, spectrum)
-
-#     # make length of spectrum a power of 2 by resampling
-#     wave, spec = resample_wave(wavelength, spectrum)
-
-#     # get grid resolution (*not* the resolution of the input spectrum) and make
-#     # sure it's nearly constant.  It should be, by design (see resample_wave)
-#     invRgrid = np.diff(np.log(wave))
-#     assert invRgrid.max() / invRgrid.min() < 1.05
-#     dv = ckms * np.median(invRgrid)
-
-#     # Do the convolution
-#     spec_conv = smooth_fft(dv, spec, sigma)
-#     # interpolate onto output grid
-#     if outwave is not None:
-#         spec_conv = np.interp(outwave, wave, spec_conv,right=np.nan,left=np.nan)
-
-#     return spec_conv
 
 def smooth_vel_fft(wavelength, spectrum, outwave, sigma_out, inres=0.0,
                    **extras):
@@ -261,7 +241,6 @@ def smooth_vel_fft(wavelength, spectrum, outwave, sigma_out, inres=0.0,
     sigma = np.sqrt(sigma_out**2 - inres**2)
     # if sigma <= 0:
     #     return np.interp(outwave, wavelength, spectrum)
-
     # make length of spectrum a power of 2 by resampling
     wave, spec = resample_wave(wavelength, spectrum)
 
@@ -274,14 +253,12 @@ def smooth_vel_fft(wavelength, spectrum, outwave, sigma_out, inres=0.0,
     # Do the convolution
     spec_conv = smooth_fft(dv, spec, sigma)
     # interpolate onto output grid
-    if outwave is not None:
-        spec_conv = np.interp(outwave, wave, spec_conv,right=np.nan,left=np.nan)
-
+    # if outwave is not None:
+    spec_conv = jinterp(outwave, wave, spec_conv,right=np.nan,left=np.nan)
     return spec_conv
 
 def smooth_vsini_fft(wavelength, spectrum, outwave, sigma_out, inres=0.0,
                    **extras):
-
     # The kernel width for the convolution.
     sigma = np.sqrt(sigma_out**2 - inres**2)
     # if sigma <= 0:
@@ -299,28 +276,8 @@ def smooth_vsini_fft(wavelength, spectrum, outwave, sigma_out, inres=0.0,
     # Do the convolution
     spec_conv = smooth_fft_vsini(dv, spec, sigma)
     # interpolate aonto output grid
-    if outwave is not None:
-        spec_conv = np.interp(outwave, wave, spec_conv,right=np.nan,left=np.nan)
-
-    # # The kernel width for the convolution.
-    # sigma = np.sqrt(sigma_out**2 - inres**2)
-    # if sigma <= 0:
-    #     return np.interp(outwave, wavelength, spectrum)
-
-    # # make length of spectrum a power of 2 by resampling
-    # wave, spec = resample_wave(wavelength, spectrum)
-
-    # # get grid resolution (*not* the resolution of the input spectrum) and make
-    # # sure it's nearly constant.  It should be, by design (see resample_wave)
-    # invRgrid = np.diff(np.log(wave))
-    # assert invRgrid.max() / invRgrid.min() < 1.05
-    # dv = ckms * np.median(invRgrid)
-
-    # # Do the convolution
-    # spec_conv = smooth_fft_vsini(dv, spec, sigma)
-    # # interpolate onto output grid
     # if outwave is not None:
-    #     spec_conv = np.interp(outwave, wave, spec_conv)
+    spec_conv = jinterp(outwave, wave, spec_conv,right=np.nan,left=np.nan)
 
     return spec_conv
 
@@ -583,37 +540,39 @@ def smooth_fft(dx, spec, sigma):
         The spectrum flux vector
     """
     # The Fourier coordinate
-    ss = rfftfreq(len(spec), d=dx)
+    ss = jrfftfreq(spec.shape[0], d=dx)
     # Make the fourier space taper; just the analytical fft of a gaussian
     taper = np.exp(-2 * (np.pi ** 2) * (sigma ** 2) * (ss ** 2))
-    ss[0] = 0.01  # hack
+    # ss[0] = 0.01  # hack
+    # ss = index_update(ss, index[0], 0.01)
     # Fourier transform the spectrum
-    spec_ff = np.fft.rfft(spec)
+    spec_ff = jrfft(spec)
     # Multiply in fourier space
     ff_tapered = spec_ff * taper
     # Fourier transform back
-    spec_conv = np.fft.irfft(ff_tapered)
+    spec_conv = jirfft(ff_tapered)
     return spec_conv
 
 def smooth_fft_vsini(dv,spec,sigma):
     # The Fourier coordinate
-    ss = rfftfreq(len(spec), d=dv)
+    ss = jrfftfreq(spec.shape[0], d=dv)
 
     # Make the fourier space taper
-    ss[0] = 0.01 #junk so we don't get a divide by zero error
+    # ss[0] = 0.01 #junk so we don't get a divide by zero error
+    # ss = index_update(ss, index[0], 0.01)
     ub = 2. * np.pi * sigma * ss
     sb = j1(ub) / ub - 3 * np.cos(ub) / (2 * ub ** 2) + 3. * np.sin(ub) / (2 * ub ** 3)
     #set zeroth frequency to 1 separately (DC term)
-    sb[0] = 1.
+    # ss = index_update(ss, index[0], 1.0)
 
     # Fourier transform the spectrum
-    FF = np.fft.rfft(spec)
+    FF = jrfft(spec)
 
     # Multiply in fourier space
     FF_tap = FF * sb
 
     # Fourier transform back
-    spec_conv = np.fft.irfft(FF_tap)
+    spec_conv = jirfft(FF_tap)
     return spec_conv
 
 def mask_wave(wavelength, width=1, wlo=0, whi=np.inf, outwave=None,
@@ -642,19 +601,22 @@ def resample_wave(wavelength, spectrum, linear=False):
     """
     wmin, wmax = wavelength.min(), wavelength.max()
     nw = len(wavelength)
-    nnew = int(2.0**(np.ceil(np.log2(nw))))
-    if linear:
-        Rgrid = np.diff(wavelength)  # in same units as ``wavelength``
-        w = np.linspace(wmin, wmax, int(nnew))
-    else:
-        Rgrid = np.diff(np.log(wavelength))  # actually 1/R
-        lnlam = np.linspace(np.log(wmin), np.log(wmax), int(nnew))
-        w = np.exp(lnlam)
+    nnew = int(2.0**(nnp.ceil(nnp.log2(nw))))
+    # if linear:
+    #     Rgrid = np.diff(wavelength)  # in same units as ``wavelength``
+    #     wi = nnp.linspace(wmin, wmax, int(nnew))
+    # else:
+    Rgrid = np.diff(np.log(wavelength))  # actually 1/R
+    lnlam = np.linspace(np.log(wmin), np.log(wmax), int(nnew))
+    wi = np.exp(lnlam)
+
     # Make sure the resolution really is nearly constant
     #assert Rgrid.max() / Rgrid.min() < 1.05
-    s = np.interp(w, wavelength, spectrum)
-    return w, s
+    si = np.interp(wi, wavelength, spectrum)
 
+    w,s = wi,si #np.array(wi),np.array(si)
+
+    return w, s
 
 def subtract_input_resolution(res_in, res_target, smoothtype_in, smoothtype_target, wave=None):
     """Subtract the input resolution (in quadrature) from a target output

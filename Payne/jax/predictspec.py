@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
-import numpy as np
+import jax.numpy as np
+import jax.scipy as jsp
+from jax import jit,vmap
 import warnings
 from datetime import datetime
 with warnings.catch_warnings():
@@ -13,7 +15,7 @@ speedoflight = constants.c / 1000.0
 
 import Payne
 
-from ..utils.smoothing import smoothspec
+from Payne.jax.smoothing import smoothspec
 
 class Net(object):
      def __init__(self, NNpath):
@@ -22,18 +24,18 @@ class Net(object):
      def readNN(self,nnpath=''):
 
           th5 = h5py.File(nnpath,'r')
-          self.w_array_0 = np.array(th5['w_array_0'])
-          self.w_array_1 = np.array(th5['w_array_1'])
-          self.w_array_2 = np.array(th5['w_array_2'])
-          self.b_array_0 = np.array(th5['b_array_0'])
-          self.b_array_1 = np.array(th5['b_array_1'])
-          self.b_array_2 = np.array(th5['b_array_2'])
-          self.xmin      = np.array(th5['x_min'])
-          self.xmax      = np.array(th5['x_max'])
+          self.w_array_0 = np.array(th5['w_array_0'],dtype=np.float32)
+          self.w_array_1 = np.array(th5['w_array_1'],dtype=np.float32)
+          self.w_array_2 = np.array(th5['w_array_2'],dtype=np.float32)
+          self.b_array_0 = np.array(th5['b_array_0'],dtype=np.float32)
+          self.b_array_1 = np.array(th5['b_array_1'],dtype=np.float32)
+          self.b_array_2 = np.array(th5['b_array_2'],dtype=np.float32)
+          self.xmin      = np.array(th5['x_min'],dtype=np.float32)
+          self.xmax      = np.array(th5['x_max'],dtype=np.float32)
 
-          self.wavelength = np.array(th5['wavelength'])
+          self.wavelength = np.asarray(th5['wavelength'],dtype=np.float32)
 
-          self.resolution = np.array(th5['resolution'])[0]
+          self.resolution = np.array(th5['resolution'],dtype=np.float32)[0]
 
           th5.close()
 
@@ -138,17 +140,19 @@ class PayneSpecPredict(object):
           else:
                self.inputdict['afe'] = 0.0
 
-          # determine if NN has vmic built into it by seeing if kwargs['vmic'] == np.nan
-          if 'vmic' in kwargs:
-               if np.isfinite(kwargs['vmic']):
-                    self.inputdict['vmic'] = kwargs['vmic']
-                    usevmicbool = True
-               else:
-                    self.inputdict['vmic'] = np.nan
-                    usevmicbool = False
-          else:
-               self.inputdict['vmic'] = np.nan
-               usevmicbool = False
+          # # determine if NN has vmic built into it by seeing if kwargs['vmic'] == np.nan
+          # if 'vmic' in kwargs:
+          #      if np.isfinite(kwargs['vmic']):
+          #           self.inputdict['vmic'] = kwargs['vmic']
+          #           usevmicbool = True
+          #      else:
+          #           self.inputdict['vmic'] = np.nan
+          #           usevmicbool = False
+          # else:
+          #      self.inputdict['vmic'] = np.nan
+          #    usevmicbool = False
+
+          usevmicbool = False
 
           # calculate model spectrum at the native network resolution
           if usevmicbool:
@@ -158,52 +162,58 @@ class PayneSpecPredict(object):
 
           modwave = self.anns.wavelength
 
-          rot_vel_bool = False
-          if 'rot_vel' in kwargs:
-               # check to make sure rot_vel isn't 0.0, this will cause the convol. to crash
-               if kwargs['rot_vel'] != 0.0:
-                    # set boolean to let rest of code know the spectrum has been broadened
-                    rot_vel_bool = True
+          rot_vel_bool = True
+          # if 'rot_vel' in kwargs:
+          #      # check to make sure rot_vel isn't 0.0, this will cause the convol. to crash
+          #      if kwargs['rot_vel'] != 0.0:
+          #           # set boolean to let rest of code know the spectrum has been broadened
+          #           rot_vel_bool = True
 
-                    # use B.Johnson's smoothspec to convolve with rotational broadening
-                    modspec = self.smoothspec(modwave,modspec,kwargs['rot_vel'],
-                         outwave=None,smoothtype='vsini',fftsmooth=True)
+          #           # use B.Johnson's smoothspec to convolve with rotational broadening
+          modspec = self.smoothspec(modwave,modspec,kwargs['rot_vel'],
+               outwave=None,smoothtype='vsini',fftsmooth=True,inres=0.0)
 
-          rad_vel_bool = False
-          if 'rad_vel' in kwargs:
-               if kwargs['rad_vel'] != 0.0:
-                    # kwargs['radial_velocity']: RV in km/s
-                    rad_vel_bool = True
-                    # modwave = self.NN['wavelength'].copy()*(1.0-(kwargs['rad_vel']/speedoflight))
-                    modwave = modwave*(1.0+(kwargs['rad_vel']/speedoflight))
+          rad_vel_bool = True
+          # if 'rad_vel' in kwargs:
+          #      if kwargs['rad_vel'] != 0.0:
+          #           # kwargs['radial_velocity']: RV in km/s
+          #           rad_vel_bool = True
+          #           # modwave = self.NN['wavelength'].copy()*(1.0-(kwargs['rad_vel']/speedoflight))
+          modwave = modwave*(1.0+(kwargs['rad_vel']/speedoflight))
 
-          inst_R_bool = False
-          if 'inst_R' in kwargs:
-               # check to make sure inst_R != 0.0
-               if kwargs['inst_R'] != 0.0:
-                    inst_R_bool = True
-                    # instrumental broadening
-                    # if rot_vel_bool:
-                    #     inres = (2.998e5)/kwargs['rot_vel']
-                    # else:
-                    #     inres = self.NN['resolution']
-                    # inres=None
-                    if 'outwave' in kwargs:
-                         if type(kwargs['outwave']) == type(None):
-                              outwave = None
-                         else:
-                              outwave = np.array(kwargs['outwave'])
-                    else:
-                         outwave = None
 
-                    modspec = self.smoothspec(modwave,modspec,kwargs['inst_R'],
-                         outwave=outwave,smoothtype='R',fftsmooth=True,inres=self.anns.resolution)
+          inst_R_bool = True
+          # if 'inst_R' in kwargs:
+          #      # check to make sure inst_R != 0.0
+          #      if kwargs['inst_R'] != 0.0:
+          #           inst_R_bool = True
+          #           # instrumental broadening
+          #           # if rot_vel_bool:
+          #           #     inres = (2.998e5)/kwargs['rot_vel']
+          #           # else:
+          #           #     inres = self.NN['resolution']
+          #           # inres=None
+          #           if 'outwave' in kwargs:
+          #                if kwargs['outwave'] is None:
+          #                     outwave = None
+          #                else:
+          #                     outwave = np.array(kwargs['outwave'])
+          #           else:
+          #                outwave = None
 
-                    if type(outwave) != type(None):
-                         modwave = outwave
-          if (inst_R_bool == False) & ('outwave' in kwargs):
-               if kwargs['outwave'] is not None:
-                    modspec = np.interp(kwargs['outwave'],modwave,modspec,right=np.nan,left=np.nan)
+          modspec = self.smoothspec(modwave,modspec,kwargs['inst_R'],
+               outwave=kwargs['outwave'],smoothtype='R',fftsmooth=True,
+               inres=self.anns.resolution)
+
+                    # if outwave is not None:
+                    #      modwave = outwave
+
+          # if kwargs['outwave'] is not None:
+          #      modspec = np.interp(kwargs['outwave'],modwave,modspec,right=np.nan,left=np.nan)
+
+          # if (inst_R_bool == False) & ('outwave' in kwargs):
+          #      if kwargs['outwave'] is not None:
+          #           modspec = np.interp(kwargs['outwave'],modwave,modspec,right=np.nan,left=np.nan)
 
           return modwave, modspec
 
