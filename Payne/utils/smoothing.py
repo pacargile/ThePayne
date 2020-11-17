@@ -129,10 +129,10 @@ def smoothspec(wave, spec, resolution=None, outwave=None,
         sigma = resolution
 
     # # Mask the input spectrum depending on outwave or the wave_smooth kwargs
-    # mask = mask_wave(wave, width=width, outwave=outwave, linear=linear,
-    #                  wlo=min_wave_smooth, whi=max_wave_smooth, **kwargs)
-    w = wave#[mask]
-    s = spec#[mask]
+    mask = mask_wave(wave, width=width, outwave=outwave, linear=linear,
+                     wlo=min_wave_smooth, whi=max_wave_smooth, **kwargs)
+    w = wave[mask]
+    s = spec[mask]
     if outwave is None:
         outwave = wave
 
@@ -651,7 +651,7 @@ def resample_wave(wavelength, spectrum, linear=False):
         lnlam = np.linspace(np.log(wmin), np.log(wmax), int(nnew))
         w = np.exp(lnlam)
     # Make sure the resolution really is nearly constant
-    #assert Rgrid.max() / Rgrid.min() < 1.05
+    # assert Rgrid.max() / Rgrid.min() < 1.05
     s = np.interp(w, wavelength, spectrum)
     return w, s
 

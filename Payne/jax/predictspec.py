@@ -162,58 +162,58 @@ class PayneSpecPredict(object):
 
           modwave = self.anns.wavelength
 
-          rot_vel_bool = True
-          # if 'rot_vel' in kwargs:
-          #      # check to make sure rot_vel isn't 0.0, this will cause the convol. to crash
-          #      if kwargs['rot_vel'] != 0.0:
-          #           # set boolean to let rest of code know the spectrum has been broadened
-          #           rot_vel_bool = True
+          rot_vel_bool = False
+          if 'rot_vel' in kwargs:
+               # check to make sure rot_vel isn't 0.0, this will cause the convol. to crash
+               if kwargs['rot_vel'] != 0.0:
+                    # set boolean to let rest of code know the spectrum has been broadened
+                    rot_vel_bool = True
 
-          #           # use B.Johnson's smoothspec to convolve with rotational broadening
-          modspec = self.smoothspec(modwave,modspec,kwargs['rot_vel'],
-               outwave=None,smoothtype='vsini',fftsmooth=True,inres=0.0)
+                    # use B.Johnson's smoothspec to convolve with rotational broadening
+                    modspec = self.smoothspec(modwave,modspec,kwargs['rot_vel'],
+                         outwave=None,smoothtype='vsini',fftsmooth=True,inres=0.0)
 
-          rad_vel_bool = True
-          # if 'rad_vel' in kwargs:
-          #      if kwargs['rad_vel'] != 0.0:
-          #           # kwargs['radial_velocity']: RV in km/s
-          #           rad_vel_bool = True
-          #           # modwave = self.NN['wavelength'].copy()*(1.0-(kwargs['rad_vel']/speedoflight))
-          modwave = modwave*(1.0+(kwargs['rad_vel']/speedoflight))
+          rad_vel_bool = False
+          if 'rad_vel' in kwargs:
+               if kwargs['rad_vel'] != 0.0:
+                    # kwargs['radial_velocity']: RV in km/s
+                    rad_vel_bool = True
+                    # modwave = self.NN['wavelength'].copy()*(1.0-(kwargs['rad_vel']/speedoflight))
+                    modwave = modwave*(1.0+(kwargs['rad_vel']/speedoflight))
 
 
-          inst_R_bool = True
-          # if 'inst_R' in kwargs:
-          #      # check to make sure inst_R != 0.0
-          #      if kwargs['inst_R'] != 0.0:
-          #           inst_R_bool = True
-          #           # instrumental broadening
-          #           # if rot_vel_bool:
-          #           #     inres = (2.998e5)/kwargs['rot_vel']
-          #           # else:
-          #           #     inres = self.NN['resolution']
-          #           # inres=None
-          #           if 'outwave' in kwargs:
-          #                if kwargs['outwave'] is None:
-          #                     outwave = None
-          #                else:
-          #                     outwave = np.array(kwargs['outwave'])
-          #           else:
-          #                outwave = None
+          inst_R_bool = False
+          if 'inst_R' in kwargs:
+               # check to make sure inst_R != 0.0
+               if kwargs['inst_R'] != 0.0:
+                    inst_R_bool = True
+                    # instrumental broadening
+                    # if rot_vel_bool:
+                    #     inres = (2.998e5)/kwargs['rot_vel']
+                    # else:
+                    #     inres = self.NN['resolution']
+                    # inres=None
+                    if 'outwave' in kwargs:
+                         if kwargs['outwave'] is None:
+                              outwave = None
+                         else:
+                              outwave = np.array(kwargs['outwave'])
+                    else:
+                         outwave = None
 
-          modspec = self.smoothspec(modwave,modspec,kwargs['inst_R'],
-               outwave=kwargs['outwave'],smoothtype='R',fftsmooth=True,
-               inres=self.anns.resolution)
+                    modspec = self.smoothspec(modwave,modspec,kwargs['inst_R'],
+                         outwave=kwargs['outwave'],smoothtype='R',fftsmooth=True,
+                         inres=self.anns.resolution)
 
-                    # if outwave is not None:
-                    #      modwave = outwave
+                    if outwave is not None:
+                         modwave = outwave
 
           # if kwargs['outwave'] is not None:
           #      modspec = np.interp(kwargs['outwave'],modwave,modspec,right=np.nan,left=np.nan)
 
-          # if (inst_R_bool == False) & ('outwave' in kwargs):
-          #      if kwargs['outwave'] is not None:
-          #           modspec = np.interp(kwargs['outwave'],modwave,modspec,right=np.nan,left=np.nan)
+          if (inst_R_bool == False) & ('outwave' in kwargs):
+               if kwargs['outwave'] is not None:
+                    modspec = np.interp(kwargs['outwave'],modwave,modspec,right=np.nan,left=np.nan)
 
           return modwave, modspec
 

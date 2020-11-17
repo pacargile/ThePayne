@@ -295,6 +295,8 @@ class FitPayne(object):
                print(
                     'Static Dynesty w/ {0} sampler, {1} walks/slices, {2} number of samples, Ndim = {3}, and w/ stopping criteria of dlog(z) = {4}: {5}'.format(
                          samplemethod,numws,npoints,self.ndim,delta_logz_final,starttime))
+               print('Max Iter: {0} / Max Call: {1}'.format(maxiter,maxcall))
+
           sys.stdout.flush()
 
           # initialize sampler object
