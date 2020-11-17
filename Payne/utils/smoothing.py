@@ -133,6 +133,10 @@ def smoothspec(wave, spec, resolution=None, outwave=None,
                      wlo=min_wave_smooth, whi=max_wave_smooth, **kwargs)
     w = wave[mask]
     s = spec[mask]
+
+    # check for nan's and replace them with 1.0
+    s = np.nan_to_num(s,nan=1.0)
+
     if outwave is None:
         outwave = wave
 
