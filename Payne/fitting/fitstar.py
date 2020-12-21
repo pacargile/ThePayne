@@ -282,6 +282,12 @@ class FitPayne(object):
                # Python 3.x
                maxiter = samplerdict.get('maxiter',sys.maxsize)
 
+          try:
+               # Python 2.x
+               maxcall = samplerdict.get('maxcall',sys.maxint)
+          except AttributeError:
+               # Python 3.x
+               maxcall = samplerdict.get('maxcall',sys.maxsize)
 
           if samplemethod == 'rwalk':
                numws = numwalks
@@ -323,7 +329,11 @@ class FitPayne(object):
 
           # start sampling
           print('Start Sampling @ {}'.format(iter_starttime))
-          for it, results in enumerate(dy_sampler.sample(dlogz=delta_logz_final)):
+          for it, results in enumerate(dy_sampler.sample(
+               dlogz=delta_logz_final,
+               maxiter=maxiter,
+               maxcall=maxcall,
+               )):
                (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
                     h, nc, worst_it, propidx, propiter, eff, delta_logz) = results             
 
