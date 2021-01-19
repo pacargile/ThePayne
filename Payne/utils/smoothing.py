@@ -5,7 +5,7 @@
 
 import numpy as np
 from numpy.fft import fft, ifft, fftfreq, rfftfreq
-from scipy.special import i1 as j1
+from scipy.special import j1
 
 from datetime import datetime
 
