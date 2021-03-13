@@ -38,7 +38,6 @@ class Net(object):
           th5.close()
 
 
-
      def leaky_relu(self,z):
          '''
          This is the activation function used by default in all our neural networks.
@@ -62,7 +61,7 @@ class PayneSpecPredict(object):
      """
      Class for taking a Payne-learned NN and predicting spectrum.
      """
-     def __init__(self, nnpath, **kwargs):
+     def __init__(self, nnpath=None, **kwargs):
           self.NN = {}
           if nnpath != None:
                self.nnpath = nnpath
@@ -71,6 +70,17 @@ class PayneSpecPredict(object):
                self.nnpath  = Payne.__abspath__+'data/specANN/YSTANN.h5'
 
           self.anns = Net(self.nnpath)
+
+          # check to see if using NN with Teff / 1000.0
+          if self.anns.xmin[0] < 1000.0:
+               self.anns.xmin[0] = self.anns.xmin[0] * 1000.0
+               self.anns.xmax[0] = self.anns.xmax[0] * 1000.0
+
+          self.Cnnpath = kwargs.get('Cnnpath',None)
+          if self.Cnnpath is not None:
+               self.Canns = Net(self.Cnnpath)
+          else:
+               self.Canns = None
 
      def predictspec(self,labels):
           '''
@@ -84,9 +94,25 @@ class PayneSpecPredict(object):
           predicted flux from the NN
           '''
 
-          self.predict_flux = self.anns.eval(labels)
+          predict_flux = self.anns.eval(labels)
 
-          return self.predict_flux
+          return predict_flux
+
+     def predictcont(self,labels):
+          '''
+          predict continuum using set of labels and trained NN output
+
+          :params labels:
+          list of label values for the labels used to train the NN
+          ex. [Teff,log(g),[Fe/H],[alpha/Fe]]
+
+          :returns predict_flux:
+          predicted flux from the NN
+          '''
+
+          predict_cont = self.Canns.eval(labels)
+
+          return predict_cont
 
      def getspec(self,**kwargs):
           '''
@@ -107,11 +133,11 @@ class PayneSpecPredict(object):
           self.inputdict = {}
 
           if 'Teff' in kwargs:
-               self.inputdict['teff'] = kwargs['Teff'] / 1000.0
+               self.inputdict['teff'] = kwargs['Teff'] 
           elif 'logt' in kwargs:
-               self.inputdict['teff'] = (10.0**kwargs['logt']) / 1000.0
+               self.inputdict['teff'] = (10.0**kwargs['logt']) 
           else:
-               self.inputdict['teff'] = 5770.0/1000.0
+               self.inputdict['teff'] = 5770.0
 
           if 'log(g)' in kwargs:
                self.inputdict['logg'] = kwargs['log(g)']
@@ -158,6 +184,27 @@ class PayneSpecPredict(object):
 
           modwave = self.anns.wavelength
 
+          if self.Canns is not None:
+               # calculate model continuum at the native network resolution
+               if usevmicbool:
+                    modcont = self.predictcont([self.inputdict[kk] for kk in ['teff','logg','feh','afe','vmic']])
+               else:
+                    modcont = self.predictcont([self.inputdict[kk] for kk in ['teff','logg','feh','afe']])
+
+               modcontwave = self.Canns.wavelength
+
+               # convert the continuum from F_nu -> F_lambda
+               modcont = modcont * (speedoflight/((modcontwave*1E-8)**2.0))
+
+               # normalize the continuum
+               modcont = modcont / np.nanmedian(modcont)
+
+               # interpolate continuum onto spectrum
+               modspec = modspec * np.interp(
+                    modwave,modcontwave,modcont,
+                    right=np.nan,left=np.nan)
+
+
           rot_vel_bool = False
           if 'rot_vel' in kwargs:
                # check to make sure rot_vel isn't 0.0, this will cause the convol. to crash
@@ -166,8 +213,10 @@ class PayneSpecPredict(object):
                     rot_vel_bool = True
 
                     # use B.Johnson's smoothspec to convolve with rotational broadening
-                    modspec = self.smoothspec(modwave,modspec,kwargs['rot_vel'],
-                         outwave=None,smoothtype='vsini',fftsmooth=True)
+                    modspec = self.smoothspec(modwave,modspec,
+                         kwargs['rot_vel'],
+                         outwave=None,smoothtype='vsini',
+                         fftsmooth=True)
 
           rad_vel_bool = False
           if 'rad_vel' in kwargs:
@@ -179,28 +228,48 @@ class PayneSpecPredict(object):
 
           inst_R_bool = False
           if 'inst_R' in kwargs:
-               # check to make sure inst_R != 0.0
-               if kwargs['inst_R'] != 0.0:
-                    inst_R_bool = True
-                    # instrumental broadening
-                    # if rot_vel_bool:
-                    #     inres = (2.998e5)/kwargs['rot_vel']
-                    # else:
-                    #     inres = self.NN['resolution']
-                    # inres=None
-                    if 'outwave' in kwargs:
-                         if type(kwargs['outwave']) == type(None):
-                              outwave = None
-                         else:
-                              outwave = np.array(kwargs['outwave'])
-                    else:
+               if 'outwave' in kwargs:
+                    if kwargs['outwave'] is None:
                          outwave = None
+                    else:
+                         outwave = np.array(kwargs['outwave'])
+               else:
+                    outwave = None
 
-                    modspec = self.smoothspec(modwave,modspec,kwargs['inst_R'],
-                         outwave=outwave,smoothtype='R',fftsmooth=True,inres=self.anns.resolution)
+               if isinstance(kwargs['inst_R'],float):
+                    # check to make sure inst_R != 0.0
+                    if kwargs['inst_R'] > 0.0:
+                         inst_R_bool = True
 
-                    if type(outwave) != type(None):
-                         modwave = outwave
+                         modspec = self.smoothspec(
+                              modwave,modspec,kwargs['inst_R'],
+                              outwave=outwave,smoothtype='R',
+                              fftsmooth=True,inres=self.anns.resolution)
+
+               else:
+                    # LSF case where inst_R is vector of dispersion in AA at each pixel
+                    inst_R_bool = True
+
+                    # interpolate dispersion array onto input wave array
+                    if outwave is not None:
+                         disparr = np.interp(
+                              modwave,outwave,kwargs['inst_R'])
+                    else:
+                         disparr = kwargs['inst_R']
+
+                    # check to see if len(inst_R) == len(modwave)
+                    try:
+                         assert len(disparr) == len(modwave)
+                    except AssertionError:
+                         print('Length of LSF vector not equal to input wavelength')
+                         raise
+
+                    modspec = self.smoothspec(
+                         modwave,modspec,disparr,
+                         outwave=outwave,smoothtype='lsf',
+                         fftsmooth=True,inres=self.anns.resolution)
+
+
           if (inst_R_bool == False) & ('outwave' in kwargs):
                if kwargs['outwave'] is not None:
                     modspec = np.interp(kwargs['outwave'],modwave,modspec,right=np.nan,left=np.nan)
@@ -208,5 +277,5 @@ class PayneSpecPredict(object):
           return modwave, modspec
 
      def smoothspec(self, wave, spec, sigma, outwave=None, **kwargs):
-          outspec = smoothspec(wave, spec, sigma, outwave=outwave, **kwargs)
+          outspec = smoothspec(wave, spec, resolution=sigma, outwave=outwave, **kwargs)
           return outspec

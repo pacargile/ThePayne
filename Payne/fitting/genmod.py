@@ -73,10 +73,16 @@ class GenMod(object):
         else:
             CarbonScale = 0.0
 
+        # check to see if inst_R is a float or an array of dispersions
+        if isinstance(inst_R,float):
+            input_inst_R = 2.355 * inst_R
+        else:
+            input_inst_R = inst_R
+
         # predict model flux at model wavelengths
         modwave_i,modflux_i = self.PP.getspec(
             Teff=Teff,logg=logg,feh=FeH,afe=aFe,rad_vel=radvel,rot_vel=rotvel,
-            vmic=vmic,inst_R=2.355*inst_R,
+            vmic=vmic,inst_R=input_inst_R,
             outwave=outwave, CarbonScale=CarbonScale)       
         # if polynomial normalization is turned on then multiply model by it
         if normspec_bool:

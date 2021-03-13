@@ -144,8 +144,14 @@ def smoothspec(wave, spec, resolution=None, outwave=None,
     if smoothtype == 'lsf':
         if fftsmooth:
             smooth_method = smooth_lsf_fft
+            if sigma is not None:
+                # mask the resolution vector
+                sigma = resolution[mask]
         else:
-            smooth_method = smoooth_lsf
+            smooth_method = smooth_lsf
+            if sigma is not None:
+                # convert to resolution on the output wavelength grid
+                sigma = np.interp(outwave, wave, resolution)
     elif linear:
         if fftsmooth:
             smooth_method = smooth_wave_fft
@@ -424,7 +430,6 @@ def smooth_wave_fft(wavelength, spectrum, outwave, sigma_out=1.0,
     if outwave is not None:
         spec_conv = np.interp(outwave, wave, spec_conv)
     return spec_conv
-
 
 def smooth_lsf(wave, spec, outwave, sigma=None, lsf=None, return_kernel=False,
                **kwargs):
