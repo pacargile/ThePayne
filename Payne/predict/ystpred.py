@@ -164,6 +164,8 @@ class PayneSpecPredict(object):
           else:
                self.inputdict['afe'] = 0.0
 
+          outwave = kwargs.get('outwave',None)
+
           # determine if NN has vmic built into it by seeing if kwargs['vmic'] == np.nan
           if 'vmic' in kwargs:
                if np.isfinite(kwargs['vmic']):
@@ -204,7 +206,6 @@ class PayneSpecPredict(object):
                     modwave,modcontwave,modcont,
                     right=np.nan,left=np.nan)
 
-
           rot_vel_bool = False
           if 'rot_vel' in kwargs:
                # check to make sure rot_vel isn't 0.0, this will cause the convol. to crash
@@ -228,13 +229,8 @@ class PayneSpecPredict(object):
 
           inst_R_bool = False
           if 'inst_R' in kwargs:
-               if 'outwave' in kwargs:
-                    if kwargs['outwave'] is None:
-                         outwave = None
-                    else:
-                         outwave = np.array(kwargs['outwave'])
-               else:
-                    outwave = None
+               if outwave is not None:
+                    outwave = np.array(outwave)
 
                if isinstance(kwargs['inst_R'],float):
                     # check to make sure inst_R != 0.0
@@ -269,10 +265,11 @@ class PayneSpecPredict(object):
                          outwave=outwave,smoothtype='lsf',
                          fftsmooth=True,inres=self.anns.resolution)
 
+          if (inst_R_bool == False) & (outwave is not None):
+               modspec = np.interp(kwargs['outwave'],modwave,modspec,right=np.nan,left=np.nan)
 
-          if (inst_R_bool == False) & ('outwave' in kwargs):
-               if kwargs['outwave'] is not None:
-                    modspec = np.interp(kwargs['outwave'],modwave,modspec,right=np.nan,left=np.nan)
+          if outwave is not None:
+               modwave = outwave
 
           return modwave, modspec
 
