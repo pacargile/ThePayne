@@ -15,7 +15,7 @@ _ALLFILTERS = (
     'Kepler_D51', 'Kepler_Kp', 
     'PS_g', 'PS_i', 'PS_open', 'PS_r', 'PS_w', 'PS_y', 'PS_z', 
     'SDSS_g', 'SDSS_i', 'SDSS_r', 'SDSS_u', 'SDSS_z', 
-    'TESS', 
+    'TESS_T', 
     'Tycho_B', 'Tycho_V', 
     'UKIDSS_H', 'UKIDSS_J', 'UKIDSS_K', 'UKIDSS_Y', 'UKIDSS_Z', 
     'WISE_W1', 'WISE_W2', 'WISE_W3', 'WISE_W4']
