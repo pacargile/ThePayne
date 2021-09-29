@@ -1,6 +1,7 @@
 # #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from jax import lax
 import jax.numpy as np
 from datetime import datetime
 
@@ -56,8 +57,7 @@ class GenMod(object):
         #       print('Cannot find NN HDF5 file for {0}'.format(ff))
         # self.ANNdict = ANNdict
 
-    def genspec(self,pars,outwave=None,verbose=False):
-        # normspec_bool=False):
+    def genspec(self,pars,outwave=None,verbose=False,modpoly=False):
         # define parameters from pars array
         Teff = pars[0]
         logg = pars[1]
@@ -68,22 +68,25 @@ class GenMod(object):
         vmic = pars[6]
         inst_R = pars[7]
 
-        # # check to see if a polynomial is used for spectrum normalization
-        # if normspec_bool and not carbon_bool:
-        #     polycoef = pars[8:]
-        # else:
-        #     polycoef = pars[8:-1]
-
         # predict model flux at model wavelengths
         modwave_i,modflux_i = self.PP.getspec(
             Teff=Teff,logg=logg,feh=FeH,afe=aFe,rad_vel=radvel,rot_vel=rotvel,
             inst_R=2.355*inst_R,
             outwave=outwave)       
-        # # if polynomial normalization is turned on then multiply model by it
-        # if normspec_bool:
-        #     epoly = polycalc(polycoef,outwave)
-        #     # now multiply the model by the polynomial normalization poly
-        #     modflux_i = modflux_i*epoly
+
+        def modpolyfn(wave):
+            polycoef = pars[8:]
+            epoly = polycalc(polycoef,wave)
+            return epoly
+
+        def modpolydefault(wave):
+            return np.ones(len(wave))
+
+        # if polynomial normalization is turned on then multiply model by it
+        epoly = lax.cond(modpoly,modpolyfn,modpolydefault,modwave_i)            
+
+        # now multiply the model by the polynomial normalization poly
+        modflux_i = modflux_i*epoly
 
         return modwave_i,modflux_i
 

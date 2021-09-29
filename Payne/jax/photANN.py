@@ -17,6 +17,7 @@ with warnings.catch_warnings():
   warnings.simplefilter('ignore')
   import h5py
 from itertools import product
+import copy
 
 import Payne
 
@@ -75,8 +76,8 @@ class ANN(object):
 
     newmoddict = {}
     for kk in th5['model'].keys():
-      nparr = np.array(th5['model'][kk])
-      torarr = torch.from_numpy(nparr.copy()).type(dtype)
+      nparr = copy.deepcopy(np.array(th5['model'][kk]))
+      torarr = torch.from_numpy(nparr).type(dtype)
       newmoddict[kk] = torarr    
     self.model.load_state_dict(newmoddict)
 

@@ -7,7 +7,8 @@ import jax.numpy as np
 import numpy as nnp
 from jax.numpy.fft import fft, rfft, irfft, ifft, fftfreq, rfftfreq
 from jax.ops import index, index_add, index_update
-from jax.scipy.special import i1 as j1
+# from scipy.special import j1
+from .jaxj1 import j1
 from jax import jit,vmap
 from datetime import datetime
 
@@ -544,7 +545,7 @@ def smooth_fft(dx, spec, sigma):
     # Make the fourier space taper; just the analytical fft of a gaussian
     taper = np.exp(-2 * (np.pi ** 2) * (sigma ** 2) * (ss ** 2))
     # ss[0] = 0.01  # hack
-    # ss = index_update(ss, index[0], 0.01)
+    ss = index_update(ss, index[0], 0.01)
     # Fourier transform the spectrum
     spec_ff = jrfft(spec)
     # Multiply in fourier space
@@ -559,11 +560,11 @@ def smooth_fft_vsini(dv,spec,sigma):
 
     # Make the fourier space taper
     # ss[0] = 0.01 #junk so we don't get a divide by zero error
-    # ss = index_update(ss, index[0], 0.01)
+    ss = index_update(ss, index[0], 0.01)
     ub = 2. * np.pi * sigma * ss
     sb = j1(ub) / ub - 3 * np.cos(ub) / (2 * ub ** 2) + 3. * np.sin(ub) / (2 * ub ** 3)
     #set zeroth frequency to 1 separately (DC term)
-    # ss = index_update(ss, index[0], 1.0)
+    ss = index_update(ss, index[0], 1.0)
 
     # Fourier transform the spectrum
     FF = jrfft(spec)
