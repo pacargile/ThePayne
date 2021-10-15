@@ -90,7 +90,7 @@ class GenMod(object):
 
         return modwave_i,modflux_i
 
-    def genphot(self,pars,verbose=False):
+    def genphot(self,pars,rvfree=False,verbose=False):
         # define parameters from pars array
         Teff = pars[0]
         logg = pars[1]
@@ -99,7 +99,8 @@ class GenMod(object):
         logR = pars[4]
         Dist = pars[5]
         Av   = pars[6]
-        # Rv   = pars[7]
+
+        Rv = lax.cond(rvfree,lambda _:pars[7],lambda _ :3.1,None)
 
         logTeff = np.log10(Teff)
 
@@ -114,7 +115,7 @@ class GenMod(object):
         photpars['logl'] = logL
         photpars['dist'] = Dist
         photpars['av']   = Av
-        photpars['rv']   = 3.1 #Rv
+        photpars['rv']   = Rv
 
         # create filter list and arrange photometry to this list
 

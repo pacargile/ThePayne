@@ -25,7 +25,12 @@ class GenMod(object):
         carbon_bool = kwargs.get('carbon_bool',False)
 
         # initialize the Payne Spectrum Predictor
-        self.PP = PayneSpecPredict(nnpath,carbon_bool=carbon_bool)
+        Cnnpath = kwargs.get('Cnnpath',None)
+        if Cnnpath is None:
+            self.PP = PayneSpecPredict(nnpath=nnpath)
+        else:
+            self.PP = PayneSpecPredict(nnpath=nnpath,Cnnpath=Cnnpath)
+
 
     def _initphotnn(self,filterarray,nnpath=None):
         self.filterarray = filterarray
@@ -92,7 +97,7 @@ class GenMod(object):
 
         return modwave_i,modflux_i
 
-    def genphot(self,pars,verbose=False):
+    def genphot(self,pars,rvfree=False,verbose=False):
         # define parameters from pars array
         Teff = pars[0]
         logg = pars[1]
@@ -101,7 +106,10 @@ class GenMod(object):
         logR = pars[4]
         Dist = pars[5]
         Av   = pars[6]
-        # Rv   = pars[7]
+        if rvfree:
+            Rv = pars[7]
+        else:
+            Rv = 3.1
 
         logTeff = np.log10(Teff)
 
@@ -116,7 +124,7 @@ class GenMod(object):
         photpars['logl'] = logL
         photpars['dist'] = Dist
         photpars['av']   = Av
-        photpars['rv']   = 3.1 #Rv
+        photpars['rv']   = Rv
 
         # create filter list and arrange photometry to this list
 
@@ -136,7 +144,7 @@ class GenMod(object):
 
         return outdict
 
-    def genphot_scaled(self,pars,verbose=False):
+    def genphot_scaled(self,pars,rvfree=False,verbose=False):
         # define parameters from pars array
         Teff = pars[0]
         logg = pars[1]
@@ -144,7 +152,10 @@ class GenMod(object):
         aFe  = pars[3]
         logA = pars[4]
         Av   = pars[5]
-        # Rv   = pars[6]
+        if rvfree:
+            Rv = pars[7]
+        else:
+            Rv = 3.1
 
         logTeff = np.log10(Teff)
 
@@ -156,7 +167,7 @@ class GenMod(object):
         photpars['afe']  = aFe
         photpars['logA'] = logA
         photpars['av']   = Av
-        photpars['rv']   = 3.1 #Rv
+        photpars['rv']   = Rv
 
         # create filter list and arrange photometry to this list
         sed = self.fppsed.sed(**photpars)
