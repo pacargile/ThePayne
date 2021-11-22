@@ -42,7 +42,7 @@ class FitPayne(object):
           # set some flags
           self.spec_bool = False
           self.phot_bool = False
-          self.normspec_bool = False
+          self.modpoly_bool = False
           self.photscale_bool = False
           self.carbon_bool = False
 
@@ -106,12 +106,12 @@ class FitPayne(object):
                          self.fitpars_bool[pp] = True
 
                # determine if user wants to fit the continuum normalization
-               if 'normspec' in inputdict['spec'].keys():
-                    # check to see if normspec is True
-                    if inputdict['spec']['normspec']:
+               if 'modpoly' in inputdict['spec'].keys():
+                    # check to see if modpoly is True
+                    if inputdict['spec']['modpoly']:
                          if self.verbose:
                               print('... Fitting a Blaze function')
-                         self.normspec_bool = True
+                         self.modpoly_bool = True
                          # check to see if user defined a series of polynomial coef for 
                          # blaze function as priors
                          if 'blaze_coeff' in inputdict['priordict'].keys():
@@ -202,7 +202,7 @@ class FitPayne(object):
                'runbools':(
                     [self.spec_bool,
                     self.phot_bool,
-                    self.normspec_bool,
+                    self.modpoly_bool,
                     self.photscale_bool,
                     self.carbon_bool])
                })

@@ -56,7 +56,7 @@ class GenMod(object):
         # self.ANNdict = ANNdict
 
     def genspec(self,pars,outwave=None,verbose=False,
-        normspec_bool=False,carbon_bool=False):
+        modpoly=False,carbon_bool=False):
         # define parameters from pars array
         Teff = pars[0]
         logg = pars[1]
@@ -68,7 +68,7 @@ class GenMod(object):
         inst_R = pars[7]
 
         # check to see if a polynomial is used for spectrum normalization
-        if normspec_bool and not carbon_bool:
+        if modpoly and not carbon_bool:
             polycoef = pars[8:]
         else:
             polycoef = pars[8:-1]
@@ -90,8 +90,8 @@ class GenMod(object):
             vmic=vmic,inst_R=input_inst_R,
             outwave=outwave, CarbonScale=CarbonScale)       
         # if polynomial normalization is turned on then multiply model by it
-        if normspec_bool:
-            epoly = polycalc(polycoef,outwave)
+        if modpoly:
+            epoly = polycalc(polycoef,modwave_i)
             # now multiply the model by the polynomial normalization poly
             modflux_i = modflux_i*epoly
 
@@ -153,7 +153,7 @@ class GenMod(object):
         logA = pars[4]
         Av   = pars[5]
         if rvfree:
-            Rv = pars[7]
+            Rv = pars[6]
         else:
             Rv = 3.1
 

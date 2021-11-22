@@ -90,7 +90,7 @@ class prior(object):
           # split up the boolean flags
           self.spec_bool = runbools[0]
           self.phot_bool = runbools[1]
-          self.normspec_bool = runbools[2]
+          self.modpoly_bool = runbools[2]
           self.photscale_bool = runbools[3]
 
           # dictionary of default parameter ranges
@@ -401,7 +401,7 @@ class prior(object):
                     lnprior += lnprior_i
           return lnprior
           # # if fitting a blaze function, then check for additional priors
-          # if self.normspec_bool:
+          # if self.modpoly_bool:
           #      pcarr = [x_i for x_i in pardict.keys() if 'pc' in x_i]
           #      if len(pcarr) > 0:
           #           for ii,pc_i in enumerate(pcarr):
