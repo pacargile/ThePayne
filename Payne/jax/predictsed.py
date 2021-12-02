@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 
 import jax.numpy as np
+from jax import lax
 from .photANN import ANN, fastANN
+from .highred import highAv
 
 _ALLFILTERS = (
     ['2MASS_H', '2MASS_J', '2MASS_Ks', 
@@ -72,19 +74,28 @@ class FastPayneSEDPredict(object):
         nnlist = [ANN(f, nnpath=nnpath, verbose=False) for f in usebands]
         self.anns = fastANN(nnlist, self.filternames)
 
+        self.HiAv = highAv(self.filternames)
+
     def sed(self, logt=None, logg=None, feh=None, afe=None,
             logl=None, av=0.0, rv=3.1, 
             dist=None, logA=None, band_indices=slice(None)):
         """
         """
 
-        if type(rv) == type(None):
-            inpars = [10.0**logt,logg,feh,afe,av]
-        else:
-            inpars = [10.0**logt,logg,feh,afe,av,rv]
+        # if type(rv) == type(None):
+        #     inpars = [10.0**logt,logg,feh,afe,av]
+        # else:
+        inpars = [10.0**logt,logg,feh,afe,av,rv]
 
-        BC = self.anns.eval(inpars)
+        def bcdefault(x):
+            return self.anns.eval(inpars)
+
+        def bchiav(x):
+            BC0 = self.anns.eval([10.0**logt,logg,feh,afe,0.0,3.1])
+            return self.HiAv.calc(BC0,av,rv)
         
+        BC = lax.cond(av < 5.0,bcdefault,bchiav,None)
+
         if (type(logl) != type(None)) and (type(dist) != type(None)):
             mu = 5.0 * np.log10(dist) - 5.0
             m = -2.5 * logl + 4.74 - BC + mu
