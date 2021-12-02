@@ -3,6 +3,7 @@
 
 import numpy as np
 from .photANN import ANN, fastANN
+from .highred import highAv
 
 _ALLFILTERS = (
     ['2MASS_H', '2MASS_J', '2MASS_Ks', 
@@ -69,18 +70,24 @@ class FastPayneSEDPredict(object):
         nnlist = [ANN(f, nnpath=nnpath, verbose=False) for f in usebands]
         self.anns = fastANN(nnlist, self.filternames)
 
+        self.HiAv = highAv(self.filternames)
+
     def sed(self, logt=None, logg=None, feh=None, afe=None,
             logl=None, av=0.0, rv=3.1, 
             dist=None, logA=None, band_indices=slice(None)):
         """
         """
 
-        if type(rv) == type(None):
-            inpars = [10.0**logt,logg,feh,afe,av]
-        else:
-            inpars = [10.0**logt,logg,feh,afe,av,rv]
+        # if type(rv) == type(None):
+        #     inpars = [10.0**logt,logg,feh,afe,av]
+        # else:
+        inpars = [10.0**logt,logg,feh,afe,av,rv]
 
-        BC = self.anns.eval(inpars)
+        if av < 5.0:
+            BC = self.anns.eval(inpars)
+        else:
+            BC0 = self.anns.eval([10.0**logt,logg,feh,afe,0.0,3.1])
+            BC = self.HiAv.calc(BC0,av,rv)
         
         if (type(logl) != type(None)) and (type(dist) != type(None)):
             mu = 5.0 * np.log10(dist) - 5.0
