@@ -5,7 +5,7 @@ from __future__ import print_function
 import jax.numpy as np
 import jax.scipy as jsp
 from jax.ops import index, index_add, index_update
-from jax import jit,vmap
+from jax import jit,vmap,lax
 import warnings
 from datetime import datetime
 with warnings.catch_warnings():
@@ -141,6 +141,15 @@ class PayneSpecPredict(object):
           else:
                self.inputdict['afe'] = 0.0
 
+          if 'vmic' in kwargs:
+               self.inputdict['vmic'] = kwargs['vmic']
+          else:
+               self.inputdict['vmic'] = 0.0
+
+          # inputparnames = ['teff','logg','feh','afe','vmic']
+          # modspec = self.predictspec([self.inputdict[kk] for kk in inputparnames])
+
+
           # # determine if NN has vmic built into it by seeing if kwargs['vmic'] == np.nan
           # if 'vmic' in kwargs:
           #      if np.isfinite(kwargs['vmic']):
@@ -156,10 +165,10 @@ class PayneSpecPredict(object):
           usevmicbool = False
 
           # calculate model spectrum at the native network resolution
-          if usevmicbool:
-               modspec = self.predictspec([self.inputdict[kk] for kk in ['teff','logg','feh','afe','vmic']])
-          else:
-               modspec = self.predictspec([self.inputdict[kk] for kk in ['teff','logg','feh','afe']])
+          # if usevmicbool:
+          #      modspec = self.predictspec([self.inputdict[kk] for kk in ['teff','logg','feh','afe','vmic']])
+          # else:
+          modspec = self.predictspec([self.inputdict[kk] for kk in ['teff','logg','feh','afe','vmic']])
 
           modwave = self.anns.wavelength
 

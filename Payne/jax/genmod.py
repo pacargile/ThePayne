@@ -71,7 +71,7 @@ class GenMod(object):
         # predict model flux at model wavelengths
         modwave_i,modflux_i = self.PP.getspec(
             Teff=Teff,logg=logg,feh=FeH,afe=aFe,rad_vel=radvel,rot_vel=rotvel,
-            inst_R=2.355*inst_R,
+            inst_R=2.355*inst_R,vmic=vmic,
             outwave=outwave)       
 
         def modpolyfn(wave):
