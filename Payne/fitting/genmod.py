@@ -27,9 +27,9 @@ class GenMod(object):
         # initialize the Payne Spectrum Predictor
         Cnnpath = kwargs.get('Cnnpath',None)
         if Cnnpath is None:
-            self.PP = PayneSpecPredict(nnpath=nnpath)
+            self.PP = PayneSpecPredict(nnpath=nnpath,NNtype=NNtype)
         else:
-            self.PP = PayneSpecPredict(nnpath=nnpath,Cnnpath=Cnnpath)
+            self.PP = PayneSpecPredict(nnpath=nnpath,Cnnpath=Cnnpath,NNtype=NNtype)
 
 
     def _initphotnn(self,filterarray,nnpath=None):

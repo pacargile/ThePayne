@@ -65,7 +65,7 @@ class PayneSpecPredict(object):
      """
      Class for taking a Payne-learned NN and predicting spectrum.
      """
-     def __init__(self, nnpath, **kwargs):
+     def __init__(self, nnpath=None, **kwargs):
           self.NN = {}
           if nnpath != None:
                self.nnpath = nnpath
@@ -74,6 +74,28 @@ class PayneSpecPredict(object):
                self.nnpath  = Payne.__abspath__+'data/specANN/YSTANN.h5'
 
           self.anns = Net(self.nnpath)
+
+          # check to see if using NN with Teff / 1000.0
+          if self.anns.xmin[0] < 1000.0:
+               self.anns.xmin.at[0].multiply(1000.0)
+               self.anns.xmax.at[0].multiply(1000.0)
+
+          NNtype = kwargs.get('NNtype','YST1')
+          if NNtype == 'YST1':
+               self.modpars = ['teff','logg','feh','afe']
+          else:
+               self.modpars = ['teff','logg','feh','afe','vmic']
+
+          self.Cnnpath = kwargs.get('Cnnpath',None)
+          if self.Cnnpath is not None:
+               self.Canns_bool = True
+               self.Canns = Net(self.Cnnpath)
+               self.contfn = self.predictcont
+          else:
+               self.Canns_bool = False
+               self.Canns = None
+               self.contfn = lambda _ : 1.0
+
 
      def predictspec(self,labels):
           '''
@@ -90,6 +112,30 @@ class PayneSpecPredict(object):
           self.predict_flux = self.anns.eval(labels)
 
           return self.predict_flux
+
+     def predictcont(self,labels):
+          '''
+          predict continuum using set of labels and trained NN output
+
+          :params labels:
+          list of label values for the labels used to train the NN
+          ex. [Teff,log(g),[Fe/H],[alpha/Fe]]
+
+          :returns predict_flux:
+          predicted flux from the NN
+          '''
+
+          predict_cont = self.Canns.eval(labels)
+          modcontwave = self.Canns.wavelength
+
+          # convert the continuum from F_nu -> F_lambda
+          modcont = predict_cont * (speedoflight/((modcontwave*1E-8)**2.0))
+
+          # normalize the continuum
+          modcont = modcont / np.nanmedian(modcont)
+
+          # interpolate continuum onto spectrum
+          return np.interp(self.anns.wavelength,modcontwave,modcont,right=np.nan,left=np.nan)
 
      def getspec(self,**kwargs):
           '''
@@ -110,11 +156,11 @@ class PayneSpecPredict(object):
           self.inputdict = {}
 
           if 'Teff' in kwargs:
-               self.inputdict['teff'] = kwargs['Teff'] / 1000.0
+               self.inputdict['teff'] = kwargs['Teff'] 
           elif 'logt' in kwargs:
-               self.inputdict['teff'] = (10.0**kwargs['logt']) / 1000.0
+               self.inputdict['teff'] = (10.0**kwargs['logt']) 
           else:
-               self.inputdict['teff'] = 5770.0/1000.0
+               self.inputdict['teff'] = 5770.0
 
           if 'log(g)' in kwargs:
                self.inputdict['logg'] = kwargs['log(g)']
@@ -144,33 +190,12 @@ class PayneSpecPredict(object):
           if 'vmic' in kwargs:
                self.inputdict['vmic'] = kwargs['vmic']
           else:
-               self.inputdict['vmic'] = 0.0
+               self.inputdict['vmic'] = np.nan
 
-          # inputparnames = ['teff','logg','feh','afe','vmic']
-          # modspec = self.predictspec([self.inputdict[kk] for kk in inputparnames])
-
-
-          # # determine if NN has vmic built into it by seeing if kwargs['vmic'] == np.nan
-          # if 'vmic' in kwargs:
-          #      if np.isfinite(kwargs['vmic']):
-          #           self.inputdict['vmic'] = kwargs['vmic']
-          #           usevmicbool = True
-          #      else:
-          #           self.inputdict['vmic'] = np.nan
-          #           usevmicbool = False
-          # else:
-          #      self.inputdict['vmic'] = np.nan
-          #    usevmicbool = False
-
-          usevmicbool = False
-
-          # calculate model spectrum at the native network resolution
-          # if usevmicbool:
-          #      modspec = self.predictspec([self.inputdict[kk] for kk in ['teff','logg','feh','afe','vmic']])
-          # else:
-          modspec = self.predictspec([self.inputdict[kk] for kk in ['teff','logg','feh','afe','vmic']])
-
+          modspec = self.predictspec([self.inputdict[kk] for kk in self.modpars])
           modwave = self.anns.wavelength
+
+          modspec = modspec * self.contfn([self.inputdict[kk] for kk in self.modpars])
 
           rot_vel_bool = False
           if 'rot_vel' in kwargs:
@@ -182,7 +207,8 @@ class PayneSpecPredict(object):
                # use B.Johnson's smoothspec to convolve with rotational broadening
                modspec = self.smoothspec(modwave,modspec,kwargs['rot_vel'],
                     outwave=None,smoothtype='vsini',fftsmooth=True,inres=0.0)
-               modspec = index_update(modspec, index[0], modspec[1])
+               modspec = modspec.at[0].set(modspec[1])
+               modspec = modspec.at[-1].set(modspec[-2])
 
           rad_vel_bool = False
           if 'rad_vel' in kwargs:
@@ -206,16 +232,24 @@ class PayneSpecPredict(object):
                # inres=None
                if 'outwave' in kwargs:
                     if kwargs['outwave'] is None:
-                         outwave = None
+                         outwave = modwave
                     else:
                          outwave = np.array(kwargs['outwave'])
                else:
-                    outwave = None
+                    outwave = modwave
 
-               modspec = self.smoothspec(modwave,modspec,kwargs['inst_R'],
-                    outwave=kwargs['outwave'],smoothtype='R',fftsmooth=True,
+               if np.iterable(kwargs['inst_R']):
+                    smoothtype = 'lsf'
+                    lsf = np.interp(modwave,outwave,kwargs['inst_R'])
+               else:
+                    smoothtype = 'R'
+                    lsf = 2.355*kwargs['inst_R']
+               
+               modspec = self.smoothspec(modwave,modspec,lsf,
+                    outwave=outwave,smoothtype=smoothtype,fftsmooth=True,
                     inres=self.anns.resolution)
-               modspec = index_update(modspec, index[0], modspec[1])
+               modspec = modspec.at[0].set(modspec[1])
+               modspec = modspec.at[-1].set(modspec[-2])
 
                if outwave is not None:
                     modwave = outwave

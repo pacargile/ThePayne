@@ -9,7 +9,7 @@ from jax.numpy.fft import fft, rfft, irfft, ifft, fftfreq, rfftfreq
 from jax.ops import index, index_add, index_update
 # from scipy.special import j1
 from .jaxj1 import j1
-from jax import jit,vmap
+from jax import jit,vmap,lax
 from datetime import datetime
 
 jfft = jit(fft)
@@ -19,7 +19,7 @@ jinterp = jit(np.interp)
 jrfft = jit(rfft)
 jirfft = jit(irfft)
 jrfftfreq = rfftfreq
-
+jj1 = jit(j1)
 
 # # compile the functions
 # signal = nnp.random.randn(2**10)
@@ -485,12 +485,12 @@ def smooth_lsf_fft(wave, spec, outwave, sigma=None, lsf=None, pix_per_sigma=2,
     # resolution is in this new coordinate.
     # There are two possible ways to do this
 
-    # 1) Choose a point ~halfway in the spectrum
-    # half = len(wave) / 2
-    # Now get the x coordinates of a point eps*sigma redder and bluer
-    # wave_eps = eps * np.array([-1, 1]) * sigma[halpha]
-    # x_h_eps = np.interp(wave[half] + wave_eps, wave, cdf)
-    # Take the differences to get dx and dsigma and ratio to get x per sigma
+    # # 1) Choose a point ~halfway in the spectrum
+    # half = np.int32(len(wave) / 2)
+    # # Now get the x coordinates of a point eps*sigma redder and bluer
+    # wave_eps = eps * np.array([-1, 1]) * sigma[half]
+    # x_h_eps = jinterp(wave[half] + wave_eps, wave, cdf)
+    # # Take the differences to get dx and dsigma and ratio to get x per sigma
     # x_per_sigma = np.diff(x_h_eps) / (2.0 * eps) #x_h_epsilon - x_h
 
     # 2) Get for all points (slower?):
@@ -502,23 +502,25 @@ def smooth_lsf_fft(wave, spec, outwave, sigma=None, lsf=None, pix_per_sigma=2,
     # Alternatively, just use the smallest dx of the input, divided by two for safety
     # Assumes the input spectrum is critically sampled.
     # And does not actually give x_per_sigma, so that has to be determined anyway
-    if preserve_all_input_frequencies:
-        # preserve more information in the input spectrum, even when way higher
-        # frequency than the resolution of the output.  Leads to slightly more
-        # accurate output, but with a substantial time hit
-        N = max(N, 1.0 / np.nanmin(x_per_pixel))
+    # if preserve_all_input_frequencies:
+    #     # preserve more information in the input spectrum, even when way higher
+    #     # frequency than the resolution of the output.  Leads to slightly more
+    #     # accurate output, but with a substantial time hit
+    #     N = max(N, 1.0 / np.nanmin(x_per_pixel))
 
     # Now find the smallest power of two that divides the interval (0, 1) into
     # segments that are smaller than dx
-    nx = int(2**np.ceil(np.log2(N)))
+    # nx = int(2**np.ceil(np.log2(N)))
+    # nx = np.int32(2**np.ceil(np.log2(N)))
+    nx = 8192
+    dx = 1.0 / nx
 
     # now evenly sample in the x coordinate
     x = np.linspace(0, 1, nx)
-    dx = 1.0 / nx
 
     # And now we get the spectrum at the lambda coordinates of the even grid in x
-    lam = np.interp(x, cdf, wave)
-    newspec = np.interp(lam, wave, spec)
+    lam = jinterp(x, cdf, wave)
+    newspec = jinterp(lam, wave, spec)
 
     # And now we convolve.
     # If we did not know sigma in terms of x we could estimate it here
@@ -529,7 +531,9 @@ def smooth_lsf_fft(wave, spec, outwave, sigma=None, lsf=None, pix_per_sigma=2,
     spec_conv = smooth_fft(dx, newspec, x_per_sigma)
 
     # and interpolate back to the output wavelength grid.
-    return np.interp(outwave, lam, spec_conv)
+    outspec = jinterp(outwave, lam, spec_conv)
+
+    return outspec
 
 def smooth_fft(dx, spec, sigma):
     """Basic math for FFT convolution with a gaussian kernel.
@@ -560,11 +564,13 @@ def smooth_fft_vsini(dv,spec,sigma):
 
     # Make the fourier space taper
     # ss[0] = 0.01 #junk so we don't get a divide by zero error
+    # ss.at[0].set(0.01)
     ss = index_update(ss, index[0], 0.01)
     ub = 2. * np.pi * sigma * ss
-    sb = j1(ub) / ub - 3 * np.cos(ub) / (2 * ub ** 2) + 3. * np.sin(ub) / (2 * ub ** 3)
+    sb = jj1(ub) / ub - 3 * np.cos(ub) / (2 * ub ** 2) + 3. * np.sin(ub) / (2 * ub ** 3)
     #set zeroth frequency to 1 separately (DC term)
-    ss = index_update(ss, index[0], 1.0)
+    sb = index_update(sb, index[0], 1.0)
+    # sb.at[0].set(1.0)
 
     # Fourier transform the spectrum
     FF = jrfft(spec)

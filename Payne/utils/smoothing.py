@@ -580,7 +580,9 @@ def smooth_lsf_fft(wave, spec, outwave, sigma=None, lsf=None, pix_per_sigma=2,
     spec_conv = smooth_fft(dx, newspec, x_per_sigma)
 
     # and interpolate back to the output wavelength grid.
-    return np.interp(outwave, lam, spec_conv)
+    outspec = np.interp(outwave, lam, spec_conv)
+
+    return outspec
 
 def smooth_fft(dx, spec, sigma):
     """Basic math for FFT convolution with a gaussian kernel.

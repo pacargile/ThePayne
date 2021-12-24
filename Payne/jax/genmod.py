@@ -16,7 +16,7 @@ class GenMod(object):
     def _initspecnn(self,nnpath=None,**kwargs):
         from .fitutils import polycalc
         
-        # NNtype = kwargs.get('NNtype','YST1')
+        NNtype = kwargs.get('NNtype','YST1')
 
         # if NNtype == 'PC':
         #     from Payne.predict.predictspec_multi import PayneSpecPredict
@@ -27,7 +27,11 @@ class GenMod(object):
 
         from .predictspec import PayneSpecPredict
         # initialize the Payne Spectrum Predictor
-        self.PP = PayneSpecPredict(nnpath)
+        Cnnpath = kwargs.get('Cnnpath',None)
+        if Cnnpath is None:
+            self.PP = PayneSpecPredict(nnpath=nnpath,NNtype=NNtype)
+        else:
+            self.PP = PayneSpecPredict(nnpath=nnpath,Cnnpath=Cnnpath,NNtype=NNtype)
 
     def _initphotnn(self,filterarray,nnpath=None):
         self.filterarray = filterarray
@@ -71,7 +75,7 @@ class GenMod(object):
         # predict model flux at model wavelengths
         modwave_i,modflux_i = self.PP.getspec(
             Teff=Teff,logg=logg,feh=FeH,afe=aFe,rad_vel=radvel,rot_vel=rotvel,
-            inst_R=2.355*inst_R,vmic=vmic,
+            inst_R=inst_R,vmic=vmic,
             outwave=outwave)       
 
         def modpolyfn(wave):

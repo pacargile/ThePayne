@@ -69,6 +69,8 @@ class PayneSpecPredict(object):
                # define aliases for the MIST isochrones and C3K/CKC files
                self.nnpath  = Payne.__abspath__+'data/specANN/YSTANN.h5'
 
+          self.NNtype = kwargs.get('NNtype','YST1')
+
           self.anns = Net(self.nnpath)
 
           # check to see if using NN with Teff / 1000.0
@@ -217,7 +219,9 @@ class PayneSpecPredict(object):
                     modspec = self.smoothspec(modwave,modspec,
                          kwargs['rot_vel'],
                          outwave=None,smoothtype='vsini',
-                         fftsmooth=True)
+                         fftsmooth=True,inres=0.0)
+                    modspec[0] = modspec[1]
+                    modspec[-1] = modspec[-2]
 
           rad_vel_bool = False
           if 'rad_vel' in kwargs:
@@ -226,7 +230,6 @@ class PayneSpecPredict(object):
                     rad_vel_bool = True
                     # modwave = self.NN['wavelength'].copy()*(1.0-(kwargs['rad_vel']/speedoflight))
                     modwave = modwave*(1.0+(kwargs['rad_vel']/speedoflight))
-
           inst_R_bool = False
           if 'inst_R' in kwargs:
                if outwave is not None:
@@ -259,7 +262,7 @@ class PayneSpecPredict(object):
                     except AssertionError:
                          print('Length of LSF vector not equal to input wavelength')
                          raise
-
+                    
                     modspec = self.smoothspec(
                          modwave,modspec,disparr,
                          outwave=outwave,smoothtype='lsf',
