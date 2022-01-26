@@ -11,7 +11,10 @@ class highAv(object):
         self.Avlist = []
         for ff in filters:
             AvTab_i = AvTab[AvTab['filter'] == ff]
-            self.Avlist.append([AvTab_i['a1'][0],AvTab_i['b1'][0],AvTab_i['a2'][0],AvTab_i['b2'][0],AvTab_i['c2'][0]])
+            if len(AvTab_i) == 0:
+                self.Avlist.append([np.nan for _ in range(5)])
+            else:
+                self.Avlist.append([AvTab_i['a1'][0],AvTab_i['b1'][0],AvTab_i['a2'][0],AvTab_i['b2'][0],AvTab_i['c2'][0]])
 
     def getAvaprox(self,Av,Rv,pars):
         a1,b1,a2,b2,c2 = pars
