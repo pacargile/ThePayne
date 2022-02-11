@@ -1,7 +1,7 @@
 # The Payne
 =====
 
-Version 1.0 (beta)
+Version 1.0
 
 Artificial Neural-Net compression and fitting of ab initio synthetic spectral grids. The code has the following functionality:
 
@@ -24,7 +24,7 @@ Authors
 -------
 
 * **Phillip Cargile** (Harvard)
-* **Yuan-Sen Ting** (Carnegie-Princeton-IAS Fellow)
+* **Yuan-Sen Ting** (ANU)
 
 See [Authors](authors.rst) for a full list of contributors to The Payne.
 
@@ -34,7 +34,7 @@ Installation
 cd <install_dir>
 git clone https://github.com/pacargile/ThePayne.git
 cd ThePayne
-python setup.py install (--user)
+python -m pip install .
 ```
 
 Then in Python
