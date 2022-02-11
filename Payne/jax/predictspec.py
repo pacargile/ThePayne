@@ -244,7 +244,6 @@ class PayneSpecPredict(object):
                else:
                     smoothtype = 'R'
                     lsf = 2.355*kwargs['inst_R']
-               
                modspec = self.smoothspec(modwave,modspec,lsf,
                     outwave=outwave,smoothtype=smoothtype,fftsmooth=True,
                     inres=self.anns.resolution)
