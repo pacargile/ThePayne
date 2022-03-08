@@ -1,624 +1,477 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+from __future__ import print_function
+
 import torch
 from torch import nn
-dtype = torch.FloatTensor
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+dtype = torch.cuda.FloatTensor
 from torch.autograd import Variable
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import StepLR,ReduceLROnPlateau
+
+import torch.multiprocessing as multiprocessing
+from torch.multiprocessing import Pool
+
+# from multiprocessing import Pool
 
 import traceback
 import numpy as np
 import warnings
 with warnings.catch_warnings():
-	warnings.simplefilter('ignore')
-	import h5py
+     warnings.simplefilter('ignore')
+     import h5py
 import time,sys,os,glob
 from datetime import datetime
 try:
-	# Python 2.x
-	from itertools import imap
+     # Python 2.x
+     from itertools import imap
 except ImportError:
-	# Python 3.x
-	imap=map
-
-from multiprocessing import Pool
-
-from ..utils.pullspectra import pullspectra
-
-class Net(nn.Module):  
-	def __init__(self, D_in, H, D_out):
-		super(Net, self).__init__()
-		self.lin1 = nn.Linear(D_in, H)
-		self.lin2 = nn.Linear(H,H)
-		# self.lin3 = nn.Linear(H,H)
-		# self.lin4 = nn.Linear(H, D_out)
-		self.lin3 = nn.Linear(H,D_out)
-
-	def forward(self, x):
-		x_i = self.encode(x)
-		out1 = F.sigmoid(self.lin1(x_i))
-		out2 = F.sigmoid(self.lin2(out1))
-		# out3 = F.sigmoid(self.lin3(out2))
-		# y_i = self.lin4(out3)
-		y_i = self.lin3(out2)
-		return y_i     
-
-	def encode(self,x):
-		# convert x into numpy to do math
-		x_np = x.data.numpy()
-		try:
-			self.xmin
-			self.xmax
-		except (NameError,AttributeError):
-			self.xmin = np.amin(x_np,axis=0)
-			self.xmax = np.amax(x_np,axis=0)
-
-		x = (x_np-self.xmin)/(self.xmax-self.xmin)
-		return Variable(torch.from_numpy(x).type(dtype))
-
-class TrainSpec(object):
-	"""docstring for TrainSpec"""
-	def __init__(self, **kwargs):
-		import matplotlib
-		# matplotlib.use('AGG')
-		import matplotlib.pyplot as plt
-		matplotlib.pyplot.ioff()
-		self.plt = plt
-
-		# number of models to train on
-		if 'numtrain' in kwargs:
-			self.numtrain = kwargs['numtrain']
-		else:
-			self.numtrain = 20000
-
-		# number of iteration steps in training
-		if 'niter' in kwargs:
-			self.niter = kwargs['niter']
-		else:
-			self.niter = 200000
-
-		if 'epochs' in kwargs:
-			self.epochs = kwargs['epochs']
-		else:
-			self.epochs = 5
-
-		# number of nuerons in each layer
-		if 'H' in kwargs:
-			self.H = kwargs['H']
-		else:
-			self.H = 256
-
-		# wavelength range to train on in angstroms
-		if 'waverange' in kwargs:
-			self.waverange = kwargs['waverange']
-		else:
-			self.waverange = [5150.0,5200.0]
-
-		# check for user defined ranges for C3K spectra
-		if 'Teff' in kwargs:
-			Teffrange = kwargs['Teff']
-		if 'logg' in kwargs:
-			loggrange = kwargs['logg']
-		if 'FeH' in kwargs:
-			FeHrange = kwargs['FeH']
-		if 'aFe' in kwargs:
-			aFerange = kwargs['aFe']
-
-		if 'resolution' in kwargs:
-			self.resolution = kwargs['resolution']
-		else:
-			self.resolution = None
-
-		if 'verbose' in kwargs:
-			self.verbose = kwargs['verbose']
-		else:
-			self.verbose = False
-
-		# output hdf5 file name
-		if 'output' in kwargs:
-			self.outfilename = kwargs['output']
-		else:
-			self.outfilename = 'TESTOUT.h5'
-
-		self.restartfile = kwargs.get('restartfile',False)
-		print('... Restarting File: {0}'.format(self.restartfile))
-
-		if 'saveopt' in kwargs:
-			self.saveopt = kwargs['saveopt']
-		else:
-			self.saveopt = False
-
-		if 'logepoch' in kwargs:
-			self.logepoch = kwargs['logepoch']
-		else:
-			self.logepoch = True
-
-		if 'adaptivetrain' in kwargs:
-			self.adaptivetrain = kwargs['adaptivetrain']
-		else:
-			self.adaptivetrain = True
-
-		if 'logdir' in kwargs:
-			self.logdir = kwargs['logdir']
-		else:
-			self.logdir = '.'
-
-		if 'pdfdir' in kwargs:
-			self.pdfdir = kwargs['pdfdir']
-		else:
-			self.pdfdir = '.'
-			
-		self.MISTpath = kwargs.get('MISTpath',None)
-		self.C3Kpath  = kwargs.get('C3Kpath',None)
-
-		# pull C3K spectra for training
-		print('... Pulling {0} Training Spectra'.format(self.numtrain))
-		sys.stdout.flush()
-		pullspectra_o = pullspectra(MISTpath=self.MISTpath,C3Kpath=self.C3Kpath)
-		self.spectra_o,self.labels_o,self.wavelength = pullspectra_o(
-			self.numtrain,resolution=self.resolution, waverange=self.waverange,
-			MISTweighting=True)
-		self.spectra = self.spectra_o
-		# self.spectra_o,self.labels_o,self.wavelength = pullspectra_o.pullpixel(
-		# 	num=self.numtrain,resolution=self.resolution, waverange=self.waverange,
-		# 	MISTweighting=True)
-		# self.spectra = self.spectra_o
-
-		# N is batch size (number of points in X_train),
-		# D_in is input dimension
-		# H is hidden dimension
-		# D_out is output dimension
-		self.N = len(self.labels_o)#self.X_train.shape[0]
-		try:
-			self.D_in = len(self.labels_o[0])#self.X_train.shape[1]
-		except IndexError:
-			self.D_in = 1
-		self.D_out = 1
-
-		print('... Finished Init')
-		sys.stdout.flush()
-
-	def __call__(self,pixel_no):
-		'''
-		call instance so that train_pixel can be called with multiprocessing
-		and still have all of the class instance variables
-
-		:params pixel_no:
-			Pixel number that is going to be trained
-
-		'''
-		try:
-			return self.train_pixel(pixel_no)
-		except Exception as e:
-			traceback.print_exc()
-			print()
-			raise e
-
-
-	def run(self,mp=False,ncpus=1,inpixelarr=[]):
-		'''
-		function to actually run the training on pixels
-
-		:param mp (optional):
-			boolean that turns on multiprocessing to run 
-			training in parallel
-
-		'''
-
-		# initialize the output HDf5 file, return the datasets to populate
-		# outfile,wave_h5 = self.initout(restartfile=self.restartfile)
-
-		# number of pixels to train
-		numtrainedpixles = self.spectra.shape[1]
-		print('... Number of Pixels in Spectrum: {0}'.format(numtrainedpixles))
-
-		if inpixelarr == []:
-			if self.restartfile == False:
-				pixellist = range(numtrainedpixles)
-			else:
-				# read all files already created
-				alreadyrunfiles = glob.glob('OUTH5/*.h5')
-				# parse wavelength array out of already run files
-				runwave = (
-					[float(x.split('/')[-1].split('_')[-1].replace('w','').replace('.h5',''))
-					for x in alreadyrunfiles]
-					)
-				pixellist = []
-				possiblepixellist = range(numtrainedpixles)
-				for ii in possiblepixellist:
-					if float('{0:13.8f}'.format(self.wavelength[ii])) not in runwave:
- 						pixellist.append(ii)
-
-				# pixellist = list(np.argwhere(np.array(wave_h5) == 0.0).flatten())
-		else:
-			pixellist = inpixelarr
-
-		print('... Number of Pixels to Train: {0}'.format(len(pixellist)))
-		sys.stdout.flush()
-
-		# turn on multiprocessing if desired
-		if mp:
-			##### multiprocessing stuff #######
-			try:
-				# determine the number of cpu's and make sure we have access to them all
-				numcpus = open('/proc/cpuinfo').read().count('processor\t:')
-				os.system("taskset -p -c 0-{NCPUS} {PID}".format(NCPUS=numcpus-1,PID=os.getpid()))
-			except IOError:
-				pass
-
-			pool = Pool(processes=ncpus)
-			# init the map for the pixel training using the pool imap
-			netout = pool.imap#(self,pixellist)
-
-		else:
-			# init the map for the pixel training using the standard serial imap
-			netout = imap#(self,pixellist)
-
-		# start total timer
-		tottimestart = datetime.now()
-
-		print('... Starting Training at {0}'.format(tottimestart))
-		sys.stdout.flush()
-
-		# for pixellist_i in np.array_split(np.array(pixellist),int(numtrainedpixles/ncpus)):
-		for pixellist_i in [pixellist[ii:ii+ncpus] for ii in range(0,numtrainedpixles,ncpus)]:
-			try:
-				print('... Doing Pixels: {0}-{1}'.format(min(pixellist_i)+1,max(pixellist_i)+1))
-				sys.stdout.flush()
-			except ValueError:
-				break
-			for ii,net in zip(pixellist_i,netout(self,pixellist_i)):
-				outfile_i = h5py.File('{0}_w{1}.h5'.format(self.outfilename,self.wavelength[ii]),'w')
-				outfile_i.create_dataset('wavelength',data=np.array([self.wavelength[ii]]),compression='gzip')
-
-				try:
-					for kk in net[1].state_dict().keys():
-						outfile_i.create_dataset('model_{0}/model/{1}'.format(self.wavelength[ii],kk),
-							data=net[1].state_dict()[kk].numpy(),
-							compression='gzip')
-				except RuntimeError:
-					print('!!! PROBLEM WITH WRITING TO HDF5 FOR WAVELENGTH = {0} !!!'.format(wavelength))
-					raise
-
-				outfile_i.close()				
-				# wave_h5[ii]  = self.wavelength[ii]
-				# self.h5model_write(net[1],outfile,self.wavelength[ii])
-				# if self.saveopt:
-				# 	self.h5opt_write(net[2],outfile,self.wavelength[ii])
-			# flush output file to save results
-			sys.stdout.flush()
-			# outfile.flush()
-			print('... Finished Pixels: {0}-{1} @ {2}'.format(min(pixellist_i)+1,max(pixellist_i)+1,datetime.now()))
-
-		# print out total time
-		print('Total time to train network: {0}'.format(datetime.now()-tottimestart))
-		sys.stdout.flush()
-		# formally close the output file
-		outfile.close()
-
-	def initout(self,restartfile=False):
-		'''
-		function to save all of the information into 
-		a single HDF5 file
-		'''
-
-		if restartfile == False:
-			# create output HDF5 file
-			outfile = h5py.File(self.outfilename,'w', libver='latest', swmr=True)
-
-			# add datesets for values that are already defined
-			label_h5 = outfile.create_dataset('labels',    data=self.labels_o,  compression='gzip')
-			resol_h5 = outfile.create_dataset('resolution',data=np.array([self.resolution]),compression='gzip')
-
-			# define vectorized wavelength array, model array, and optimizer array
-			wave_h5  = outfile.create_dataset('wavelength',data=np.zeros(len(self.wavelength)), compression='gzip')
-			# model_h5 = outfile.create_dataset('model_arr', (len(self.wavelength),), compression='gzip')
-			# opt_h5   = outfile.create_dataset('opt_arr', (len(self.wavelength),), compression='gzip')
-
-			outfile.flush()
-
-		else:
-			# read in training file from restarted run
-			outfile  = h5py.File(restartfile,'r+', libver='latest', swmr=True)
-
-			# add datesets for values that are already defined
-			label_h5 = outfile['labels']
-			resol_h5 = outfile['resolution']
-
-			# define vectorized arrays
-			wave_h5  = outfile['wavelength']
-			# model_h5 = outfile['model_arr']
-			# opt_h5   = outfile['opt_arr']
-
-		return outfile,wave_h5
-
-	def train_pixel(self,pixel_no):
-		'''
-		define training function for each wavelength pixel to run in parallel
-		note we create individual neural network for each pixel
-		'''
-
-		# start a timer
-		starttime = datetime.now()
-
-		print('Pixel: {0}, pulling first spectra'.format(pixel_no+1))
-		pullspectra_i = pullspectra(MISTpath=self.MISTpath,C3Kpath=self.C3Kpath)
-		
-		# change labels into old_labels
-		old_labels_o = self.labels_o
-
-		# create tensor for labels
-		X_train_Tensor = Variable(torch.from_numpy(old_labels_o).type(dtype))
-
-		# pull fluxes at wavelength pixel
-		Y_train = np.array(self.spectra[:,pixel_no])
-		Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
-
-		# initialize the model
-		model = Net(self.D_in,self.H,self.D_out)
-
-		# set min and max pars to grid bounds for encoding
-		model.xmin = np.array([np.log10(2500.0),-1.0,-4.0,-0.2])
-		model.xmax = np.array([np.log10(15000.0),5.5,0.5,0.6])
-
-		# initialize the loss function
-		loss_fn = torch.nn.MSELoss(size_average=False)
-		# loss_fn = torch.nn.SmoothL1Loss(size_average=False)
-		# loss_fn = torch.nn.KLDivLoss(size_average=False)
-
-		# initialize the optimizer
-		learning_rate = 0.05
-		# optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-		optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
-
-		# initialize the scheduler to adjust the learning rate
-		scheduler = StepLR(optimizer,3,gamma=0.75)
-		# scheduler = ReduceLROnPlateau(optimizer,mode='min',factor=0.1)
-
-		for epoch_i in range(self.epochs):
-			# adjust the optimizer lr
-			scheduler.step()
-			lr_i = optimizer.param_groups[0]['lr']
-
-			epochtime = datetime.now()
-
-			for t in range(self.niter):
-				steptime = datetime.now()
-				def closure():
-					# Before the backward pass, use the optimizer object to zero all of the
-					# gradients for the variables it will update (which are the learnable weights
-					# of the model)
-					optimizer.zero_grad()
-
-					# Forward pass: compute predicted y by passing x to the model.
-					y_pred_train_Tensor = model(X_train_Tensor)
-
-					# Compute and print loss.
-					loss = loss_fn(y_pred_train_Tensor, Y_train_Tensor)
-
-					# Backward pass: compute gradient of the loss with respect to model parameters
-					loss.backward()
-					
-					if (t+1) % 10000 == 0:
-						print (
-							'WL: {0:6.2f} -- Pixel: {1} -- Epoch: {2} -- Step [{3:d}/{4:d}] -- Time per step: {5} -- Loss: {6:.4f}'.format(
-							self.wavelength[pixel_no],pixel_no+1,epoch_i+1,t+1, self.niter, datetime.now()-steptime, loss.data[0])
-						)
-						sys.stdout.flush()
-
-					return loss
-
-				# Calling the step function on an Optimizer makes an update to its parameters
-				optimizer.step(closure)
-
-			# # re-draw spectra for next epoch
-			# spectra_o,labels_o,wavelength = pullspectra_i(
-			# 	self.numtrain,resolution=self.resolution, waverange=self.waverange,
-			# 	MISTweighting=True,excludelabels=old_labels_o)
-			# spectra = spectra_o.T
-
-			spectra_o, labels_o, wavelength = pullspectra_i.pullpixel(pixel_no,
-				num=self.numtrain,resolution=self.resolution, waverange=self.waverange,
-				MISTweighting=True,excludelabels=old_labels_o,
-				)
-
-			# create X tensor
-			X_valid = labels_o
-			X_valid_Tensor = Variable(torch.from_numpy(labels_o).type(dtype))
-
-			# pull fluxes at wavelength pixel and create tensor
-			# Y_valid = np.array(spectra[pixel_no,:]).T
-			Y_valid = spectra_o
-			Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
-			
-			# Validation Forward pass: compute predicted y by passing x to the model.
-			Y_pred_valid_Tensor = model(X_valid_Tensor)
-			Y_pred_valid = Y_pred_valid_Tensor.data.numpy()
-
-			# calculate the residual at each validation label
-			valid_residual = np.squeeze(Y_valid.T-Y_pred_valid.T)
-
-			if any(np.isnan(valid_residual)):
-				print('Found a NaN validation Tensor')
-				print(Y_pred_valid_Tensor)
-
-			# create log of the validation step if user wants
-			if self.logepoch:				
-				with open(
-					self.logdir+'/ValidLog_pixel{0}_wave{1}_epoch{2}.log'.format(
-						pixel_no+1,self.wavelength[pixel_no],epoch_i+1),
-					'w') as logfile:
-					logfile.write('valnum Teff log(g) [Fe/H] [a/Fe] resid\n')
-					for ii,res in enumerate(valid_residual):
-						logfile.write('{0} '.format(ii+1))
-						logfile.write(np.array2string(X_valid[ii],separator=' ').replace('[','').replace(']',''))
-						logfile.write(' {0}'.format(res))
-						logfile.write('\n')
-
-				fig = self.plt.figure()
-				ax = fig.add_subplot(111)
-				# residsize = ((10 * 
-				# 	(max(np.abs(valid_residual))-np.abs(valid_residual))/
-				# 	(max(np.abs(valid_residual))-min(np.abs(valid_residual)))
-				# 	)**2.0) + 2.0
-
-				residsize = ((150 * np.abs(valid_residual))**2.0) + 2.0
-
-				scsym = ax.scatter(10.0**X_valid.T[0],X_valid.T[1],s=residsize,alpha=0.5)
-				lgnd = ax.legend([scsym,scsym,scsym],
-					# ['{0:5.3f}'.format(min(np.abs(valid_residual))),
-					#  '{0:5.3f}'.format(np.median(np.abs(valid_residual))),
-					#  '{0:5.3f}'.format(max(np.abs(valid_residual)))],
-					['0.0','0.5','1.0'],
-					 loc='upper left',
-					)
-				lgnd.legendHandles[0]._sizes = [2]
-				lgnd.legendHandles[1]._sizes = [202]
-				lgnd.legendHandles[2]._sizes = [402]
-				# ax.invert_yaxis()
-				# ax.invert_xaxis()
-				ax.set_xlim(16000,3000)
-				ax.set_ylim(6,-1.5)
-				ax.set_xlabel('Teff')
-				ax.set_ylabel('log(g)')
-				fig.savefig(
-					self.pdfdir+'/ValidLog_pixel{0}_wave{1}_epoch{2}.pdf'.format(
-						pixel_no+1,self.wavelength[pixel_no],epoch_i+1))
-				self.plt.close(fig)
-
-			# check if user wants to do adaptive training
-			if self.adaptivetrain:
-				# sort validation labels on abs(resid)
-				ind = np.argsort(np.abs(valid_residual))
-
-				# determine worst 1% of validation set
-				numbadmod = int(0.01*self.numtrain)
-				# if number of bad models < 5, then by default set it to 5
-				if numbadmod < 5:
-					numbadmod = 5
-				ind_s = ind[-numbadmod:]
-				labels_a = labels_o[ind_s]
-
-				# determine the number of models to add per new point
-				numselmod = int(0.1*self.numtrain)
-				# if number of new models < 5, then by default set it to 5
-				if numselmod < 5:
-					numselmod = 5
-
-				numaddmod = numselmod/numbadmod
-				if numaddmod <= 1:
-					numaddmod = 2
-
-				# make floor of numaddmod == 1
-				# if numaddmod == 0:
-				# 	numaddmod = 1
-
-				# cycle through worst samples, adding 10% new models to training set
-				for label_i in labels_a:
-					nosel = 1
-					epsilon = 0.1
-					newlabelbool = False
-					while True:
-						newlabels = np.array([x+epsilon*np.random.randn(numaddmod) for x in label_i]).T
-						labels_check = pullspectra_i.checklabels(newlabels)
-						# check to make sure labels_ai are unique
-						if all([x_ai not in labels_o.tolist() for x_ai in labels_check.tolist()]):
-							# print('Pixel: {0}, nosel = {1}'.format(pixel_no+1,nosel))
-							newlabelbool = True
-							break
-						# elif (nosel % 100 == 0):
-						# 	print('Pixel: {0}, increasing epsilon to {1} at nosel={2}'.format(pixel_no+1,epsilon*3.0,nosel))
-						# 	epsilon = epsilon*3.0
-						# 	nosel += 1
-						elif (nosel == 100):
-							# print('Pixel: {0}, could not find new model at nosel={1}, quitting'.format(pixel_no+1,nosel))
-							# print(newlabels)
-							break
-						else:
-							nosel += 1
-					"""
-					if newlabelbool:
-						spectra_ai,labels_ai,wavelength = pullspectra_i.selspectra(
-							newlabels,
-							resolution=self.resolution, 
-							waverange=self.waverange,
-							)
-						Y_valid_a = np.array(spectra_ai.T[pixel_no,:]).T
-					"""
-					if newlabelbool:
-						spectra_ai,labels_ai,wavelength = pullspectra_i.pullpixel(
-							pixel_no,
-							inlabels=newlabels,
-							resolution=self.resolution, 
-							waverange=self.waverange,
-							)
-						Y_valid_a = spectra_ai
-						Y_valid = np.hstack([Y_valid,Y_valid_a])
-						labels_o = np.append(labels_o,labels_ai,axis=0)
-				X_valid_Tensor = Variable(torch.from_numpy(labels_o).type(dtype))
-				Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
-
-			# re-use validation set as new training set for the next epoch
-			old_labels_o = labels_o
-			X_train_Tensor = X_valid_Tensor
-			Y_train_Tensor = Y_valid_Tensor
-
-			print (
-				'Pixel: {0} -- EPOCH [{1:d}/{2:d}], Step Time: {3}, LR: {4}, med(|Res|): {5}'.format(
-					pixel_no+1, epoch_i+1, self.epochs, datetime.now()-epochtime,
-					lr_i,np.nanmedian(np.abs(valid_residual)))
-				)
-			sys.stdout.flush()			
-
-		print('Trained pixel:{0}/{1} (wavelength: {2}), took: {3}'.format(
-			pixel_no+1,len(self.spectra[0,:]),self.wavelength[pixel_no],
-			datetime.now()-starttime))
-		sys.stdout.flush()
-
-		return [pixel_no, model, optimizer, datetime.now()-starttime]
-
-	def h5model_write(self,model,th5,wavelength):
-		'''
-		Write trained model to HDF5 file
-		'''
-		try:
-			for kk in model.state_dict().keys():
-				th5.create_dataset('model_{0}/model/{1}'.format(wavelength,kk),
-					data=model.state_dict()[kk].numpy(),
-					compression='gzip')
-		except RuntimeError:
-			print('!!! PROBLEM WITH WRITING TO HDF5 FOR WAVELENGTH = {0} !!!'.format(wavelength))
-			raise
-		# th5.flush()
-
-	def h5opt_write(self,optimizer,th5,wavelength):
-		'''
-		Write current state of the optimizer to HDF5 file
-		'''
-		for kk in optimizer.state_dict().keys():
-			# cycle through the top keys
-			if kk == 'state':
-				# cycle through the different states
-				for jj in optimizer.state_dict()['state'].keys():
-					for ll in optimizer.state_dict()['state'][jj].keys():
-						try:
-							# check to see if it is a Tensor or an Int
-							data = optimizer.state_dict()['state'][jj][ll].numpy()
-						except AttributeError:
-							# create an int array to save in the HDF5 file
-							data = np.array([optimizer.state_dict()['state'][jj][ll]])
-						th5.create_dataset(
-							'opt_{0}/optimizer/state/{1}/{2}'.format(wavelength,jj,ll),
-							data=data,compression='gzip')
-			elif kk == 'param_groups':
-				pgdict = optimizer.state_dict()['param_groups'][0]
-				for jj in pgdict.keys():
-					try:
-						th5.create_dataset(
-							'opt_{0}/optimizer/param_groups/{1}'.format(wavelength,jj),
-							data=np.array(pgdict[jj]),compression='gzip')
-					except TypeError:
-						th5.create_dataset(
-							'opt_{0}/optimizer/param_groups/{1}'.format(wavelength,jj),
-							data=np.array([pgdict[jj]]),compression='gzip')
-
-		# th5.flush()
+     # Python 3.x
+     imap=map
+from scipy import constants
+speedoflight = constants.c / 1000.0
+
+import Payne
+
+from ..utils.readc3k import readc3k
+from ..utils import optim
+from . import NNmodels
+
+
+def slicebatch(inlist,N):
+     '''
+     Function to slice a list into batches of N elements. Last sublist might have < N elements.
+     '''
+     return [inlist[ii:ii+N] for ii in range(0,len(inlist),N)]
+
+def defmod(D_in,H1,H2,H3,D_out,xmin,xmax,NNtype='SMLP'):
+     if NNtype == 'ResNet':
+          return NNmodels.ResNet(D_in,H1,H2,D_out,xmin,xmax)
+     elif NNtype == 'LinNet':
+          return NNmodels.LinNet(D_in,H1,H2,H3,D_out,xmin,xmax)
+     else:
+          return NNmodels.SMLP(D_in,H1,H2,H3,D_out,xmin,xmax)
+
+class TrainMod(object):
+     """docstring for TrainMod"""
+     def __init__(self, *arg, **kwargs):
+          super(TrainMod, self).__init__()
+
+          # number of models to train on
+          if 'numtrain' in kwargs:
+               self.numtrain = kwargs['numtrain']
+          else:
+               self.numtrain = 20000
+
+          if 'numtest' in kwargs:
+               self.numtest = kwargs['numtest']
+          else:
+               self.numtest = int(0.1*self.numtrain)
+
+          if 'numsteps' in kwargs:
+               self.numsteps = kwargs['numsteps']
+          else:
+               self.numsteps = int(1e+4)
+
+          if 'numepochs' in kwargs:
+               self.numepochs = kwargs['numepochs']
+          else:
+               self.numepochs = 1
+
+          if 'batchsize' in kwargs:
+               self.batchsize = kwargs['batchsize']
+          else:
+               self.batchsize = self.numtrain
+
+          # number of nuerons in each layer
+          if 'H1' in kwargs:
+               self.H1 = kwargs['H1']
+          else:
+               self.H1 = 256
+
+          if 'H2' in kwargs:
+               self.H2 = kwargs['H2']
+          else:
+               self.H2 = 256
+
+          if 'H3' in kwargs:
+               self.H3 = kwargs['H3']
+          else:
+               self.H3 = 256
+
+          # check for user defined ranges for atm models
+          self.teffrange  = kwargs.get('teff',None)
+          self.loggrange  = kwargs.get('logg',None)
+          self.FeHrange   = kwargs.get('FeH',None)
+          self.aFerange   = kwargs.get('aFe',None)
+          self.vtrange    = kwargs.get('vturb',None)
+
+          self.restartfile = kwargs.get('restartfile',False)
+          if self.restartfile is not False:
+               print('... Restarting File: {0}'.format(self.restartfile))
+
+          # output hdf5 file name
+          self.outfilename = kwargs.get('output','TESTOUT.h5')
+
+          # path to C3K lib
+          self.c3kpath  = kwargs.get('c3kpath',None)
+
+          # path to MIST lib
+          self.mistpath = kwargs.get('mistpath',None)
+
+          # type of NN to train
+          self.NNtype = kwargs.get('NNtype','SMLP')
+
+          # initialzie class to pull models
+          print('... Pulling a first set of models for test set')
+          print('... Reading {0} test models from c3k:{1} mist:{2}'.format(self.numtest,self.c3kpath,self.mistpath))
+          self.c3kmods = readc3k(MISTpath=self.mistpath,C3Kpath=self.c3kpath)
+          sys.stdout.flush()
+
+          spectra_test,labels_test,wavelength_test = self.c3kmods.pullspectra(
+               self.numtest,
+               resolution=self.resolution, 
+               waverange=self.waverange,
+               MISTweighting=True,
+               Teff=self.Teffrange,
+               logg=self.loggrange,
+               FeH=self.FeHrange,
+               aFe=self.aFerange,
+               vtrub=self.vtrange)
+
+          self.testlabels = labels_test.tolist()
+
+          # # pull a quick set of test models to determine general properties
+          # mod_test = self.mistmods.pullmod(
+          #     self.numtest,
+          #     eep=self.eeprange,
+          #     mass=self.massrange,feh=self.FeHrange,afe=self.aFerange)
+
+          # self.mod_test = Table()
+          # for x in mod_test.keys():
+          #     if x != 'label_o':
+          #         self.mod_test[x] = mod_test[x]
+          # self.testlabels = mod_test['label_o']
+
+          print('... Finished reading in test set of models')
+
+          # create list of in labels and out labels
+          self.label_i = ['teff','logg','feh','afe','vturb']
+
+          # determine normalization values
+          self.xmin = np.array([self.c3kmods.minmax[x][0] 
+               for x in self.label_i])
+          self.xmax = np.array([self.c3kmods.minmax[x][1] 
+               for x in self.label_i])
+          self.ymin = np.array([self.c3kmods.Fminmax[0]])
+          self.ymax = np.array([self.c3kmods.Fminmax[1]])
+
+          # D_in is input dimension
+          # D_out is output dimension
+          self.D_in  = len(self.label_i)
+          self.D_out = len(wavelength_test)
+
+ 
+          # initialize the output file
+          with h5py.File('{0}'.format(self.outfilename),'w') as outfile_i:
+               try:
+                    outfile_i.create_dataset('testpred',
+                         data=np.array(spectra_test),compression='gzip')
+                    outfile_i.create_dataset('testlabels',
+                         data=self.testlabels,compression='gzip')
+                    outfile_i.create_dataset('label_i',
+                         data=np.array([x.encode("ascii", "ignore") for x in self.label_i]))
+                    outfile_i.create_dataset('wavelengths',
+                         data=np.array(wavelength_test))
+                    outfile_i.create_dataset('xmin',data=np.array(self.xmin))
+                    outfile_i.create_dataset('xmax',data=np.array(self.xmax))
+                    outfile_i.create_dataset('ymin',data=np.array(self.ymin))
+                    outfile_i.create_dataset('ymax',data=np.array(self.ymax))
+                    except:
+                         print('!!! PROBLEM WITH WRITING TO HDF5 !!!')
+                         raise
+
+          print('... Din: {}, Dout: {}'.format(self.D_in,self.D_out))
+          print('... Input Labels: {}'.format(self.label_i))
+          print('... Output WL Range: {0} - {1}'.format(
+               wavelength_test.min(),
+               wavelength_test.max(),))
+          print('... Resolution: {0}'.format(self.resolution))
+
+          print('... Finished Init')
+          sys.stdout.flush()
+
+     def __call__(self):
+          '''
+          call instance so that train_pixel can be called with multiprocessing
+          and still have all of the class instance variables
+
+          '''
+          try:
+               return self.train_mod()
+          except Exception as e:
+               traceback.print_exc()
+               print()
+               raise e
+
+     def run(self):
+          '''
+          function to actually run the training on models
+
+          '''
+          # start total timer
+          tottimestart = datetime.now()
+
+          print('Starting Training at {0}'.format(tottimestart))
+          sys.stdout.flush()
+
+          net = self()
+          if type(net[0]) == type(None):
+               return net
+
+     def train_mod(self):
+          '''
+          function to train the network
+          '''
+          # start a timer
+          starttime = datetime.now()
+
+          if str(device) != 'cpu':
+               # determine if this is running within mp
+               if len(multiprocessing.current_process()._identity) > 0:
+                    torch.cuda.set_device(multiprocessing.current_process()._identity[0]-1)
+
+          print('Running on GPU: {0}/{1}'.format(
+               torch.cuda.current_device()+1,
+               torch.cuda.device_count(),
+               ))
+
+
+          # determine if user wants to start from old file, or
+          # create a new ANN model
+          if self.restartfile is not False:
+               # create a model
+               if os.path.isfile(self.restartfile):
+                    print('Restarting from File: {0} with NNtype: {1}'.format(self.restartfile,self.NNtype))
+                    sys.stdout.flush()
+                    model = GenMod.readNN(self.restartfile,NNtype=self.NNtype)
+                    # model = GenMod.Net(nnpath=self.restartfile,nntype=self.NNtype,normed=True)
+               else:
+                    print('Could Not Find Restart File, Creating a New NN model')
+                    sys.stdout.flush()
+                    model = defmod(self.D_in,self.H1,self.H2,self.H3,self.D_out,
+                         self.xmin,self.xmax,NNtype=self.NNtype)        
+          else:
+               # initialize the model
+               print('Running New NN with NNtype: {0}'.format(self.NNtype))
+               sys.stdout.flush()
+               model = defmod(self.D_in,self.H1,self.H2,self.H3,self.D_out,
+                    self.xmin,self.xmax,NNtype=self.NNtype)
+
+          # set up model to start training
+          model.to(device)
+          model.train()
+
+          # initialize the loss function
+          # loss_fn = torch.nn.MSELoss(reduction='mean')
+          # loss_fn = torch.nn.SmoothL1Loss(reduction='sum')
+          # loss_fn = torch.nn.KLDivLoss(size_average=False)
+          loss_fn = torch.nn.L1Loss(reduction = 'mean')
+
+          # initialize the optimizer
+          learning_rate = 1e-4
+          # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+          optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
+          # we adopt rectified Adam for the optimization
+          # optimizer = radam.RAdam(
+          #     [p for p in model.parameters() if p.requires_grad==True], lr=learning_rate)
+
+          # initialize the scheduler to adjust the learning rate
+          scheduler = StepLR(optimizer,5,gamma=0.90)
+          # scheduler = ReduceLROnPlateau(optimizer,mode='min',factor=0.1)
+
+          # number of batches
+          nbatches = self.numtrain // self.batchsize
+
+          print('... Number of epochs: {}'.format(self.numepochs))
+          print('... Number of training steps: {}'.format(self.numsteps))
+          print('... Number of models in each batch: {}'.format(self.batchsize))
+          print('... Number of batches: {}'.format(nbatches))
+
+          # cycle through epochs
+          for epoch_i in range(int(self.numepochs)):
+               epochtime = datetime.now()
+               print('... Pulling {0} Training Models for Epoch: {1}'.format(self.numtrain,epoch_i+1))
+               sys.stdout.flush()
+
+               # initiate counter
+               current_loss = np.inf
+               iter_arr = []
+               training_loss =[]
+               validation_loss = []
+
+               spectra_train,labels_train,wavelength_train = self.c3kmods.pullspectra(
+                    self.numtrain,
+                    resolution=self.resolution, 
+                    waverange=self.waverange,
+                    MISTweighting=True,
+                    Teff=self.Teffrange,
+                    logg=self.loggrange,
+                    FeH=self.FeHrange,
+                    aFe=self.aFerange,
+                    vtrub=self.vtrange,
+                    excludelabels=self.testlabels,)
+
+               # # pull training data
+               # mod_t = self.mistmods.pullmod(
+               #     self.numtrain,
+               #     norm=True,
+               #     excludelabels=self.testlabels,
+               #     eep=self.eeprange,mass=self.massrange,feh=self.FeHrange,afe=self.aFerange)
+
+               # create tensor for input training labels
+               X_train_labels = labels_train
+               X_train_Tensor = Variable(torch.from_numpy(X_train_labels).type(dtype))
+               X_train_Tensor = X_train_Tensor.to(device)
+
+               # create tensor of output training labels
+               Y_train = np.array(spectra_train).T
+               Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
+               Y_train_Tensor = Y_train_Tensor.to(device)
+
+               spectra_valid,labels_valid,wavelength_valid = self.c3kmods.pullspectra(
+                    self.numtrain,
+                    resolution=self.resolution, 
+                    waverange=self.waverange,
+                    MISTweighting=True,
+                    Teff=self.Teffrange,
+                    logg=self.loggrange,
+                    FeH=self.FeHrange,
+                    aFe=self.aFerange,
+                    vtrub=self.vtrange,
+                    excludelabels=np.array(list(self.testlabels)+list(X_train_labels)),)
+
+               # # pull validataion data
+               # mod_v = self.mistmods.pullmod(
+               #     self.numtrain,
+               #     norm=True,
+               #     excludelabels=np.array(list(self.testlabels)+list(X_train_labels)),
+               #     eep=self.eeprange,mass=self.massrange,feh=self.FeHrange,afe=self.aFerange)
+
+               # create tensor for input validation labels
+               X_valid_labels = labels_valid
+               X_valid_Tensor = Variable(torch.from_numpy(X_valid_labels).type(dtype))
+               X_valid_Tensor = X_valid_Tensor.to(device)
+
+               # create tensor of output validation labels
+               Y_valid = np.array(spectra_valid).T
+               Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
+               Y_valid_Tensor = Y_valid_Tensor.to(device)
+
+               cc = 0
+               for iter_i in range(int(self.numsteps)):
+
+                    itertime = datetime.now()
+
+                    perm = torch.randperm(self.numtrain)
+
+                    if str(device) != 'cpu':
+                         perm = perm.cuda()
+
+                    for t in range(nbatches):
+                         steptime = datetime.now()
+
+                         idx = perm[t * self.batchsize : (t+1) * self.batchsize]
+                         def closure():
+                              # Forward pass: compute predicted y by passing x to the model.
+                              Y_pred_train_Tensor = model(X_train_Tensor[idx])
+
+                              # Compute and print loss.
+                              loss = loss_fn(Y_pred_train_Tensor, Y_train_Tensor[idx])
+
+                              # Backward pass: compute gradient of the loss with respect to model parameters
+                              optimizer.zero_grad()
+                              loss.backward(retain_graph=False)
+                              optimizer.step()
+                             
+                              if np.isnan(loss.item()):
+                                   print('PRED TRAIN TENSOR',Y_pred_train_Tensor)
+                                   print('TRAIN TENSOR',Y_train_Tensor)
+                                   return loss
+                              return loss
+
+                         # Calling the step function on an Optimizer makes an update to its parameters
+                         loss = optimizer.step(closure)
+
+                    # evaluate the validation set
+                    if iter_i % 25 == 0:
+                         perm_valid = torch.randperm(self.numtrain)
+                         if str(device) != 'cpu':
+                              perm_valid = perm_valid.cuda()
+
+                         loss_valid = 0
+                         for j in range(nbatches):
+                              idx = perm[t * self.batchsize : (t+1) * self.batchsize]
+
+                         Y_pred_valid_Tensor = model(X_valid_Tensor[idx])                        
+                         loss_valid += loss_fn(Y_pred_valid_Tensor, Y_valid_Tensor[idx])
+
+                         loss_valid /= nbatches
+
+                         loss_data = loss.detach().data.item()
+                         loss_valid_data = loss_valid.detach().data.item()
+
+                         iter_arr.append(iter_i)
+                         training_loss.append(loss_data)
+                         validation_loss.append(loss_valid_data)
+                         if iter_i % 500 == 0.0:
+                         print (
+                              '--> Ep: {0:d} -- Iter {1:d}/{2:d} -- Time/step: {3} -- Train Loss: {4:.6f} -- Valid Loss: {5:.6f}'.format(
+                              int(epoch_i+1),int(iter_i+1),int(self.numsteps), datetime.now()-steptime, loss_data, loss_valid_data)
+                         )
+                         sys.stdout.flush()                      
+
+                         fig,ax = plt.subplots(1,1)
+                         ax.plot(iter_arr,np.log10(training_loss),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
+                         ax.plot(iter_arr,np.log10(validation_loss),ls='-',lw=1.0,alpha=0.75,c='C3',label='Validation')
+                         ax.legend()
+                         ax.set_xlabel('Iteration')
+                         ax.set_ylabel('log(L1 Loss)')
+                         fig.savefig('loss_epoch{0}.png'.format(epoch_i+1),dpi=150)
+                         plt.close(fig)
+
+                    # # check if network has converged
+                    # if np.abs(np.nan_to_num(loss_valid_data)-np.nan_to_num(current_loss))/np.abs(loss_valid_data) < 0.01:
+                    #     # start counter
+                    #     cc  = cc + 1
+
+                    # if cc == 100:
+                    #     print(loss_valid_data,current_loss)
+                    #     current_loss = loss_valid_data
+                    #     break
+
+               # adjust the optimizer lr
+               scheduler.step()
+            
+               # After Each Epoch, write network to output HDF5 file to save progress
+               with h5py.File('{0}'.format(self.outfilename),'r+') as outfile_i:
+                    for kk in model.state_dict().keys():
+                         try:
+                              del outfile_i['model/{0}'.format(kk)]
+                         except KeyError:
+                              pass
+
+                         outfile_i.create_dataset(
+                              'model/{0}'.format(kk),
+                              data=model.state_dict()[kk].cpu().numpy(),
+                              compression='gzip')
+
+
+          print('Finished training model, took: {0}'.format(
+               datetime.now()-starttime))
+          sys.stdout.flush()
+
+          return [model, optimizer, datetime.now()-starttime]
+
+
