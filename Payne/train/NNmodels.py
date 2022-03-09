@@ -19,57 +19,122 @@ from torch.multiprocessing import Pool
 # from multiprocessing import Pool
 
 import traceback
-import numpy as np
 import warnings
 with warnings.catch_warnings():
      warnings.simplefilter('ignore')
      import h5py
 import time,sys,os,glob
 from datetime import datetime
-try:
-     # Python 2.x
-     from itertools import imap
-except ImportError:
-     # Python 3.x
-     imap=map
+
 from scipy import constants
 speedoflight = constants.c / 1000.0
+import numpy as np
 
 import Payne
 
-# import numpy as np
-import jax.numpy as np
-import warnings
-import time,sys,os,glob
+# Read in various types of saved NN
+def defmod(D_in,H1,H2,H3,D_out,xmin,xmax,NNtype='SMLP'):
+    if NNtype == 'ResNet':
+        return ResNet(D_in,H1,H2,H3,D_out,xmin,xmax)
+    elif NNtype == 'LinNet':
+        return LinNet(D_in,H1,H2,H3,D_out,xmin,xmax)
+    else:
+        return SMLP(D_in,H1,H2,H3,D_out,xmin,xmax)
 
+def readNN(nnpath,NNtype='SMLP'):
+    # read in the file for the previous run 
+    nnh5 = h5py.File(nnpath,'r')
+
+    xmin  = nnh5['xmin'][()]
+    xmax  = nnh5['xmax'][()]
+
+    if (NNtype == 'SMLP'):
+        D_in  = nnh5['model/features.0.weight'].shape[1]
+        H1    = nnh5['model/features.0.weight'].shape[0]
+        H2    = nnh5['model/features.2.weight'].shape[0]
+        H3    = nnh5['model/features.4.weight'].shape[0]
+        D_out = nnh5['model/features.6.weight'].shape[0]
+
+    if (NNtype == 'LinNet'):
+        D_in  = nnh5['model/lin1.weight'].shape[1]
+        H1    = nnh5['model/lin1.weight'].shape[0]
+        H2    = nnh5['model/lin4.weight'].shape[0]
+        H3    = nnh5['model/lin5.weight'].shape[0]
+        D_out = nnh5['model/lin6.weight'].shape[0]
+    
+    if NNtype == 'ResNet':
+        D_in      = nnh5['model/ConvTranspose1d.weight'].shape[1]
+        H1        = nnh5['model/lin1.weight'].shape[0]
+        H2        = nnh5['model/lin2.weight'].shape[0]
+        H3        = nnh5['model/lin3.weight'].shape[0]
+        outputdim = len([x_i for x_i in list(nnh5['model'].keys()) if 'weight' in x_i])
+        D_out     = nnh5['model/lin{0}.weight'.format(outputdim)].shape[0]
+    
+    model = defmod(D_in,H1,H2,H3,D_out,xmin,xmax,NNtype=NNtype)
+
+    model.D_in = D_in
+    model.H1 = H1
+    model.H2 = H2
+    model.H3 = H3
+    model.D_out = D_out
+
+    newmoddict = {}
+    for kk in nnh5['model'].keys():
+        nparr = nnh5['model'][kk][()]
+        torarr = torch.from_numpy(nparr).type(dtype)
+        newmoddict[kk] = torarr    
+    model.load_state_dict(newmoddict)
+    model.eval()
+    nnh5.close()
+    return model
 
 # simple multi-layer perceptron model
 class SMLP(nn.Module):
-    def __init__(self, D_in, H1, H2, H3, D_out, xmin, xmax):
-        super(SMLP, self).__init__()
+     def __init__(self, D_in, H1, H2, H3, D_out, xmin, xmax):
+          super(SMLP, self).__init__()
 
-        self.xmin = xmin
-        self.xmax = xmax
+          self.xmin = xmin
+          self.xmax = xmax
 
-        self.features = nn.Sequential(
-            nn.Linear(D_in, H1),
-            nn.LeakyReLU(),
-            nn.Linear(H1, H2),
-            nn.LeakyReLU(),
-            nn.Linear(H2, H3),
-            nn.LeakyReLU(),
-            nn.Linear(H3, D_out),
-        )
+          self.features = nn.Sequential(
+               nn.Linear(D_in, H1),
+               nn.LeakyReLU(),
+               nn.Linear(H1, H2),
+               nn.LeakyReLU(),
+               nn.Linear(H2, H3),
+               nn.LeakyReLU(),
+               nn.Linear(H3, D_out),
+          )
     
-    def encode(self,x):
-        # convert x into numpy to do math
-        x_np = x.data.cpu().numpy()
-        xout = (x_np-self.xmin)/(self.xmax-self.xmin) - 0.5
-        return Variable(torch.from_numpy(xout).type(dtype))
+     def encode(self,x):
+          # convert x into numpy to do math
+          x_np = x.data.cpu().numpy()
+          xout = (x_np-self.xmin)/(self.xmax-self.xmin) - 0.5
+          return Variable(torch.from_numpy(xout).type(dtype))
 
-    def forward(self, x):
-        x_i = self.encode(x)
-        return self.features(x_i)
+     def forward(self, x):
+          x_i = self.encode(x)
+          return self.features(x_i)
+
+     def leaky_relu(self,z):
+          '''
+          This is the activation function used by default in all our neural networks.
+          '''
+          return z*(z > 0) + 0.01*z*(z < 0)
+
+     def npencode(self,x):
+          # convert x into numpy to do math
+          x_np = np.array(x)
+          xout = (x_np-self.xmin)/(self.xmax-self.xmin) - 0.5
+          return xout
+
+     def npeval(self,x):
+          x_i = self.npencode(x)
+          L1      = np.einsum('ij,j->i', self.features[0].weight.detach().numpy(), x_i)                 + self.features[0].bias.detach().numpy()
+          L2      = np.einsum('ij,j->i', self.features[2].weight.detach().numpy(), self.leaky_relu(L1)) + self.features[2].bias.detach().numpy()
+          L3      = np.einsum('ij,j->i', self.features[4].weight.detach().numpy(), self.leaky_relu(L2)) + self.features[4].bias.detach().numpy()
+          modspec = np.einsum('ij,j->i', self.features[6].weight.detach().numpy(), self.leaky_relu(L3)) + self.features[6].bias.detach().numpy()
+          return modspec
 
 # linear feed-foward model with sigmoid activation functions
 class LinNet(nn.Module):  

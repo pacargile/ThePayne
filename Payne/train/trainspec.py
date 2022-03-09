@@ -196,6 +196,7 @@ class TrainMod(object):
                          data=np.array([x.encode("ascii", "ignore") for x in self.label_i]))
                     outfile_i.create_dataset('wavelengths',
                          data=np.array(wavelength_test))
+                    outfile_i.create_dataset('resolution',data=np.array(self.resolution))
                     outfile_i.create_dataset('xmin',data=np.array(self.xmin))
                     outfile_i.create_dataset('xmax',data=np.array(self.xmax))
                     outfile_i.create_dataset('ymin',data=np.array(self.ymin))
