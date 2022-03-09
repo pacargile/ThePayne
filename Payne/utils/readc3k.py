@@ -44,6 +44,9 @@ class readc3k(object):
 			if 'vt' in indinf:
 				vt_i = float(indinf.partition('vt')[-1][:3])/10.0
 				self.vtarr.append(vt_i)
+		self.FeHarr = np.unique(self.FeHarr)
+		self.alphaarr = np.unique(self.alphaarr)
+		self.vtarr = np.unique(self.vtarr)
 
 		print('FOUND {} FeH'.format(len(self.FeHarr)))
 		print('FOUND {} aFe'.format(len(self.alphaarr)))
