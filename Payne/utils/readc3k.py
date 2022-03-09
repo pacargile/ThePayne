@@ -46,7 +46,7 @@ class readc3k(object):
 				self.vtarr.append(vt_i)
 
 		print('FOUND {} FeH'.format(len(self.FeHarr)))
-		print('FOUND {} aFe'.format(len(self.aFearr)))
+		print('FOUND {} aFe'.format(len(self.alphaarr)))
 		print('FOUND {} Vt'.format(len(self.vtarr)))
 
 		# remove the super metal-rich models that only have aFe = 0
