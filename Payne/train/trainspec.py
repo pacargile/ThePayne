@@ -5,7 +5,10 @@ from __future__ import print_function
 import torch
 from torch import nn
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-dtype = torch.cuda.FloatTensor
+if str(device) != 'cpu':
+  dtype = torch.cuda.FloatTensor
+else:
+  dtype = torch.FloatTensor
 from torch.autograd import Variable
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import StepLR,ReduceLROnPlateau
@@ -31,6 +34,10 @@ except ImportError:
      imap=map
 from scipy import constants
 speedoflight = constants.c / 1000.0
+
+import matplotlib
+matplotlib.use('AGG')
+import matplotlib.pyplot as plt
 
 import Payne
 
@@ -100,11 +107,14 @@ class TrainMod(object):
           else:
                self.H3 = 256
 
+          self.resolution = kwargs.get('resolution',32000.0)
+          self.waverange  = kwargs.get('waverange',[5150.0,5300.0])
+
           # check for user defined ranges for atm models
           self.teffrange  = kwargs.get('teff',None)
           self.loggrange  = kwargs.get('logg',None)
-          self.FeHrange   = kwargs.get('FeH',None)
-          self.aFerange   = kwargs.get('aFe',None)
+          self.fehrange   = kwargs.get('FeH',None)
+          self.aferange   = kwargs.get('aFe',None)
           self.vtrange    = kwargs.get('vturb',None)
 
           self.restartfile = kwargs.get('restartfile',False)
@@ -125,7 +135,9 @@ class TrainMod(object):
 
           # initialzie class to pull models
           print('... Pulling a first set of models for test set')
-          print('... Reading {0} test models from c3k:{1} mist:{2}'.format(self.numtest,self.c3kpath,self.mistpath))
+          print('... Reading {0} test models from '.format(self.numtest))
+          print('    c3k: {0}'.format(self.c3kpath))
+          print('    mist: {0}'.format(self.mistpath))
           self.c3kmods = readc3k(MISTpath=self.mistpath,C3Kpath=self.c3kpath)
           sys.stdout.flush()
 
@@ -134,10 +146,10 @@ class TrainMod(object):
                resolution=self.resolution, 
                waverange=self.waverange,
                MISTweighting=True,
-               Teff=self.Teffrange,
+               Teff=self.teffrange,
                logg=self.loggrange,
-               FeH=self.FeHrange,
-               aFe=self.aFerange,
+               FeH=self.fehrange,
+               aFe=self.aferange,
                vtrub=self.vtrange)
 
           self.testlabels = labels_test.tolist()
@@ -157,7 +169,7 @@ class TrainMod(object):
           print('... Finished reading in test set of models')
 
           # create list of in labels and out labels
-          self.label_i = ['teff','logg','feh','afe','vturb']
+          self.label_i = ['teff','logg','feh','afe']#,'vturb']
 
           # determine normalization values
           self.xmin = np.array([self.c3kmods.minmax[x][0] 
@@ -188,9 +200,9 @@ class TrainMod(object):
                     outfile_i.create_dataset('xmax',data=np.array(self.xmax))
                     outfile_i.create_dataset('ymin',data=np.array(self.ymin))
                     outfile_i.create_dataset('ymax',data=np.array(self.ymax))
-                    except:
-                         print('!!! PROBLEM WITH WRITING TO HDF5 !!!')
-                         raise
+               except:
+                    print('!!! PROBLEM WITH WRITING TO HDF5 !!!')
+                    raise
 
           print('... Din: {}, Dout: {}'.format(self.D_in,self.D_out))
           print('... Input Labels: {}'.format(self.label_i))
@@ -242,10 +254,10 @@ class TrainMod(object):
                if len(multiprocessing.current_process()._identity) > 0:
                     torch.cuda.set_device(multiprocessing.current_process()._identity[0]-1)
 
-          print('Running on GPU: {0}/{1}'.format(
-               torch.cuda.current_device()+1,
-               torch.cuda.device_count(),
-               ))
+               print('Running on GPU: {0}/{1}'.format(
+                    torch.cuda.current_device()+1,
+                    torch.cuda.device_count(),
+                    ))
 
 
           # determine if user wants to start from old file, or
@@ -316,12 +328,13 @@ class TrainMod(object):
                     resolution=self.resolution, 
                     waverange=self.waverange,
                     MISTweighting=True,
-                    Teff=self.Teffrange,
+                    Teff=self.teffrange,
                     logg=self.loggrange,
-                    FeH=self.FeHrange,
-                    aFe=self.aFerange,
+                    FeH=self.fehrange,
+                    aFe=self.aferange,
                     vtrub=self.vtrange,
-                    excludelabels=self.testlabels,)
+                    excludelabels=np.array(self.testlabels),
+                    )
 
                # # pull training data
                # mod_t = self.mistmods.pullmod(
@@ -336,7 +349,7 @@ class TrainMod(object):
                X_train_Tensor = X_train_Tensor.to(device)
 
                # create tensor of output training labels
-               Y_train = np.array(spectra_train).T
+               Y_train = np.array(spectra_train)
                Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
                Y_train_Tensor = Y_train_Tensor.to(device)
 
@@ -345,19 +358,12 @@ class TrainMod(object):
                     resolution=self.resolution, 
                     waverange=self.waverange,
                     MISTweighting=True,
-                    Teff=self.Teffrange,
+                    Teff=self.teffrange,
                     logg=self.loggrange,
-                    FeH=self.FeHrange,
-                    aFe=self.aFerange,
+                    FeH=self.fehrange,
+                    aFe=self.aferange,
                     vtrub=self.vtrange,
                     excludelabels=np.array(list(self.testlabels)+list(X_train_labels)),)
-
-               # # pull validataion data
-               # mod_v = self.mistmods.pullmod(
-               #     self.numtrain,
-               #     norm=True,
-               #     excludelabels=np.array(list(self.testlabels)+list(X_train_labels)),
-               #     eep=self.eeprange,mass=self.massrange,feh=self.FeHrange,afe=self.aFerange)
 
                # create tensor for input validation labels
                X_valid_labels = labels_valid
@@ -365,7 +371,7 @@ class TrainMod(object):
                X_valid_Tensor = X_valid_Tensor.to(device)
 
                # create tensor of output validation labels
-               Y_valid = np.array(spectra_valid).T
+               Y_valid = np.array(spectra_valid)
                Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
                Y_valid_Tensor = Y_valid_Tensor.to(device)
 
@@ -414,8 +420,8 @@ class TrainMod(object):
                          for j in range(nbatches):
                               idx = perm[t * self.batchsize : (t+1) * self.batchsize]
 
-                         Y_pred_valid_Tensor = model(X_valid_Tensor[idx])                        
-                         loss_valid += loss_fn(Y_pred_valid_Tensor, Y_valid_Tensor[idx])
+                              Y_pred_valid_Tensor = model(X_valid_Tensor[idx])                        
+                              loss_valid += loss_fn(Y_pred_valid_Tensor, Y_valid_Tensor[idx])
 
                          loss_valid /= nbatches
 
@@ -426,10 +432,10 @@ class TrainMod(object):
                          training_loss.append(loss_data)
                          validation_loss.append(loss_valid_data)
                          if iter_i % 500 == 0.0:
-                         print (
-                              '--> Ep: {0:d} -- Iter {1:d}/{2:d} -- Time/step: {3} -- Train Loss: {4:.6f} -- Valid Loss: {5:.6f}'.format(
-                              int(epoch_i+1),int(iter_i+1),int(self.numsteps), datetime.now()-steptime, loss_data, loss_valid_data)
-                         )
+                              print(
+                                   '--> Ep: {0:d} -- Iter {1:d}/{2:d} -- Time/step: {3} -- Train Loss: {4:.6f} -- Valid Loss: {5:.6f}'.format(
+                                   int(epoch_i+1),int(iter_i+1),int(self.numsteps), datetime.now()-steptime, loss_data, loss_valid_data)
+                                   )
                          sys.stdout.flush()                      
 
                          fig,ax = plt.subplots(1,1)
