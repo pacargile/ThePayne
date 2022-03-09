@@ -34,7 +34,7 @@ class readc3k(object):
 		# determine the FeH and aFe arrays for C3K
 		self.FeHarr = []
 		self.alphaarr = []
-		for indinf in glob.glob(self.C3Kpath+'*'):
+		for indinf in glob.glob(self.C3Kpath+'c3k*h5'):
 			feh_i =  float(indinf.partition('feh')[-1][:5])
 			afe_i =  float(indinf.partition('afe')[-1][:4])
 			self.FeHarr.append(feh_i)
@@ -77,7 +77,7 @@ class readc3k(object):
 		# self.teffwgts = beta(0.5,1.0,loc=self.MISTTeffmin-0.1,scale=(self.MISTTeffmax+0.1)-(self.MISTTeffmin-0.1))
 
 		# create weights for [Fe/H]
-		self.fehwgts = beta(1.0,0.2,loc=-4.1,scale=4.7).pdf(self.FeHarr)
+		self.fehwgts = beta(1.0,1.0,loc=-4.1,scale=4.7).pdf(self.FeHarr)
 		self.fehwgts = self.fehwgts/np.sum(self.fehwgts)
 			
 		# create a dictionary for the C3K models and populate it for different
@@ -95,6 +95,19 @@ class readc3k(object):
 				self.C3K[aa][mm] = h5py.File(
 					fname,
 					'r', libver='latest', swmr=True)
+
+		# create min-max dictionary for input labels
+		self.minmax = ({
+			'teff': [2500.0,10000.0],
+			'logg': [-1,5.5],
+			'feh':  [-4.0,0.5],
+			'afe':  [-0.2,0.6],
+			# 'vturb':[0.5,3.0],
+			})
+
+		# create min-max for spectra
+		self.Fminmax = [0.0,1.0]
+
 
 	def pullspectra(self,num,**kwargs):
 		'''
@@ -152,6 +165,10 @@ class readc3k(object):
 		aFerange = kwargs.get('aFe',None)
 		if aFerange is None:
 			aFerange = [-0.2,0.6]
+
+		vtrange = kwargs.get('vturb',None)
+		if vtrange is None:
+			vtrange = [0.5,3.0]
 
 		if 'resolution' in kwargs:
 			resolution = kwargs['resolution']
@@ -260,8 +277,8 @@ class readc3k(object):
 
 				# add a gaussian blur to the MIST selected Teff and log(g)
 				# sigma_t = 750K, sigma_g = 1.5
-				randomT = np.random.randn()*1000.0
-				randomg = np.random.randn()*1.5
+				randomT = np.random.randn()*500.0
+				randomg = np.random.randn()*0.5
 
 				# check to see if randomT is an issue for log10
 				if 10.0**logt_MIST_i + randomT <= 0.0:
