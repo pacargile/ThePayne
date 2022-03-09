@@ -34,11 +34,16 @@ class readc3k(object):
 		# determine the FeH and aFe arrays for C3K
 		self.FeHarr = []
 		self.alphaarr = []
+		self.vtarr = []
 		for indinf in glob.glob(self.C3Kpath+'c3k*h5'):
 			feh_i =  float(indinf.partition('feh')[-1][:5])
 			afe_i =  float(indinf.partition('afe')[-1][:4])
 			self.FeHarr.append(feh_i)
 			self.alphaarr.append(afe_i)
+
+			if 'vt' in indinf:
+				vt_i = float(indinf.partition('vt')[-1][:3])/10.0
+				self.vtarr.append(vt_i)
 
 		# remove the super metal-rich models that only have aFe = 0
 		if 0.75 in self.FeHarr:
@@ -86,24 +91,48 @@ class readc3k(object):
 		for aa in self.alphaarr:
 			self.C3K[aa] = {}
 			for mm in self.FeHarr:
-				# glob file name to see if feh/afe file is in c3kpath
-				fnamelist = glob.glob(self.C3Kpath+'c3k*feh{0:+4.2f}_afe{1:+3.1f}.*.h5'.format(mm,aa))
-				if len(fnamelist) == 1:
-					fname = fnamelist[0]
+				if len(self.vtarr) == 0:
+					# glob file name to see if feh/afe file is in c3kpath
+					fnamelist = glob.glob(self.C3Kpath+'c3k*feh{0:+4.2f}_afe{1:+3.1f}.*.h5'.format(mm,aa))
+					if len(fnamelist) == 1:
+						fname = fnamelist[0]
+					else:
+						raise IOError('Could not find suitable C3K file: FeH={0}. aFe={1}'.format(mm,aa))
+					self.C3K[aa][mm] = h5py.File(
+						fname,
+						'r', libver='latest', swmr=True)
 				else:
-					raise IOError('Could not find suitable C3K file: FeH={0}. aFe={1}'.format(mm,aa))
-				self.C3K[aa][mm] = h5py.File(
-					fname,
-					'r', libver='latest', swmr=True)
+					self.C3K[aa][mm] = {}
+					for vv in self.vtarr:
+						# glob file name to see if feh/afe file is in c3kpath
+						fnamelist = glob.glob(self.C3Kpath+'c3k*feh{0:+4.2f}_afe{1:+3.1f}*_vt{2:02.0f}.h5'.format(mm,aa,vv*10))
+						if len(fnamelist) == 1:
+							fname = fnamelist[0]
+						else:
+							raise IOError('Could not find suitable C3K file: FeH={0}. aFe={1} vt={2}'.format(mm,aa,vv))
+						self.C3K[aa][mm][vv] = h5py.File(
+							fname,
+							'r', libver='latest', swmr=True)
+
+
 
 		# create min-max dictionary for input labels
-		self.minmax = ({
-			'teff': [2500.0,10000.0],
-			'logg': [-1,5.5],
-			'feh':  [-4.0,0.5],
-			'afe':  [-0.2,0.6],
-			# 'vturb':[0.5,3.0],
-			})
+		if len(self.vtarr) == 0:
+			self.minmax = ({
+				'teff': [2500.0,10000.0],
+				'logg': [-1,5.5],
+				'feh':  [-4.0,0.5],
+				'afe':  [-0.2,0.6],
+				})
+		else:
+			self.minmax = ({
+				'teff': [2500.0,10000.0],
+				'logg': [-1,5.5],
+				'feh':  [-4.0,0.5],
+				'afe':  [-0.2,0.6],
+				'vturb':[0.5,3.0],
+				})
+
 
 		# create min-max for spectra
 		self.Fminmax = [0.0,1.0]
@@ -214,7 +243,8 @@ class readc3k(object):
 					# [Fe/H] limits
 					if (FeH_i >= fehrange[0]) & (FeH_i <= fehrange[1]):
 						break
-
+				if timeit:
+					print('Pulled random [Fe/H] in {0}'.format(datetime.now()-starttime))
 
 				# then draw an alpha abundance
 				while True:
@@ -225,10 +255,26 @@ class readc3k(object):
 					if (alpha_i >= aFerange[0]) & (alpha_i <= aFerange[1]):
 						break
 				if timeit:
-					print('Pulled random [Fe/H] & [a/Fe] in {0}'.format(datetime.now()-starttime))
+					print('Pulled random [a/Fe] in {0}'.format(datetime.now()-starttime))
 
-				# select the C3K spectra at that [Fe/H] and [alpha/Fe]
-				C3K_i = self.C3K[alpha_i][FeH_i]
+				if len(self.vtarr) > 0:
+					# then draw an vturb
+					while True:
+						vt_i = np.random.choice(self.vtarr)
+
+						# check to make sure vt_i is in user defined
+						# vturb limits
+						if (vt_i >= vtrange[0]) & (vt_i <= vtrange[1]):
+							break
+					if timeit:
+						print('Pulled random vturb in {0}'.format(datetime.now()-starttime))
+
+					# select the C3K spectra at that [Fe/H], [alpha/Fe], vturb
+					C3K_i = self.C3K[alpha_i][FeH_i][vt_i]
+				else:
+					# select the C3K spectra at that [Fe/H] and [alpha/Fe]
+					C3K_i = self.C3K[alpha_i][FeH_i]
+
 
 				# create array of all labels in specific C3K file
 				C3Kpars = np.array(C3K_i['parameters'])
