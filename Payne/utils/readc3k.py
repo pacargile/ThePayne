@@ -113,7 +113,6 @@ class readc3k(object):
 					for vv in self.vtarr:
 						# glob file name to see if feh/afe file is in c3kpath
 						fnamelist = glob.glob(self.C3Kpath+'c3k*feh{0:+4.2f}*afe{1:+3.1f}*vt{2:02.0f}*h5'.format(mm,aa,vv*10))
-						print('READ -> {}'.format(fnamelist))
 						if len(fnamelist) == 1:
 							fname = fnamelist[0]
 						else:
