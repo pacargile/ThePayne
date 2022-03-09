@@ -45,6 +45,10 @@ class readc3k(object):
 				vt_i = float(indinf.partition('vt')[-1][:3])/10.0
 				self.vtarr.append(vt_i)
 
+		print('FOUND {} FeH'.format(len(self.FeHarr)))
+		print('FOUND {} aFe'.format(len(self.aFearr)))
+		print('FOUND {} Vt'.format(len(self.vtarr)))
+
 		# remove the super metal-rich models that only have aFe = 0
 		if 0.75 in self.FeHarr:
 			self.FeHarr.remove(0.75)
@@ -105,7 +109,8 @@ class readc3k(object):
 					self.C3K[aa][mm] = {}
 					for vv in self.vtarr:
 						# glob file name to see if feh/afe file is in c3kpath
-						fnamelist = glob.glob(self.C3Kpath+'c3k*feh{0:+4.2f}_afe{1:+3.1f}*_vt{2:02.0f}.h5'.format(mm,aa,vv*10))
+						fnamelist = glob.glob(self.C3Kpath+'c3k*feh{0:+4.2f}*afe{1:+3.1f}*vt{2:02.0f}*h5'.format(mm,aa,vv*10))
+						print('READ -> {}'.format(fnamelist))
 						if len(fnamelist) == 1:
 							fname = fnamelist[0]
 						else:
