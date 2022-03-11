@@ -45,6 +45,7 @@ from ..utils.readc3k import readc3k
 from ..utils import optim
 from . import NNmodels
 
+fwhm_to_sigma = 2.0 * np.sqrt(2.0 * np.log(2.0))
 
 def slicebatch(inlist,N):
      '''
@@ -107,7 +108,10 @@ class TrainMod(object):
           else:
                self.H3 = 256
 
-          self.resolution = kwargs.get('resolution',32000.0)
+          resolution_fwhm = kwargs.get('resolution',32000.0)
+          # convert resolution to sigma
+          self.resolution = resolution_fwhm * fwhm_to_sigma
+
           self.waverange  = kwargs.get('waverange',[5150.0,5300.0])
 
           # check for user defined ranges for atm models
@@ -210,7 +214,8 @@ class TrainMod(object):
           print('... Output WL Range: {0} - {1}'.format(
                wavelength_test.min(),
                wavelength_test.max(),))
-          print('... Resolution: {0}'.format(self.resolution))
+          print('... Resolution FWHM: {0}'.format(resolution_fwhm))
+          print('... Resolution Sigma: {0}'.format(self.resolution))
 
           print('... Finished Init')
           sys.stdout.flush()
@@ -287,21 +292,22 @@ class TrainMod(object):
           model.train()
 
           # initialize the loss function
-          # loss_fn = torch.nn.MSELoss(reduction='mean')
+          loss_fn = torch.nn.MSELoss(reduction='mean')
           # loss_fn = torch.nn.SmoothL1Loss(reduction='sum')
           # loss_fn = torch.nn.KLDivLoss(size_average=False)
-          loss_fn = torch.nn.L1Loss(reduction = 'mean')
+          # loss_fn = torch.nn.L1Loss(reduction = 'mean')
 
           # initialize the optimizer
-          learning_rate = 1e-4
+          learning_rate = 1e-3
           # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-          optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
+          # optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
+          optimizer = torch.optim.RAdam(model.parameters(), lr=learning_rate)
           # we adopt rectified Adam for the optimization
           # optimizer = radam.RAdam(
           #     [p for p in model.parameters() if p.requires_grad==True], lr=learning_rate)
 
           # initialize the scheduler to adjust the learning rate
-          scheduler = StepLR(optimizer,5,gamma=0.90)
+          scheduler = StepLR(optimizer,10,gamma=0.90)
           # scheduler = ReduceLROnPlateau(optimizer,mode='min',factor=0.1)
 
           # number of batches
