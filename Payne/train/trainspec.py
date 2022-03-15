@@ -292,16 +292,16 @@ class TrainMod(object):
           model.train()
 
           # initialize the loss function
-          # loss_fn = torch.nn.MSELoss(reduction='mean')
+          loss_fn = torch.nn.MSELoss(reduction='mean')
           # loss_fn = torch.nn.SmoothL1Loss(reduction='mean')
           # loss_fn = torch.nn.KLDivLoss(size_average=False)
-          loss_fn = torch.nn.L1Loss(reduction = 'mean')
+          # loss_fn = torch.nn.L1Loss(reduction = 'mean')
 
           # initialize the optimizer
           learning_rate = 1e-3
-          # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+          optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
           # optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
-          optimizer = torch.optim.RAdam(model.parameters(), lr=learning_rate)
+          # optimizer = torch.optim.RAdam(model.parameters(), lr=learning_rate)
           # we adopt rectified Adam for the optimization
           # optimizer = radam.RAdam(
           #     [p for p in model.parameters() if p.requires_grad==True], lr=learning_rate)
