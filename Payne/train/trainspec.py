@@ -298,7 +298,7 @@ class TrainMod(object):
           # loss_fn = torch.nn.L1Loss(reduction = 'mean')
 
           # initialize the optimizer
-          learning_rate = 1e-3
+          learning_rate = 1e-2
           optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
           # optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
           # optimizer = torch.optim.RAdam(model.parameters(), lr=learning_rate)
