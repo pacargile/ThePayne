@@ -477,7 +477,7 @@ class TrainMod(object):
                               'model/{0}'.format(kk),
                               data=model.state_dict()[kk].cpu().numpy(),
                               compression='gzip')
-
+               print('Finished Epoch {0} @ {1} ({2})'.format(epoch_i+1, datetime.now(),datetime.now() - epochtime))
 
           print('Finished training model, took: {0}'.format(
                datetime.now()-starttime))
