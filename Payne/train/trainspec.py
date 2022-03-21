@@ -137,6 +137,7 @@ class TrainMod(object):
           # type of NN to train
           self.NNtype = kwargs.get('NNtype','SMLP')
 
+          startreadintestmod = datetime.now()
           # initialzie class to pull models
           print('... Pulling a first set of models for test set')
           print('... Reading {0} test models from '.format(self.numtest))
@@ -170,7 +171,7 @@ class TrainMod(object):
           #         self.mod_test[x] = mod_test[x]
           # self.testlabels = mod_test['label_o']
 
-          print('... Finished reading in test set of models')
+          print('... Finished reading in test set of models ({0})'.format(datetime.now() - startreadintestmod))
 
           # create list of in labels and out labels
           self.label_i = ['teff','logg','feh','afe']#,'vturb']
@@ -321,7 +322,7 @@ class TrainMod(object):
           # cycle through epochs
           for epoch_i in range(int(self.numepochs)):
                epochtime = datetime.now()
-               print('... Pulling {0} Training Models for Epoch: {1}'.format(self.numtrain,epoch_i+1))
+               print('... Pulling {0} Training/Validation Models for Epoch: {1}'.format(self.numtrain,epoch_i+1))
                sys.stdout.flush()
 
                # initiate counter
@@ -329,6 +330,8 @@ class TrainMod(object):
                iter_arr = []
                training_loss =[]
                validation_loss = []
+
+               startreadintrainmod = datetime.now()
 
                spectra_train,labels_train,wavelength_train = self.c3kmods.pullspectra(
                     self.numtrain,
@@ -342,13 +345,6 @@ class TrainMod(object):
                     vtrub=self.vtrange,
                     excludelabels=np.array(self.testlabels),
                     )
-
-               # # pull training data
-               # mod_t = self.mistmods.pullmod(
-               #     self.numtrain,
-               #     norm=True,
-               #     excludelabels=self.testlabels,
-               #     eep=self.eeprange,mass=self.massrange,feh=self.FeHrange,afe=self.aFerange)
 
                # create tensor for input training labels
                X_train_labels = labels_train
@@ -381,6 +377,8 @@ class TrainMod(object):
                Y_valid = np.array(spectra_valid)
                Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
                Y_valid_Tensor = Y_valid_Tensor.to(device)
+
+               print('... Finished reading in models ({})'.format(datetime.now() - startreadintrainmod))
 
                cc = 0
                for iter_i in range(int(self.numsteps)):
