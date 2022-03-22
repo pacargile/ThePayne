@@ -44,6 +44,7 @@ import Payne
 from ..utils.readc3k import readc3k
 from ..utils import optim
 from . import NNmodels
+from ..train.NNmodels import readNN
 
 fwhm_to_sigma = 2.0 * np.sqrt(2.0 * np.log(2.0))
 
@@ -274,8 +275,7 @@ class TrainMod(object):
                if os.path.isfile(self.restartfile):
                     print('Restarting from File: {0} with NNtype: {1}'.format(self.restartfile,self.NNtype))
                     sys.stdout.flush()
-                    model = GenMod.readNN(self.restartfile,NNtype=self.NNtype)
-                    # model = GenMod.Net(nnpath=self.restartfile,nntype=self.NNtype,normed=True)
+                    model = readNN(self.restartfile,NNtype=self.NNtype)
                else:
                     print('Could Not Find Restart File, Creating a New NN model')
                     sys.stdout.flush()
