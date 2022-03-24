@@ -138,6 +138,9 @@ class TrainMod(object):
           # type of NN to train
           self.NNtype = kwargs.get('NNtype','SMLP')
 
+          # turn on log plotting, could be memory intensive
+          self.logplot = kwargs.get('logplot',False)
+
           startreadintestmod = datetime.now()
           # initialzie class to pull models
           print('... Pulling a first set of models for test set')
@@ -433,9 +436,6 @@ class TrainMod(object):
                          loss_data = loss.detach().data.item()
                          loss_valid_data = loss_valid.detach().data.item()
 
-                         iter_arr.append(iter_i)
-                         training_loss.append(loss_data)
-                         validation_loss.append(loss_valid_data)
                          if iter_i % 500 == 0.0:
                               print(
                                    '--> Ep: {0:d} -- Iter {1:d}/{2:d} -- Time/step: {3} -- Train Loss: {4:.6f} -- Valid Loss: {5:.6f}'.format(
@@ -443,14 +443,19 @@ class TrainMod(object):
                                    )
                          sys.stdout.flush()                      
 
-                         fig,ax = plt.subplots(1,1)
-                         ax.plot(iter_arr,np.log10(training_loss),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
-                         ax.plot(iter_arr,np.log10(validation_loss),ls='-',lw=1.0,alpha=0.75,c='C3',label='Validation')
-                         ax.legend()
-                         ax.set_xlabel('Iteration')
-                         ax.set_ylabel('log(L1 Loss)')
-                         fig.savefig('loss_epoch{0}.png'.format(epoch_i+1),dpi=150)
-                         plt.close(fig)
+                         if self.logplot:
+                              iter_arr.append(iter_i)
+                              training_loss.append(loss_data)
+                              validation_loss.append(loss_valid_data)
+
+                              fig,ax = plt.subplots(1,1)
+                              ax.plot(iter_arr,np.log10(training_loss),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
+                              ax.plot(iter_arr,np.log10(validation_loss),ls='-',lw=1.0,alpha=0.75,c='C3',label='Validation')
+                              ax.legend()
+                              ax.set_xlabel('Iteration')
+                              ax.set_ylabel('log(L1 Loss)')
+                              fig.savefig('loss_epoch{0}.png'.format(epoch_i+1),dpi=150)
+                              plt.close(fig)
 
                     # # check if network has converged
                     # if np.abs(np.nan_to_num(loss_valid_data)-np.nan_to_num(current_loss))/np.abs(loss_valid_data) < 0.01:
