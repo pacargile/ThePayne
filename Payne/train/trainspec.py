@@ -172,7 +172,7 @@ class TrainMod(object):
                aFe=self.aferange,
                vtrub=self.vtrange)
 
-          self.testlabels = labels_test.tolist()
+          self.testlabels = labels_test[:,:len(label_i)].tolist()
 
           # # pull a quick set of test models to determine general properties
           # mod_test = self.mistmods.pullmod(
@@ -357,7 +357,7 @@ class TrainMod(object):
                     )
 
                # create tensor for input training labels
-               X_train_labels = labels_train
+               X_train_labels = labels_train[:,:len(label_i)]
                X_train_Tensor = Variable(torch.from_numpy(X_train_labels).type(dtype))
                X_train_Tensor = X_train_Tensor.to(device)
 
@@ -379,7 +379,7 @@ class TrainMod(object):
                     excludelabels=np.array(list(self.testlabels)+list(X_train_labels)),)
 
                # create tensor for input validation labels
-               X_valid_labels = labels_valid
+               X_valid_labels = labels_valid[:,:len(label_i)]
                X_valid_Tensor = Variable(torch.from_numpy(X_valid_labels).type(dtype))
                X_valid_Tensor = X_valid_Tensor.to(device)
 
