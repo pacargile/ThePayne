@@ -109,6 +109,12 @@ class TrainMod(object):
           else:
                self.H3 = 256
 
+          # set user defined labels
+          if 'labels_in' in kwargs:
+               self.label_i = kwargs['labels_in']
+          else:
+               self.label_i = ['teff','logg','feh','afe']
+
           resolution_fwhm = kwargs.get('resolution',32000.0)
           # convert resolution to sigma
           self.resolution = resolution_fwhm * fwhm_to_sigma
@@ -121,6 +127,11 @@ class TrainMod(object):
           self.fehrange   = kwargs.get('FeH',None)
           self.aferange   = kwargs.get('aFe',None)
           self.vtrange    = kwargs.get('vturb',None)
+
+          if self.vtrange is 'fixed':
+               vtfixed = True
+          else:
+               vtfixed = False
 
           self.restartfile = kwargs.get('restartfile',False)
           if self.restartfile is not False:
@@ -147,7 +158,7 @@ class TrainMod(object):
           print('... Reading {0} test models from '.format(self.numtest))
           print('    c3k: {0}'.format(self.c3kpath))
           print('    mist: {0}'.format(self.mistpath))
-          self.c3kmods = readc3k(MISTpath=self.mistpath,C3Kpath=self.c3kpath)
+          self.c3kmods = readc3k(MISTpath=self.mistpath,C3Kpath=self.c3kpath,vtfixed=vtfixed)
           sys.stdout.flush()
 
           spectra_test,labels_test,wavelength_test = self.c3kmods.pullspectra(
@@ -176,9 +187,6 @@ class TrainMod(object):
           # self.testlabels = mod_test['label_o']
 
           print('... Finished reading in test set of models ({0})'.format(datetime.now() - startreadintestmod))
-
-          # create list of in labels and out labels
-          self.label_i = ['teff','logg','feh','afe']#,'vturb']
 
           # determine normalization values
           self.xmin = np.array([self.c3kmods.minmax[x][0] 
