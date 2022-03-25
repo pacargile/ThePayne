@@ -40,13 +40,16 @@ class readc3k(object):
 			afe_i =  float(indinf.partition('afe')[-1][:4])
 			self.FeHarr.append(feh_i)
 			self.alphaarr.append(afe_i)
-
 			if 'vt' in indinf:
 				vt_i = float(indinf.partition('vt')[-1][:3])/10.0
 				self.vtarr.append(vt_i)
 		self.FeHarr = np.unique(self.FeHarr)
 		self.alphaarr = np.unique(self.alphaarr)
-		self.vtarr = np.unique(self.vtarr)
+
+		if kwargs.get('vtfixed',False):
+			self.vtarr = np.unique(self.vtarr)
+		else:
+			self.vtarr = [1.0]
 
 		print('FOUND {} FeH'.format(len(self.FeHarr)))
 		print('FOUND {} aFe'.format(len(self.alphaarr)))
@@ -120,8 +123,6 @@ class readc3k(object):
 						self.C3K[aa][mm][vv] = h5py.File(
 							fname,
 							'r', libver='latest', swmr=True)
-
-
 
 		# create min-max dictionary for input labels
 		if len(self.vtarr) == 0:
