@@ -46,10 +46,11 @@ class readc3k(object):
 		self.FeHarr = np.unique(self.FeHarr)
 		self.alphaarr = np.unique(self.alphaarr)
 
-		if kwargs.get('vtfixed',False):
-			self.vtarr = np.unique(self.vtarr)
-		else:
+		vtfixbool = kwargs.get('vtfixed',False)
+		if vtfixbool:
 			self.vtarr = [1.0]
+		else:
+			self.vtarr = np.unique(self.vtarr)
 
 		print('FOUND {} FeH'.format(len(self.FeHarr)))
 		print('FOUND {} aFe'.format(len(self.alphaarr)))
