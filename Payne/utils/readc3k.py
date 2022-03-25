@@ -124,6 +124,10 @@ class readc3k(object):
 						self.C3K[aa][mm][vv] = h5py.File(
 							fname,
 							'r', libver='latest', swmr=True)
+						# # add vtrub to parameter labels
+						# pars_i = self.C3K[aa][mm][vv]['parameters'][:]
+						# pars = np.lib.recfunctions.rec_append_fields(pars_i,'vt',x,dtypes=float)
+						# self.C3K[aa][mm][vv]['parameters'] = pars
 
 		# create min-max dictionary for input labels
 		if len(self.vtarr) == 0:
@@ -278,15 +282,21 @@ class readc3k(object):
 					if timeit:
 						print('Pulled random vturb in {0}'.format(datetime.now()-starttime))
 
+				if len(self.vtarr) > 0:
 					# select the C3K spectra at that [Fe/H], [alpha/Fe], vturb
 					C3K_i = self.C3K[alpha_i][FeH_i][vt_i]
+					# create array of all labels in specific C3K file
+					C3Kpars = np.array(C3K_i['parameters'])
+					# tack on vturb to parameter array
+					C3Kpars = np.lib.recfunctions.rec_append_fields(
+						C3Kpars,'vt',
+						vt_i*np.ones(C3Kpars.shape[0],dtype=float),
+						dtypes=float)
 				else:
 					# select the C3K spectra at that [Fe/H] and [alpha/Fe]
 					C3K_i = self.C3K[alpha_i][FeH_i]
-
-
-				# create array of all labels in specific C3K file
-				C3Kpars = np.array(C3K_i['parameters'])
+					# create array of all labels in specific C3K file
+					C3Kpars = np.array(C3K_i['parameters'])
 
 				if timeit:
 					print('create arrray of C3Kpars in {0}'.format(datetime.now()-starttime))
@@ -417,7 +427,10 @@ class readc3k(object):
 				spectra.append(spectra_i)
 				# if requested, record random selected parameters
 				if reclabelsel:
-					initlabels.append([logt_MIST,logg_MIST,FeH_i,alpha_i])
+					if len(self.vtarr) > 0:
+						initlabels.append([logt_MIST,logg_MIST,FeH_i,alpha_i,vt_i])
+					else:
+						initlabels.append([logt_MIST,logg_MIST,FeH_i,alpha_i])
 				break
 			if timeit:
 				print('TOTAL TIME: {0}'.format(datetime.now()-starttime))
