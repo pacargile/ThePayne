@@ -201,7 +201,6 @@ class TrainMod(object):
           self.D_in  = len(self.label_i)
           self.D_out = len(wavelength_test)
 
- 
           # initialize the output file
           with h5py.File('{0}'.format(self.outfilename),'w') as outfile_i:
                try:
