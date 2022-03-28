@@ -465,12 +465,20 @@ class TrainMod(object):
                               training_loss.append(loss_data)
                               validation_loss.append(loss_valid_data)
 
-                              fig,ax = plt.subplots(1,1)
-                              ax.plot(iter_arr,np.log10(training_loss),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
-                              ax.plot(iter_arr,np.log10(validation_loss),ls='-',lw=1.0,alpha=0.75,c='C3',label='Validation')
-                              ax.legend()
-                              ax.set_xlabel('Iteration')
-                              ax.set_ylabel('log(L1 Loss)')
+                              fig,ax = plt.subplots(nrows=2,ncols=1)
+                              ax[0].plot(iter_arr,np.log10(training_loss),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
+                              ax[0].plot(iter_arr,np.log10(validation_loss),ls='-',lw=1.0,alpha=0.75,c='C3',label='Validation')
+                              ax[0].legend()
+                              ax[0].set_xlabel('Iteration')
+                              ax[0].set_ylabel('log(Loss)')
+
+                              for spec_i in Y_pred_valid_Tensor.to('cpu').numpy():
+                              ax[1].plot(
+                                   wavelength_valid,
+                                   spec_i,
+                                   ls='-',lw=0.5)
+                              ax[1].set_xlabel('Wavelength')
+                              ax[1].set_ylabel('Flux')
                               fig.savefig('loss_epoch{0}.png'.format(epoch_i+1),dpi=150)
                               plt.close(fig)
 
