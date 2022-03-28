@@ -226,6 +226,10 @@ class TrainMod(object):
           print('... Output WL Range: {0} - {1}'.format(
                wavelength_test.min(),
                wavelength_test.max(),))
+          print('... label min values:')
+          print('    {}'.format(self.xmin))
+          print('... label max values:')
+          print('    {}'.format(self.xmax))
           print('... Resolution FWHM: {0}'.format(resolution_fwhm))
           print('... Resolution Sigma: {0}'.format(self.resolution))
 
@@ -303,10 +307,10 @@ class TrainMod(object):
           model.train()
 
           # initialize the loss function
-          # loss_fn = torch.nn.MSELoss(reduction='mean')
+          loss_fn = torch.nn.MSELoss(reduction='mean')
           # loss_fn = torch.nn.SmoothL1Loss(reduction='mean')
           # loss_fn = torch.nn.KLDivLoss(size_average=False)
-          loss_fn = torch.nn.L1Loss(reduction = 'sum')
+          # loss_fn = torch.nn.L1Loss(reduction = 'sum')
 
           # initialize the optimizer
           learning_rate = 1e-4
@@ -432,7 +436,7 @@ class TrainMod(object):
                          # optimizer.step()
 
                     # evaluate the validation set
-                    if iter_i % 25 == 0:
+                    if iter_i % 100 == 0:
                          perm_valid = torch.randperm(self.numtrain)
                          if str(device) != 'cpu':
                               perm_valid = perm_valid.cuda()
