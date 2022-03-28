@@ -404,32 +404,32 @@ class TrainMod(object):
                          steptime = datetime.now()
 
                          idx = perm[t * self.batchsize : (t+1) * self.batchsize]
-                         # def closure():
-                         #      # Forward pass: compute predicted y by passing x to the model.
-                         #      Y_pred_train_Tensor = model(X_train_Tensor[idx])
+                         def closure():
+                              # Forward pass: compute predicted y by passing x to the model.
+                              Y_pred_train_Tensor = model(X_train_Tensor[idx])
 
-                         #      # Compute and print loss.
-                         #      loss = loss_fn(Y_pred_train_Tensor, Y_train_Tensor[idx])
+                              # Compute and print loss.
+                              loss = loss_fn(Y_pred_train_Tensor, Y_train_Tensor[idx])
 
-                         #      # Backward pass: compute gradient of the loss with respect to model parameters
-                         #      optimizer.zero_grad()
-                         #      loss.backward(retain_graph=False)
-                         #      # optimizer.step()
+                              # Backward pass: compute gradient of the loss with respect to model parameters
+                              optimizer.zero_grad()
+                              loss.backward(retain_graph=False)
+                              # optimizer.step()
                              
-                         #      if np.isnan(loss.item()):
-                         #           print('PRED TRAIN TENSOR',Y_pred_train_Tensor)
-                         #           print('TRAIN TENSOR',Y_train_Tensor)
-                         #           return loss
-                         #      return loss
+                              if np.isnan(loss.item()):
+                                   print('PRED TRAIN TENSOR',Y_pred_train_Tensor)
+                                   print('TRAIN TENSOR',Y_train_Tensor)
+                                   return loss
+                              return loss
 
-                         # # Calling the step function on an Optimizer makes an update to its parameters
-                         # loss = optimizer.step(closure)
+                         # Calling the step function on an Optimizer makes an update to its parameters
+                         loss = optimizer.step(closure)
 
-                         Y_pred_train_Tensor = model(X_train_Tensor[idx])
-                         loss = loss_fn(Y_pred_train_Tensor, Y_train_Tensor[idx])
-                         optimizer.zero_grad()
-                         loss.backward(retain_graph=False)
-                         optimizer.step()
+                         # Y_pred_train_Tensor = model(X_train_Tensor[idx])
+                         # loss = loss_fn(Y_pred_train_Tensor, Y_train_Tensor[idx])
+                         # optimizer.zero_grad()
+                         # loss.backward(retain_graph=False)
+                         # optimizer.step()
 
                     # evaluate the validation set
                     if iter_i % 25 == 0:
