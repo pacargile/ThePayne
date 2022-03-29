@@ -3,6 +3,7 @@
 
 import os,sys,glob,warnings
 import numpy as np
+from numpy.lib import recfunctions as rfn
 with warnings.catch_warnings():
 	warnings.simplefilter('ignore')
 	import h5py
@@ -288,7 +289,7 @@ class readc3k(object):
 					# create array of all labels in specific C3K file
 					C3Kpars = np.array(C3K_i['parameters'])
 					# tack on vturb to parameter array
-					C3Kpars = np.lib.recfunctions.rec_append_fields(
+					C3Kpars = rfn.rec_append_fields(
 						C3Kpars,'vt',
 						vt_i*np.ones(C3Kpars.shape[0],dtype=float),
 						dtypes=float)
