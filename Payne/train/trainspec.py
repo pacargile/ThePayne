@@ -442,10 +442,18 @@ class TrainMod(object):
                               perm_valid = perm_valid.cuda()
 
                          loss_valid = 0
+                         minres = np.inf
+                         maxres = -np.inf
                          for j in range(nbatches):
                               idx = perm[t * self.batchsize : (t+1) * self.batchsize]
 
-                              Y_pred_valid_Tensor = model(X_valid_Tensor[idx])                        
+                              Y_pred_valid_Tensor = model(X_valid_Tensor[idx]) 
+                              residual = torch.abs(Y_pred_valid_Tensor-Y_valid_Tensor[idx])
+                              minres_i,maxres_i = float(residual.min()),float(residual.max())
+                              if minres_i < minres:
+                                   minres = minres_i
+                              if maxres_i > maxres:
+                                   maxres = maxres_i
                               loss_valid += loss_fn(Y_pred_valid_Tensor, Y_valid_Tensor[idx])
 
                          loss_valid /= nbatches
@@ -472,13 +480,19 @@ class TrainMod(object):
                               ax[0].set_xlabel('Iteration')
                               ax[0].set_ylabel('log(Loss)')
 
-                              for spec_i in Y_pred_valid_Tensor.to('cpu').numpy():
-                              ax[1].plot(
-                                   wavelength_valid,
-                                   spec_i,
-                                   ls='-',lw=0.5)
-                              ax[1].set_xlabel('Wavelength')
-                              ax[1].set_ylabel('Flux')
+                              ax[1].plot(iter_arr,minres,ls='-',lw=1.0,alpha=0.75,c='C2',label='min res')
+                              ax[1].plot(iter_arr,maxres,ls='-',lw=1.0,alpha=0.75,c='C4',label='max res')
+                              ax[1].legend()
+                              ax[1].set_xlabel('Iteration')
+                              ax[1].set_ylabel('|Residual|')
+
+                              # for spec_i in Y_pred_valid_Tensor.to('cpu').numpy():
+                              #      ax[1].plot(
+                              #           wavelength_valid,
+                              #           spec_i,
+                              #           ls='-',lw=0.5)
+                              #      ax[1].set_xlabel('Wavelength')
+                              #      ax[1].set_ylabel('Flux')
                               fig.savefig('loss_epoch{0}.png'.format(epoch_i+1),dpi=150)
                               plt.close(fig)
 
