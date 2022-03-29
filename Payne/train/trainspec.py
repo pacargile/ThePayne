@@ -472,11 +472,11 @@ class TrainMod(object):
                               maxres_loss.append(maxres)
 
                               fig,ax = plt.subplots(nrows=2,ncols=1)
-                              ax[0].plot(iter_arr,np.log10(training_loss),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
-                              ax[0].plot(iter_arr,np.log10(validation_loss),ls='-',lw=1.0,alpha=0.75,c='C3',label='Validation')
+                              ax[0].plot(iter_arr,np.log10(training_loss/len(wavelength_valid)),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
+                              ax[0].plot(iter_arr,np.log10(validation_loss/len(wavelength_valid)),ls='-',lw=1.0,alpha=0.75,c='C3',label='Validation')
                               ax[0].legend()
                               ax[0].set_xlabel('Iteration')
-                              ax[0].set_ylabel('log(Loss)')
+                              ax[0].set_ylabel('log(Loss per pixel)')
 
                               ax[1].plot(iter_arr,medres_loss,ls='-',lw=1.0,alpha=0.75,c='C2',label='median res')
                               ax[1].plot(iter_arr,maxres_loss,ls='-',lw=1.0,alpha=0.75,c='C4',label='max res')
