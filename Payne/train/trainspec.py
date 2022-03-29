@@ -452,7 +452,7 @@ class TrainMod(object):
                               Y_pred_valid_Tensor = model(X_valid_Tensor[idx]) 
                               loss_valid += loss_fn(Y_pred_valid_Tensor, Y_valid_Tensor[idx])
                               if self.logplot:
-                                   residual = torch.abs(Y_pred_valid_Tensor-Y_valid_Tensor[idx])
+                                   residual = torch.abs(Y_pred_valid_Tensor-Y_valid_Tensor[idx])/Y_valid_Tensor[idx]
                                    minres_i,maxres_i = float(residual.min()),float(residual.max())
                                    if minres_i < minres:
                                         minres = minres_i
