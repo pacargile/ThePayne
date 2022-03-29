@@ -497,7 +497,7 @@ class TrainMod(object):
                          if iter_i % 500 == 0.0:
                               print(
                                    '--> Ep: {0:d} -- Iter {1:d}/{2:d} -- Time/step: {3} -- Train Loss: {4:.6f} -- Valid Loss: {5:.6f}'.format(
-                                   int(epoch_i+1),int(iter_i+1),int(self.numsteps), datetime.now()-steptime, loss_data, loss_valid_data)
+                                   int(epoch_i+1),int(iter_i+1),int(self.numsteps), (datetime.now()-itertime), loss_data, loss_valid_data)
                                    )
                          sys.stdout.flush()                      
 
