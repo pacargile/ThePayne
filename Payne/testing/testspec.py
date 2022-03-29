@@ -137,6 +137,46 @@ class TestSpec(object):
 			# build MAD versus lambda binned by pars 2x2
 			fig,ax = plt.subplots(nrows=2,ncols=2,constrained_layout=True)
 
+			# teff binned
+			ind = testlabels['teff'] > 7000.0
+			ax[0,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C0')
+			ind = (testlabels['teff'] <= 7000.0) & (testlabels['teff'] > 6000.0)
+			ax[0,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C3')
+			ind = (testlabels['teff'] <= 5500.0) & (testlabels['teff'] > 4500.0)
+			ax[0,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C4')
+			ind = (testlabels['teff'] <= 4500.0) 
+			ax[0,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C5')
+
+			# logg binned
+			ind = testlabels['logg'] > 4.5
+			ax[0,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C0')
+			ind = (testlabels['logg'] <= 4.5) & (testlabels['logg'] > 4.0)
+			ax[0,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C3')
+			ind = (testlabels['logg'] <= 4.0) & (testlabels['logg'] > 3.5)
+			ax[0,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C4')
+			ind = (testlabels['logg'] <= 3.5) 
+			ax[0,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C5')
+
+			# feh binned
+			ind = testlabels['feh'] > 0.25
+			ax[1,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C0')
+			ind = (testlabels['feh'] <= 0.25) & (testlabels['feh'] > -0.5)
+			ax[1,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C3')
+			ind = (testlabels['feh'] <= -0.5) & (testlabels['feh'] > -1.5)
+			ax[1,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C4')
+			ind = (testlabels['feh'] <= -1.5) 
+			ax[1,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C5')
+
+			# afe binned
+			ind = testlabels['afe'] > 0.4
+			ax[1,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C0')
+			ind = (testlabels['afe'] <= 0.4) & (testlabels['afe'] > 0.2)
+			ax[1,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C3')
+			ind = (testlabels['afe'] <= 0.2) & (testlabels['afe'] > 0.0)
+			ax[1,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C4')
+			ind = (testlabels['afe'] <= 0.0) 
+			ax[1,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C5')
+
 			pdf.savefig(fig)
 			plt.close(fig)
 
