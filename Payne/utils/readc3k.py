@@ -280,7 +280,7 @@ class readc3k(object):
 						if (vt_i >= vtrange[0]) & (vt_i <= vtrange[1]):
 							break
 					if timeit:
-						print('Pulled random vturb in {0}'.format(datetime.now()-starttime))
+						print('Pulled random vturb in {0}'.format(datetime.now()-starttime))				
 
 				if len(self.vtarr) > 0:
 					# select the C3K spectra at that [Fe/H], [alpha/Fe], vturb
@@ -297,6 +297,10 @@ class readc3k(object):
 					C3K_i = self.C3K[alpha_i][FeH_i]
 					# create array of all labels in specific C3K file
 					C3Kpars = np.array(C3K_i['parameters'])
+
+				# convert log(teff) to teff
+				C3Kpars['logt'] = 10.0**C3Kpars['logt']
+				C3Kpars = rfn.rename_fields(C3Kpars,{'logt':'teff'})
 
 				if timeit:
 					print('create arrray of C3Kpars in {0}'.format(datetime.now()-starttime))
@@ -363,8 +367,8 @@ class readc3k(object):
 
 				# do a nearest neighbor interpolation on Teff and log(g) in the C3K grid
 				C3KNN = NearestNDInterpolator(
-					np.array([C3Kpars['logt'],C3Kpars['logg']]).T,range(0,len(C3Kpars))
-					)((logt_MIST,logg_MIST))
+					np.array([C3Kpars['teff'],C3Kpars['logg']]).T,range(0,len(C3Kpars))
+					)((10.0**logt_MIST,logg_MIST))
 
 				# determine the labels for the selected C3K spectrum
 				label_i = list(C3Kpars[C3KNN])
@@ -428,9 +432,9 @@ class readc3k(object):
 				# if requested, record random selected parameters
 				if reclabelsel:
 					if len(self.vtarr) > 0:
-						initlabels.append([logt_MIST,logg_MIST,FeH_i,alpha_i,vt_i])
+						initlabels.append([10.0**logt_MIST,logg_MIST,FeH_i,alpha_i,vt_i])
 					else:
-						initlabels.append([logt_MIST,logg_MIST,FeH_i,alpha_i])
+						initlabels.append([10.0**logt_MIST,logg_MIST,FeH_i,alpha_i])
 				break
 			if timeit:
 				print('TOTAL TIME: {0}'.format(datetime.now()-starttime))
