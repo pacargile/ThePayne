@@ -9,8 +9,16 @@ from scipy import constants
 speedoflight = constants.c / 1000.0
 from scipy.interpolate import UnivariateSpline,NearestNDInterpolator
 
-from ..predict.predictspec import PayneSpecPredict
-from ..utils.pullspectra import pullspectra
+from ..predict import predictspec
+
+from numpy.random import default_rng
+rng = default_rng()
+
+import matplotlib
+matplotlib.use('AGG')
+from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.pyplot as plt
+
 
 class TestSpec(object):
 	"""
@@ -21,11 +29,17 @@ class TestSpec(object):
 		# user inputed neural-net output file
 		self.NNfilename = NNfilename
 
+		# type of NN
+		self.nntype = kwargs.get('NNtype','LinNet')
+
 		# initialize the Payne Predictor
-		self.PP = PayneSpecPredict(self.NNfilename)
+		self.NN = predictspec.ANN(nnpath=self.NNfilename,NNtype=self.nntype,verbose=False)
 
 		# define wavelength range of trained network
-		self.waverange = [self.PP.NN['wavelength'].min(),self.PP.NN['wavelength'].max()]
+		self.waverange = [self.NN['wavelength'].min(),self.NN['wavelength'].max()]
+
+		# default resolution is the native resolution of NN
+		self.resolution = float(np.array(self.NN['resolution']))
 
 
 	def runtest(self,**kwargs):
@@ -34,66 +48,47 @@ class TestSpec(object):
 		'''
 		if 'testnum' in kwargs:
 			testnum = kwargs['testnum']
+			ind = rng.integers(low=0,high=len(self.NN['testlabels']),size=testnum)
+			testpred = self.NN['testpred'][ind]
+			testlabels = self.NN['testlabels'][ind]
 		else:
 			# test with equal number of spectra as training
-			testnum = len(self.PP.NN['labels'].T)
+			testnum = len(self.NN['testlabels'])
+			testpred = self.NN['testpred'][:]
+			testlabels = self.NN['testlabels'][:]
 
-		if 'resolution' in kwargs:
-			resolution = kwargs['resolution']
-		else:
-			# default resolution is the native resolution of NN
-			resolution = self.PP.NN['resolution']
 
-		# pull training spectra
-		self.pullspectra = pullspectra()
+		# make NN predictions for all test labels
+		nnpred = np.array([NN.eval(pars) for pars in testlabels])
 
-		self.spectra_train,self.labels_train,self.wavelength_train = self.pullspectra.selspectra(
-			self.PP.NN['labels'].T,
-			resolution=resolution,
-			waverange=self.waverange)
+		output = kwargs.get('output','./test.pdf')
 
-		# pull testing spectra
-		self.spectra_test,self.labels_test,self.wavelength_test = self.pullspectra(
-			testnum,
-			resolution=resolution,
-			waverange=self.waverange,
-			excludelabels=self.PP.NN['labels'],
-			Teff=[10.0**self.PP.NN['x_min'][0],10.0**self.PP.NN['x_max'][0]],
-			logg=[self.PP.NN['x_min'][1],self.PP.NN['x_max'][1]],
-			FeH= [self.PP.NN['x_min'][2],self.PP.NN['x_max'][2]],
-			aFe= [self.PP.NN['x_min'][3],self.PP.NN['x_max'][3]],
-			)
+		# initialize PDF file
+		with PdfPages(output) as pdf:
 
-		# generate predicted spectra at each of the testing spectra labels
-		outspecdict = {}
-		outspecdict['WAVE'] = self.wavelength_test
-		outspecdict['TRAINLABLES'] = self.labels_train
-		outspecdict['TESTLABELS'] = self.labels_test
-		outspecdict['trainspec'] = {}
-		outspecdict['testspec'] = {}
+			# MAD histograms binned by pars
+			fig,ax = plt.subplots(nrows=2,ncols=2,constrained_layout=True)
 
-		for ii,pars,trainspec in zip(range(len(self.labels_train)),self.labels_train,self.spectra_train):
-			modwave_i,modflux_i = self.PP.getspec(
-				logt=pars[0],logg=pars[1],feh=pars[2],afe=pars[3])
-			outspecdict['trainspec'][ii] = {'train':trainspec,'predict':modflux_i}
+			
 
-		for ii,pars,testspec in zip(range(len(self.labels_test)),self.labels_test,self.spectra_test):
-			modwave_i,modflux_i = self.PP.getspec(
-				logt=pars[0],logg=pars[1],feh=pars[2],afe=pars[3])
-			outspecdict['testspec'][ii] = {'test':testspec,'predict':modflux_i}
+			pdf.savefig(fig)
+			plt.close(fig)
 
-		outspecdict['medarr_test'] = np.ones(len(outspecdict['WAVE']))
-		outspecdict['medarr_train'] = np.ones(len(outspecdict['WAVE']))
+			# build MAD versus lambda plots
+			fig,ax = plt.subplots(nrows=2,ncols=1,constrained_layout=True)
 
-		for ii in range(len(outspecdict['medarr_test'])):
-			outspecdict['medarr_test'][ii] = np.median(
-				[np.abs(outspecdict['testspec'][x]['test'][ii]-
-					outspecdict['testspec'][x]['predict'][ii]) 
-				for x in outspecdict['testspec']])
+			pdf.savefig(fig)
+			plt.close(fig)
 
-			outspecdict['medarr_train'][ii] = np.median(
-				[np.abs(outspecdict['trainspec'][x]['train'][ii]-
-					outspecdict['trainspec'][x]['predict'][ii]) 
-				for x in outspecdict['trainspec']])
+			# build MAD versus lambda binned by pars 2x2
+			fig,ax = plt.subplots(nrows=2,ncols=2,constrained_layout=True)
 
-		return outspecdict
+			pdf.savefig(fig)
+			plt.close(fig)
+
+			# build MAD map for 4 different pars
+			fig,ax = plt.subplots(nrows=2,ncols=2,constrained_layout=True)
+
+			pdf.savefig(fig)
+			plt.close(fig)
+
