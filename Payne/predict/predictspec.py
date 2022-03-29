@@ -36,7 +36,7 @@ class ANN(object):
     if nnpath != None:
       self.nnpath = nnpath
     else:
-      self.nnpath  = Payne.__abspath__+'data/ANN/mistyNN.h5'
+      self.nnpath  = Payne.__abspath__+'data/ANN/NN.h5'
 
     self.normed = kwargs.get('normed',False)
 
@@ -53,13 +53,17 @@ class ANN(object):
     self.wavelength = th5['wavelengths'][:]
     self.resolution = np.array(th5['resolution'],dtype=float)
 
-    self.NNtype = kwargs.get('NNtype','SMLP')
+    self.NNtype = kwargs.get('NNtype','LinNet')
 
     self.model = readNN(self.nnpath,NNtype=self.NNtype)
 
     th5.close()
 
   def eval(self,x):
+    # check if Teff (always x[0]) is log'ed or not
+    if x[0] > 100.0:
+        x[0] = np.log10(x[0])
+
     if isinstance(x,list):
         x = np.asarray(x)
     if len(x.shape) == 1:
