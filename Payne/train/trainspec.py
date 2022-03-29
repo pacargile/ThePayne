@@ -344,6 +344,8 @@ class TrainMod(object):
                iter_arr = []
                training_loss =[]
                validation_loss = []
+               minres_loss = []
+               maxres_loss = []
 
                startreadintrainmod = datetime.now()
 
@@ -461,17 +463,12 @@ class TrainMod(object):
                          loss_data = loss.detach().data.item()
                          loss_valid_data = loss_valid.detach().data.item()
 
-                         if iter_i % 500 == 0.0:
-                              print(
-                                   '--> Ep: {0:d} -- Iter {1:d}/{2:d} -- Time/step: {3} -- Train Loss: {4:.6f} -- Valid Loss: {5:.6f}'.format(
-                                   int(epoch_i+1),int(iter_i+1),int(self.numsteps), datetime.now()-steptime, loss_data, loss_valid_data)
-                                   )
-                         sys.stdout.flush()                      
-
                          if self.logplot:
                               iter_arr.append(iter_i)
                               training_loss.append(loss_data)
                               validation_loss.append(loss_valid_data)
+                              minres_loss.append(minres)
+                              maxres_loss.append(maxres)
 
                               fig,ax = plt.subplots(nrows=2,ncols=1)
                               ax[0].plot(iter_arr,np.log10(training_loss),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
@@ -480,8 +477,8 @@ class TrainMod(object):
                               ax[0].set_xlabel('Iteration')
                               ax[0].set_ylabel('log(Loss)')
 
-                              ax[1].plot(iter_arr,minres,ls='-',lw=1.0,alpha=0.75,c='C2',label='min res')
-                              ax[1].plot(iter_arr,maxres,ls='-',lw=1.0,alpha=0.75,c='C4',label='max res')
+                              ax[1].plot(iter_arr,minres_loss,ls='-',lw=1.0,alpha=0.75,c='C2',label='min res')
+                              ax[1].plot(iter_arr,maxres_loss,ls='-',lw=1.0,alpha=0.75,c='C4',label='max res')
                               ax[1].legend()
                               ax[1].set_xlabel('Iteration')
                               ax[1].set_ylabel('|Residual|')
@@ -495,6 +492,14 @@ class TrainMod(object):
                               #      ax[1].set_ylabel('Flux')
                               fig.savefig('loss_epoch{0}.png'.format(epoch_i+1),dpi=150)
                               plt.close(fig)
+
+                         if iter_i % 500 == 0.0:
+                              print(
+                                   '--> Ep: {0:d} -- Iter {1:d}/{2:d} -- Time/step: {3} -- Train Loss: {4:.6f} -- Valid Loss: {5:.6f}'.format(
+                                   int(epoch_i+1),int(iter_i+1),int(self.numsteps), datetime.now()-steptime, loss_data, loss_valid_data)
+                                   )
+                         sys.stdout.flush()                      
+
 
                     # # check if network has converged
                     # if np.abs(np.nan_to_num(loss_valid_data)-np.nan_to_num(current_loss))/np.abs(loss_valid_data) < 0.01:
