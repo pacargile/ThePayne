@@ -344,7 +344,7 @@ class TrainMod(object):
                iter_arr = []
                training_loss =[]
                validation_loss = []
-               minres_loss = []
+               medres_loss = []
                maxres_loss = []
 
                startreadintrainmod = datetime.now()
@@ -444,7 +444,7 @@ class TrainMod(object):
                               perm_valid = perm_valid.cuda()
 
                          loss_valid = 0
-                         minres = np.inf
+                         medres = 0
                          maxres = -np.inf
                          for j in range(nbatches):
                               idx = perm[t * self.batchsize : (t+1) * self.batchsize]
@@ -453,9 +453,9 @@ class TrainMod(object):
                               loss_valid += loss_fn(Y_pred_valid_Tensor, Y_valid_Tensor[idx])
                               if self.logplot:
                                    residual = torch.abs(Y_pred_valid_Tensor-Y_valid_Tensor[idx])/Y_valid_Tensor[idx]
-                                   minres_i,maxres_i = float(residual.min()),float(residual.max())
-                                   if minres_i < minres:
-                                        minres = minres_i
+                                   medres_i,maxres_i = float(residual.median()),float(residual.max())
+                                   if medres_i > medres:
+                                        medres = medres_i
                                    if maxres_i > maxres:
                                         maxres = maxres_i
 
@@ -468,7 +468,7 @@ class TrainMod(object):
                               iter_arr.append(iter_i)
                               training_loss.append(loss_data)
                               validation_loss.append(loss_valid_data)
-                              minres_loss.append(minres)
+                              medres_loss.append(medres)
                               maxres_loss.append(maxres)
 
                               fig,ax = plt.subplots(nrows=2,ncols=1)
@@ -478,7 +478,7 @@ class TrainMod(object):
                               ax[0].set_xlabel('Iteration')
                               ax[0].set_ylabel('log(Loss)')
 
-                              ax[1].plot(iter_arr,minres_loss,ls='-',lw=1.0,alpha=0.75,c='C2',label='min res')
+                              ax[1].plot(iter_arr,medres_loss,ls='-',lw=1.0,alpha=0.75,c='C2',label='median res')
                               ax[1].plot(iter_arr,maxres_loss,ls='-',lw=1.0,alpha=0.75,c='C4',label='max res')
                               ax[1].legend()
                               ax[1].set_xlabel('Iteration')
