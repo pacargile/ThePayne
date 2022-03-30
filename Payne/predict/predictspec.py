@@ -53,6 +53,10 @@ class ANN(object):
     self.wavelength = th5['wavelengths'][:]
     self.resolution = np.array(th5['resolution'],dtype=float)
 
+    if kwargs.get('testing',False):
+        self.testlabels = th5['testlabels'][:]
+        self.testpred   = th5['testpred'][:]
+
     self.NNtype = kwargs.get('NNtype','LinNet')
 
     self.model = readNN(self.nnpath,NNtype=self.NNtype)
@@ -60,9 +64,6 @@ class ANN(object):
     th5.close()
 
   def eval(self,x):
-    # check if Teff (always x[0]) is log'ed or not
-    if x[0] > 100.0:
-        x[0] = np.log10(x[0])
 
     if isinstance(x,list):
         x = np.asarray(x)
