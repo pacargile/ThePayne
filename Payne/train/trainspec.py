@@ -452,7 +452,7 @@ class TrainMod(object):
                               Y_pred_valid_Tensor = model(X_valid_Tensor[idx]) 
                               loss_valid += loss_fn(Y_pred_valid_Tensor, Y_valid_Tensor[idx])
                               if self.logplot:
-                                   residual = torch.abs(Y_pred_valid_Tensor-Y_valid_Tensor[idx])/Y_valid_Tensor[idx]
+                                   residual = torch.abs(Y_pred_valid_Tensor-Y_valid_Tensor[idx])
                                    medres_i,maxres_i = float(residual.median()),float(residual.max())
                                    if medres_i > medres:
                                         medres = medres_i
@@ -478,11 +478,11 @@ class TrainMod(object):
                               # ax[0].set_xlabel('Iteration')
                               ax[0].set_ylabel('log(Loss per pixel)')
 
-                              ax[1].plot(iter_arr,medres_loss,ls='-',lw=1.0,alpha=0.75,c='C2',label='median res')
-                              ax[1].plot(iter_arr,maxres_loss,ls='-',lw=1.0,alpha=0.75,c='C4',label='max res')
+                              ax[1].plot(iter_arr,np.log10(medres_loss),ls='-',lw=1.0,alpha=0.75,c='C2',label='median')
+                              ax[1].plot(iter_arr,np.log10(maxres_loss),ls='-',lw=1.0,alpha=0.75,c='C4',label='max')
                               ax[1].legend()
                               ax[1].set_xlabel('Iteration')
-                              ax[1].set_ylabel('|Residual|')
+                              ax[1].set_ylabel('log(|Residual|)')
 
                               # for spec_i in Y_pred_valid_Tensor.to('cpu').numpy():
                               #      ax[1].plot(
