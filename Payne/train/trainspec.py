@@ -475,7 +475,7 @@ class TrainMod(object):
                               ax[0].plot(iter_arr,np.log10(training_loss) - np.log10(len(wavelength_valid)),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
                               ax[0].plot(iter_arr,np.log10(validation_loss) - np.log10(len(wavelength_valid)),ls='-',lw=1.0,alpha=0.75,c='C3',label='Validation')
                               ax[0].legend()
-                              ax[0].set_xlabel('Iteration')
+                              # ax[0].set_xlabel('Iteration')
                               ax[0].set_ylabel('log(Loss per pixel)')
 
                               ax[1].plot(iter_arr,medres_loss,ls='-',lw=1.0,alpha=0.75,c='C2',label='median res')
