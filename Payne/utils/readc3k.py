@@ -53,9 +53,12 @@ class readc3k(object):
 		else:
 			self.vtarr = np.unique(self.vtarr)
 
-		print('FOUND {} FeH'.format(len(self.FeHarr)))
-		print('FOUND {} aFe'.format(len(self.alphaarr)))
-		print('FOUND {} Vt'.format(len(self.vtarr)))
+		self.verbose = kwargs.get('verbose',False)
+
+		if self.verbose:
+			print('FOUND {} FeH'.format(len(self.FeHarr)))
+			print('FOUND {} aFe'.format(len(self.alphaarr)))
+			print('FOUND {} Vt'.format(len(self.vtarr)))
 
 		# remove the super metal-rich models that only have aFe = 0
 		if 0.75 in self.FeHarr:
@@ -229,7 +232,7 @@ class readc3k(object):
 		# set up some booleans
 		reclabelsel   = kwargs.get('reclabelsel',False)
 		MISTweighting = kwargs.get('MISTweighting',False)
-		timeit        = kwargs.get('timeit',False)
+		# timeit        = kwargs.get('timeit',False)
 
 		# randomly select num number of MIST isochrone grid points, currently only 
 		# using dwarfs, subgiants, and giants (EEP = 200-808)
@@ -241,7 +244,7 @@ class readc3k(object):
 			initlabels = []
 
 		for ii in range(num):
-			if timeit:
+			if self.verbose:
 				starttime = datetime.now()
 
 			while True:
@@ -257,7 +260,7 @@ class readc3k(object):
 					# [Fe/H] limits
 					if (FeH_i >= fehrange[0]) & (FeH_i <= fehrange[1]):
 						break
-				if timeit:
+				if self.verbose:
 					print('Pulled random [Fe/H] in {0}'.format(datetime.now()-starttime))
 
 				# then draw an alpha abundance
@@ -268,7 +271,7 @@ class readc3k(object):
 					# [alpha/Fe] limits
 					if (alpha_i >= aFerange[0]) & (alpha_i <= aFerange[1]):
 						break
-				if timeit:
+				if self.verbose:
 					print('Pulled random [a/Fe] in {0}'.format(datetime.now()-starttime))
 
 				if len(self.vtarr) > 0:
@@ -280,7 +283,7 @@ class readc3k(object):
 						# vturb limits
 						if (vt_i >= vtrange[0]) & (vt_i <= vtrange[1]):
 							break
-					if timeit:
+					if self.verbose:
 						print('Pulled random vturb in {0}'.format(datetime.now()-starttime))				
 
 				if len(self.vtarr) > 0:
@@ -303,7 +306,7 @@ class readc3k(object):
 				C3Kpars['logt'] = 10.0**C3Kpars['logt']
 				C3Kpars = rfn.rename_fields(C3Kpars,{'logt':'teff'})
 
-				if timeit:
+				if self.verbose:
 					print('create arrray of C3Kpars in {0}'.format(datetime.now()-starttime))
 
 				# select the range of MIST models with that [Fe/H]
@@ -312,7 +315,7 @@ class readc3k(object):
 				aFe_i_MIST = self.MISTalphaarr[np.argmin(np.abs(alpha_i-self.MISTalphaarr))]
 				MIST_i = self.MIST['{0:4.2f}/{1:4.2f}/0.40'.format(FeH_i_MIST,aFe_i_MIST)]
 
-				if timeit:
+				if self.verbose:
 					print('Pulled MIST models in {0}'.format(datetime.now()-starttime))
 
 				if MISTweighting:
@@ -323,7 +326,7 @@ class readc3k(object):
 				else:
 					teffwgts_i = None
 
-				if timeit:
+				if self.verbose:
 					print('Created MIST weighting {0}'.format(datetime.now()-starttime))
 
 				while True:
@@ -341,7 +344,7 @@ class readc3k(object):
 						(logg_MIST_i >= loggrange[0]) and (logg_MIST_i <= loggrange[1])
 						):
 						break
-				if timeit:
+				if self.verbose:
 					print('Selected MIST pars in {0}'.format(datetime.now()-starttime))
 
 
@@ -374,7 +377,7 @@ class readc3k(object):
 				# determine the labels for the selected C3K spectrum
 				label_i = list(C3Kpars[C3KNN])
 
-				if timeit:
+				if self.verbose:
 					print('Determine C3K labels in {0}'.format(datetime.now()-starttime))
 
 				# check to see if user defined labels to exclude, if so
@@ -386,7 +389,7 @@ class readc3k(object):
 				with np.errstate(divide='ignore', invalid='ignore'):
 					spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
 
-				if timeit:
+				if self.verbose:
 					print('Create C3K spectra in {0}'.format(datetime.now()-starttime))
 
 				# check to see if label_i in labels, or spectra_i is nan's
@@ -415,7 +418,7 @@ class readc3k(object):
 						wavecond = np.array(wavecond,dtype=bool)
 						wavelength_o = wavelength_i[wavecond]
 
-				if timeit:
+				if self.verbose:
 					print('Saved a C3K wavelength instance in {0}'.format(datetime.now()-starttime))
 
 				# if user defined resolution to train at, the smooth C3K to that resolution
@@ -425,7 +428,7 @@ class readc3k(object):
 				else:
 					spectra_i = spectra_i[wavecond]
 
-				if timeit:
+				if self.verbose:
 					print('Convolve C3K to new R in {0}'.format(datetime.now()-starttime))
 
 				labels.append(label_i)
@@ -437,7 +440,7 @@ class readc3k(object):
 					else:
 						initlabels.append([10.0**logt_MIST,logg_MIST,FeH_i,alpha_i])
 				break
-			if timeit:
+			if self.verbose:
 				print('TOTAL TIME: {0}'.format(datetime.now()-starttime))
 				print('')
 		if reclabelsel:
@@ -481,19 +484,36 @@ class readc3k(object):
 			FeH_i   = li[2]
 			alpha_i = li[3]
 
+			if len(self.vtarr) > 0:
+				vt_i = li[4]
+
 			# find nearest value to FeH and aFe
 			FeH_i   = self.FeHarr[np.argmin(np.abs(np.array(self.FeHarr)-FeH_i))]
 			alpha_i = self.alphaarr[np.argmin(np.abs(np.array(self.alphaarr)-alpha_i))]
 
-			# select the C3K spectra for these alpha and FeH
-			C3K_i = self.C3K[alpha_i][FeH_i]
+			if len(self.vtarr) > 0:
+				# select the C3K spectra at that [Fe/H], [alpha/Fe], vturb
+				C3K_i = self.C3K[alpha_i][FeH_i][vt_i]
+				# create array of all labels in specific C3K file
+				C3Kpars = np.array(C3K_i['parameters'])
+				# tack on vturb to parameter array
+				C3Kpars = rfn.rec_append_fields(
+					C3Kpars,'vt',
+					vt_i*np.ones(C3Kpars.shape[0],dtype=float),
+					dtypes=float)
+			else:
+				# select the C3K spectra at that [Fe/H] and [alpha/Fe]
+				C3K_i = self.C3K[alpha_i][FeH_i]
+				# create array of all labels in specific C3K file
+				C3Kpars = np.array(C3K_i['parameters'])
 
-			# create array of all labels in specific C3K file
-			C3Kpars = np.array(C3K_i['parameters'])
+			# convert log(teff) to teff
+			C3Kpars['logt'] = 10.0**C3Kpars['logt']
+			C3Kpars = rfn.rename_fields(C3Kpars,{'logt':'teff'})
 
 			# do a nearest neighbor interpolation on Teff and log(g) in the C3K grid
 			C3KNN = NearestNDInterpolator(
-				np.array([C3Kpars['logt'],C3Kpars['logg']]).T,range(0,len(C3Kpars))
+				np.array([C3Kpars['teff'],C3Kpars['logg']]).T,range(0,len(C3Kpars))
 				)((teff_i,logg_i))
 
 			# determine the labels for the selected C3K spectrum
@@ -532,7 +552,7 @@ class readc3k(object):
 			# if user defined resolution to train at, the smooth C3K to that resolution
 			if resolution != None:
 				spectra_i = self.smoothspecfunc(wavelength_i,spectra_i,resolution,
-					outwave=wavelength_o,smoothtype='R',fftsmooth=True,inres=500000.0)
+					outwave=wavelength_o,smoothtype='R',fftsmooth=True,inres=300000.0)
 			else:
 				spectra_i = spectra_i[wavecond]
 
@@ -588,10 +608,10 @@ class readc3k(object):
 		else:
 			MISTweighting = True
 
-		if 'timeit' in kwargs:
-			timeit = kwargs['timeit']
-		else:
-			timeit = False
+		# if 'timeit' in kwargs:
+		# 	timeit = kwargs['timeit']
+		# else:
+		# 	timeit = False
 
 		if 'inlabels' in kwargs:
 			inlabels = kwargs['inlabels']
