@@ -7,9 +7,12 @@ import numpy as np
 import h5py
 from scipy import constants
 speedoflight = constants.c / 1000.0
-from scipy.interpolate import UnivariateSpline,NearestNDInterpolator
+from scipy import stats
 
 from ..predict import predictspec
+from ..predict import ystpred
+from ..utils.quantiles import quantile
+from ..utils.readc3k import readc3k
 
 from numpy.random import default_rng
 rng = default_rng()
@@ -19,28 +22,30 @@ matplotlib.use('AGG')
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 
-
 class TestSpec(object):
 	"""
 	Class for testing a Payne-learned NN using a testing dataset 
 	different from training spectra
 	"""
-	def __init__(self, NNfilename):
+	def __init__(self, NNfilename, NNtype='LinNet'):
 		# user inputed neural-net output file
 		self.NNfilename = NNfilename
 
 		# type of NN
-		self.nntype = kwargs.get('NNtype','LinNet')
+		self.NNtype = NNtype
 
 		# initialize the Payne Predictor
-		self.NN = predictspec.ANN(nnpath=self.NNfilename,NNtype=self.nntype,verbose=False)
+		self.NN = predictspec.ANN(
+			nnpath=self.NNfilename,
+			NNtype=self.NNtype,
+			testing=True,
+			verbose=True)
 
 		# define wavelengths
-		self.wave = self.NN['wavelength'][:]
+		self.wave = self.NN.wavelength
 
 		# default resolution is the native resolution of NN
-		self.resolution = float(np.array(self.NN['resolution']))
-
+		self.resolution = self.NN.resolution
 
 	def runtest(self,**kwargs):
 		'''
@@ -51,138 +56,439 @@ class TestSpec(object):
 
 		if 'testnum' in kwargs:
 			testnum = kwargs['testnum']
-			ind = rng.integers(low=0,high=len(self.NN['testlabels']),size=testnum)
-			testpred = self.NN['testpred'][ind]
-			testlabels = self.NN['testlabels'][ind]
+			ind = rng.integers(low=0,high=len(self.NN.testlabels),size=testnum)
+			testpred = self.NN.testpred[ind]
+			testlabels = self.NN.testlabels[ind]
 		else:
 			# test with equal number of spectra as training
-			testnum = len(self.NN['testlabels'])
-			testpred = self.NN['testpred'][:]
-			testlabels = self.NN['testlabels'][:]
-
+			testnum = len(self.NN.testlabels)
+			testpred = self.NN.testpred
+			testlabels = self.NN.testlabels
 
 		# make NN predictions for all test labels
-		nnpred = np.array([NN.eval(pars) for pars in testlabels])
+		nnpred = np.array([self.NN.eval(pars) for pars in testlabels])
 
 		# make residual array
 		modres = np.array([np.abs(x-y) for x,y in zip(testpred,nnpred)])
 
 		# initialize PDF file
 		with PdfPages(output) as pdf:
-
-			# MAD histograms binned by pars
-			fig,ax = plt.subplots(nrows=2,ncols=2,constrained_layout=True)
-
-			# teff binned
-			ind = testlabels['teff'] > 7000.0
-			ax[0,0].hist(np.median(modres[ind]),bins=25,c='C0')
-			ind = (testlabels['teff'] <= 7000.0) & (testlabels['teff'] > 6000.0)
-			ax[0,0].hist(np.median(modres[ind]),bins=25,c='C3')
-			ind = (testlabels['teff'] <= 5500.0) & (testlabels['teff'] > 4500.0)
-			ax[0,0].hist(np.median(modres[ind]),bins=25,c='C4')
-			ind = (testlabels['teff'] <= 4500.0) 
-			ax[0,0].hist(np.median(modres[ind]),bins=25,c='C5')
-
-			# logg binned
-			ind = testlabels['logg'] > 4.5
-			ax[0,1].hist(np.median(modres[ind]),bins=25,c='C0')
-			ind = (testlabels['logg'] <= 4.5) & (testlabels['logg'] > 4.0)
-			ax[0,1].hist(np.median(modres[ind]),bins=25,c='C3')
-			ind = (testlabels['logg'] <= 4.0) & (testlabels['logg'] > 3.5)
-			ax[0,1].hist(np.median(modres[ind]),bins=25,c='C4')
-			ind = (testlabels['logg'] <= 3.5) 
-			ax[0,1].hist(np.median(modres[ind]),bins=25,c='C5')
-
-			# feh binned
-			ind = testlabels['feh'] > 0.25
-			ax[1,0].hist(np.median(modres[ind]),bins=25,c='C0')
-			ind = (testlabels['feh'] <= 0.25) & (testlabels['feh'] > -0.5)
-			ax[1,0].hist(np.median(modres[ind]),bins=25,c='C3')
-			ind = (testlabels['feh'] <= -0.5) & (testlabels['feh'] > -1.5)
-			ax[1,0].hist(np.median(modres[ind]),bins=25,c='C4')
-			ind = (testlabels['feh'] <= -1.5) 
-			ax[1,0].hist(np.median(modres[ind]),bins=25,c='C5')
-
-			# afe binned
-			ind = testlabels['afe'] > 0.4
-			ax[1,1].hist(np.median(modres[ind]),bins=25,c='C0')
-			ind = (testlabels['afe'] <= 0.4) & (testlabels['afe'] > 0.2)
-			ax[1,1].hist(np.median(modres[ind]),bins=25,c='C3')
-			ind = (testlabels['afe'] <= 0.2) & (testlabels['afe'] > 0.0)
-			ax[1,1].hist(np.median(modres[ind]),bins=25,c='C4')
-			ind = (testlabels['afe'] <= 0.0) 
-			ax[1,1].hist(np.median(modres[ind]),bins=25,c='C5')
-
-			ax[1,0].set_xlabel('median MAD per spectrum')
-			ax[1,1].set_xlabel('median MAD per spectrum')
-
-			pdf.savefig(fig)
-			plt.close(fig)
+			# histxrange = np.log10(quantile(np.median(modres,axis=0),[0.0001,0.9999]))
+			histxrange = [-4.5,-1]
+			#axis=0 -> median at each pixel
+			#axis=1 -> median of each spectrum
 
 			# build MAD versus lambda plots
-			fig,ax = plt.subplots(nrows=2,ncols=1,constrained_layout=True)
+			fig,ax = plt.subplots(nrows=2,ncols=1,constrained_layout=True,figsize=(8,8))
 
-			ax[0].scatter(self,wave,np.median(modres,axis=0),marker='o')
-			ax[1].hist(np.median(modres,axis=0),bins=25,cumulative=True,density=True)
+			ax[0].scatter(self.wave,np.log10(np.median(modres,axis=0))
+				,marker='.',s=5,ec='none')
+			ax[1].hist(np.log10(np.median(modres,axis=0)),
+				bins=50,cumulative=True,density=True,
+				range=histxrange,histtype='step')
 
-			ax[0].set_xlabel(r'$\lambda')
-			ax[0].set_xlabel('median MAD @ pixel')
+			ax[0].set_xlabel(r'$\lambda$')
+			ax[0].set_ylabel('log(median MAD @ pixel)')
 
-			ax[1].set_xlabel('MAD')
-			ax[1].set_ylabel('CDF')
+			ax[1].set_xlabel('log(median MAD @ pixel)')
+			ax[1].set_ylabel('CDF (% of pixels)')
 
 			pdf.savefig(fig)
 			plt.close(fig)
 
-			# build MAD versus lambda binned by pars 2x2
-			fig,ax = plt.subplots(nrows=2,ncols=2,constrained_layout=True)
+			# MAD histograms binned by pars
+			fig,ax = plt.subplots(nrows=2,ncols=2,constrained_layout=True,figsize=(8,8))
 
 			# teff binned
-			ind = testlabels['teff'] > 7000.0
-			ax[0,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C0')
-			ind = (testlabels['teff'] <= 7000.0) & (testlabels['teff'] > 6000.0)
-			ax[0,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C3')
-			ind = (testlabels['teff'] <= 5500.0) & (testlabels['teff'] > 4500.0)
-			ax[0,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C4')
-			ind = (testlabels['teff'] <= 4500.0) 
-			ax[0,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C5')
+			ind = testlabels[...,0] > 6500.0
+			ax[0,0].hist(np.log10(np.median(modres[ind],axis=1)),
+				bins=25,color='C0',range=histxrange,
+				histtype='step',label='Teff > 6500',
+				density=False,lw=2.0,alpha=0.75)
+			ind = (testlabels[...,0] <= 6500.0) & (testlabels[...,0] > 4500.0)
+			ax[0,0].hist(np.log10(np.median(modres[ind],axis=1)),
+				bins=25,color='C3',range=histxrange,
+				histtype='step',label='4500 < Teff < 6500',
+				density=False,lw=2.0,alpha=0.75)
+			ind = (testlabels[...,0] <= 4500.0) 
+			ax[0,0].hist(np.log10(np.median(modres[ind],axis=1)),
+				bins=25,color='C4',range=histxrange,
+				histtype='step',label='Teff < 4500',
+				density=False,lw=2.0,alpha=0.75)
+			# ind = (testlabels[...,0] <= 4500.0) 
+			# ax[0,0].hist(np.log10(np.median(modres[ind],axis=1)),
+			# 	bins=25,color='C5',range=histxrange,
+			# 	histtype='step',label='Teff < 4500',
+			# 	density=False)
+			ax[0,0].legend(fontsize=7,frameon=False)
 
 			# logg binned
-			ind = testlabels['logg'] > 4.5
-			ax[0,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C0')
-			ind = (testlabels['logg'] <= 4.5) & (testlabels['logg'] > 4.0)
-			ax[0,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C3')
-			ind = (testlabels['logg'] <= 4.0) & (testlabels['logg'] > 3.5)
-			ax[0,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C4')
-			ind = (testlabels['logg'] <= 3.5) 
-			ax[0,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C5')
+			ind = testlabels[...,1] > 4.0
+			ax[0,1].hist(np.log10(np.median(modres[ind],axis=1)),
+				bins=25,color='C0',range=histxrange,
+				histtype='step',label='log(g) > 4.0',
+				density=False,lw=2.0,alpha=0.75)
+			ind = (testlabels[...,1] <= 4.0) & (testlabels[...,1] > 3.0)
+			ax[0,1].hist(np.log10(np.median(modres[ind],axis=1)),
+				bins=25,color='C3',range=histxrange,
+				histtype='step',label='3.0 < log(g) < 4.0',
+				density=False,lw=2.0,alpha=0.75)
+			ind = (testlabels[...,1] <= 3.0) 
+			ax[0,1].hist(np.log10(np.median(modres[ind],axis=1)),
+				bins=25,color='C4',range=histxrange,
+				histtype='step',label='log(g) < 3.0',
+				density=False,lw=2.0,alpha=0.75)
+			# ind = (testlabels[...,1] <= 3.5) 
+			# ax[0,1].hist(np.log10(np.median(modres[ind],axis=1)),
+			# 	bins=25,color='C5',range=histxrange,
+			# 	histtype='step',label='log(g) < 3.5',
+			# 	density=True)
+			ax[0,1].legend(fontsize=7,frameon=False)
 
 			# feh binned
-			ind = testlabels['feh'] > 0.25
-			ax[1,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C0')
-			ind = (testlabels['feh'] <= 0.25) & (testlabels['feh'] > -0.5)
-			ax[1,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C3')
-			ind = (testlabels['feh'] <= -0.5) & (testlabels['feh'] > -1.5)
-			ax[1,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C4')
-			ind = (testlabels['feh'] <= -1.5) 
-			ax[1,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C5')
+			ind = testlabels[...,2] > 0.0
+			ax[1,0].hist(np.log10(np.median(modres[ind],axis=1)),
+				bins=25,color='C0',range=histxrange,
+				histtype='step',label=' [Fe/H] > 0.0',
+				density=False,lw=2.0,alpha=0.75)
+			ind = (testlabels[...,2] <= 0.0) & (testlabels[...,2] > -1.0)
+			ax[1,0].hist(np.log10(np.median(modres[ind],axis=1)),
+				bins=25,color='C3',range=histxrange,
+				histtype='step',label='-1.0 < [Fe/H] < 0.0',
+				density=False,lw=2.0,alpha=0.75)
+			ind = (testlabels[...,2] <= -1.0)
+			ax[1,0].hist(np.log10(np.median(modres[ind],axis=1)),
+				bins=25,color='C4',range=histxrange,
+				histtype='step',label='[Fe/H] < -1.0',
+				density=False,lw=2.0,alpha=0.75)
+			# ind = (testlabels[...,2] <= -1.5) 
+			# ax[1,0].hist(np.log10(np.median(modres[ind],axis=1)),
+			# 	bins=25,color='C5',range=histxrange,
+			# 	histtype='step',label=' [Fe/H] < -1.5',
+			# 	density=False,lw=2.0,alpha=0.75)
+			ax[1,0].legend(fontsize=7,frameon=False)
 
 			# afe binned
-			ind = testlabels['afe'] > 0.4
-			ax[1,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C0')
-			ind = (testlabels['afe'] <= 0.4) & (testlabels['afe'] > 0.2)
-			ax[1,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C3')
-			ind = (testlabels['afe'] <= 0.2) & (testlabels['afe'] > 0.0)
-			ax[1,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C4')
-			ind = (testlabels['afe'] <= 0.0) 
-			ax[1,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C5')
+			ind = testlabels[...,3] > 0.3
+			ax[1,1].hist(np.log10(np.median(modres[ind],axis=1)),
+				bins=25,color='C0',range=histxrange,
+				histtype='step',label=' [a/Fe] > 0.3',
+				density=False,lw=2.0,alpha=0.75)
+			ind = (testlabels[...,3] <= 0.3) & (testlabels[...,3] > 0.0)
+			ax[1,1].hist(np.log10(np.median(modres[ind],axis=1)),
+				bins=25,color='C3',range=histxrange,
+				histtype='step',label=' 0.0 < [a/Fe] < 0.3',
+				density=False,lw=2.0,alpha=0.75)
+			ind = (testlabels[...,3] <= 0.0)
+			ax[1,1].hist(np.log10(np.median(modres[ind],axis=1)),
+				bins=25,color='C4',range=histxrange,
+				histtype='step',label=' [a/Fe] < 0.0',
+				density=False,lw=2.0,alpha=0.75)
+			# ind = (testlabels[...,3] <= 0.0) 
+			# ax[1,1].hist(np.log10(np.median(modres[ind],axis=1)),
+			# 	bins=25,color='C5',range=histxrange,
+			# 	histtype='step',label=' [a/Fe] < 0.0',
+			# 	density=True)
+			ax[1,1].legend(fontsize=7,frameon=False)
+
+			ax[1,0].set_xlabel('log median MAD per spectrum')
+			ax[1,1].set_xlabel('log median MAD per spectrum')
+
+			pdf.savefig(fig)
+			plt.close(fig)
+
+
+			# build MAD versus lambda binned by pars 2x2
+			fig,ax = plt.subplots(nrows=2,ncols=2,constrained_layout=True,figsize=(8,8))
+
+			# teff binned
+			ind = testlabels[...,0] > 6500.0
+			ax[0,0].scatter(self.wave,np.log10(np.median(modres[ind],axis=0)),
+				marker='.',c='C0',s=1,alpha=0.75,ec='none')
+			bin_med, bin_edges, binnumber = stats.binned_statistic(
+				self.wave,np.log10(np.median(modres[ind],axis=0)), 
+				statistic='median', bins=25)
+			bin_width = (bin_edges[1] - bin_edges[0])
+			bin_centers = bin_edges[1:] - bin_width/2
+			ax[0,0].plot(bin_centers,bin_med,lw=1.0,c='C0',label='Teff > 6500')
+
+			ind = (testlabels[...,0] <= 6500.0) & (testlabels[...,0] > 4500.0)
+			ax[0,0].scatter(self.wave,np.log10(np.median(modres[ind],axis=0)),
+				marker='.',c='C3',s=1,alpha=0.75,ec='none')
+			bin_med, bin_edges, binnumber = stats.binned_statistic(
+				self.wave,np.log10(np.median(modres[ind],axis=0)), 
+				statistic='median', bins=25)
+			bin_width = (bin_edges[1] - bin_edges[0])
+			bin_centers = bin_edges[1:] - bin_width/2
+			ax[0,0].plot(bin_centers,bin_med,lw=1.0,c='C3',label='4500 < Teff < 6500')
+
+			ind = (testlabels[...,0] <= 4500.0)
+			ax[0,0].scatter(self.wave,np.log10(np.median(modres[ind],axis=0)),
+				marker='.',c='C4',s=1,alpha=0.75,ec='none')
+			bin_med, bin_edges, binnumber = stats.binned_statistic(
+				self.wave,np.log10(np.median(modres[ind],axis=0)), 
+				statistic='median', bins=25)
+			bin_width = (bin_edges[1] - bin_edges[0])
+			bin_centers = bin_edges[1:] - bin_width/2
+			ax[0,0].plot(bin_centers,bin_med,lw=1.0,c='C4',label='Teff < 4500')
+			ax[0,0].legend(fontsize=7,frameon=False)
+
+			# ind = (testlabels[...,0] <= 4500.0) 
+			# ax[0,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C5')
+
+			# logg binned
+			ind = testlabels[...,1] > 4.0
+			ax[0,1].scatter(self.wave,np.log10(np.median(modres[ind],axis=0)),
+				marker='.',c='C0',s=1,alpha=0.75,ec='none')
+			bin_med, bin_edges, binnumber = stats.binned_statistic(
+				self.wave,np.log10(np.median(modres[ind],axis=0)), 
+				statistic='median', bins=25)
+			bin_width = (bin_edges[1] - bin_edges[0])
+			bin_centers = bin_edges[1:] - bin_width/2
+			ax[0,1].plot(bin_centers,bin_med,lw=1.0,c='C0',label='log(g) > 4.0')
+
+			ind = (testlabels[...,1] <= 4.0) & (testlabels[...,1] > 3.0)
+			ax[0,1].scatter(self.wave,np.log10(np.median(modres[ind],axis=0)),
+				marker='.',c='C3',s=1,alpha=0.75,ec='none')
+			bin_med, bin_edges, binnumber = stats.binned_statistic(
+				self.wave,np.log10(np.median(modres[ind],axis=0)), 
+				statistic='median', bins=25)
+			bin_width = (bin_edges[1] - bin_edges[0])
+			bin_centers = bin_edges[1:] - bin_width/2
+			ax[0,1].plot(bin_centers,bin_med,lw=1.0,c='C3',label='3.0 < log(g) < 4.0')
+
+			ind = (testlabels[...,1] <= 3.0) 
+			ax[0,1].scatter(self.wave,np.log10(np.median(modres[ind],axis=0)),
+				marker='.',c='C4',s=1,alpha=0.75,ec='none')
+			bin_med, bin_edges, binnumber = stats.binned_statistic(
+				self.wave,np.log10(np.median(modres[ind],axis=0)), 
+				statistic='median', bins=25)
+			bin_width = (bin_edges[1] - bin_edges[0])
+			bin_centers = bin_edges[1:] - bin_width/2
+			ax[0,1].plot(bin_centers,bin_med,lw=1.0,c='C4',label='log(g) < 3.0')
+			ax[0,1].legend(fontsize=7,frameon=False)
+			# ind = (testlabels[...,1] <= 3.5) 
+			# ax[0,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C5')
+
+			# feh binned
+			ind = testlabels[...,2] > 0.0
+			ax[1,0].scatter(self.wave,np.log10(np.median(modres[ind],axis=0)),
+				marker='.',c='C0',s=1,alpha=0.75,ec='none')
+			bin_med, bin_edges, binnumber = stats.binned_statistic(
+				self.wave,np.log10(np.median(modres[ind],axis=0)), 
+				statistic='median', bins=25)
+			bin_width = (bin_edges[1] - bin_edges[0])
+			bin_centers = bin_edges[1:] - bin_width/2
+			ax[1,0].plot(bin_centers,bin_med,lw=1.0,c='C0',label='[Fe/H] > 0.0')
+
+			ind = (testlabels[...,2] <= 0.0) & (testlabels[...,2] > -1.0)
+			ax[1,0].scatter(self.wave,np.log10(np.median(modres[ind],axis=0)),
+				marker='.',c='C3',s=1,alpha=0.75,ec='none')
+			bin_med, bin_edges, binnumber = stats.binned_statistic(
+				self.wave,np.log10(np.median(modres[ind],axis=0)), 
+				statistic='median', bins=25)
+			bin_width = (bin_edges[1] - bin_edges[0])
+			bin_centers = bin_edges[1:] - bin_width/2
+			ax[1,0].plot(bin_centers,bin_med,lw=1.0,c='C3',label='-1.0 < [Fe/H] < 0.0')
+
+			ind = (testlabels[...,2] <= -1.0) 
+			ax[1,0].scatter(self.wave,np.log10(np.median(modres[ind],axis=0)),
+				marker='.',c='C4',s=1,alpha=0.75,ec='none')
+			bin_med, bin_edges, binnumber = stats.binned_statistic(
+				self.wave,np.log10(np.median(modres[ind],axis=0)), 
+				statistic='median', bins=25)
+			bin_width = (bin_edges[1] - bin_edges[0])
+			bin_centers = bin_edges[1:] - bin_width/2
+			ax[1,0].plot(bin_centers,bin_med,lw=1.0,c='C4',label='[Fe/H] < -1.0')
+			ax[1,0].legend(fontsize=7,frameon=False)
+			# ind = (testlabels[...,2] <= -1.5) 
+			# ax[1,0].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C5')
+
+			# afe binned
+			ind = testlabels[...,3] > 0.3
+			ax[1,1].scatter(self.wave,np.log10(np.median(modres[ind],axis=0)),
+				marker='.',c='C0',s=1,alpha=0.75,ec='none')
+			bin_med, bin_edges, binnumber = stats.binned_statistic(
+				self.wave,np.log10(np.median(modres[ind],axis=0)), 
+				statistic='median', bins=25)
+			bin_width = (bin_edges[1] - bin_edges[0])
+			bin_centers = bin_edges[1:] - bin_width/2
+			ax[1,1].plot(bin_centers,bin_med,lw=1.0,c='C0',label='[a/Fe] > 0.3')
+
+			ind = (testlabels[...,3] <= 0.3) & (testlabels[...,3] > 0.0)
+			ax[1,1].scatter(self.wave,np.log10(np.median(modres[ind],axis=0)),
+				marker='.',c='C3',s=1,alpha=0.75,ec='none')
+			bin_med, bin_edges, binnumber = stats.binned_statistic(
+				self.wave,np.log10(np.median(modres[ind],axis=0)), 
+				statistic='median', bins=25)
+			bin_width = (bin_edges[1] - bin_edges[0])
+			bin_centers = bin_edges[1:] - bin_width/2
+			ax[1,1].plot(bin_centers,bin_med,lw=1.0,c='C3',label='0.0 < [a/Fe] < 0.3')
+
+			ind = (testlabels[...,3] <= 0.0) 
+			ax[1,1].scatter(self.wave,np.log10(np.median(modres[ind],axis=0)),
+				marker='.',c='C4',s=1,alpha=0.75,ec='none')
+			bin_med, bin_edges, binnumber = stats.binned_statistic(
+				self.wave,np.log10(np.median(modres[ind],axis=0)), 
+				statistic='median', bins=25)
+			bin_width = (bin_edges[1] - bin_edges[0])
+			bin_centers = bin_edges[1:] - bin_width/2
+			ax[1,1].plot(bin_centers,bin_med,lw=1.0,c='C4',label='[a/Fe] < 0.0')
+			ax[1,1].legend(fontsize=7,frameon=False)
+			# ind = (testlabels[...,3] <= 0.0) 
+			# ax[1,1].scatter(self.wave,np.median(modres[ind],axis=0),marker='.',c='C5')
+
+			ax[0,0].set_ylim(-4.5,-1.0)
+			ax[1,0].set_ylim(-4.5,-1.0)
+			ax[0,1].set_ylim(-4.5,-1.0)
+			ax[1,1].set_ylim(-4.5,-1.0)
+
+			ax[1,0].set_xlabel(r'$\lambda$')
+			ax[1,1].set_xlabel(r'$\lambda$')
+			ax[0,0].set_ylabel('log(median MAD @ pixel)')
+			ax[1,0].set_ylabel('log(median MAD @ pixel)')
 
 			pdf.savefig(fig)
 			plt.close(fig)
 
 			# build MAD map for 4 different pars
-			fig,ax = plt.subplots(nrows=2,ncols=2,constrained_layout=True)
+
+			# build MAD CDF comparison to YST model
+			inpars = [5770.0,4.4,0.0,0.0,1.0]
+
+			NN = predictspec.ANN(nnpath=self.NNfilename,NNtype=self.NNtype,verbose=False)
+			NN_yst = ystpred.Net('/Users/pcargile/Astro/ThePayne/YSdata/YSTANN.h5')
+
+			c3kpath = '/Users/pcargile/Astro/ThePayne/train_grid/grid/'
+			c3kmods = readc3k(MISTpath=None,C3Kpath=c3kpath,vtfixed=True)
+			out = c3kmods.selspectra(inpars,resolution=100000.0,waverange=[5105,5345])
+
+			pars = list(out[1][0])[:-1]
+			flux = out[0][0]
+			wave = out[2]
+
+			modflux = np.interp(wave,NN.wavelength,NN.eval(pars))
+			modflux_yst = np.interp(wave,NN_yst.wavelength,NN_yst.eval(pars))
+
+			fig,ax = plt.subplots(nrows=5,ncols=1,constrained_layout=True,figsize=(8,8))
+
+			ax[0].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
+			ax[0].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+			ax[0].plot(wave,flux,lw=0.25,c='k',label='C3K')
+			ax[0].set_xlim(5105,5345)
+
+			ax[1].plot(wave,modflux-flux,    lw=1.0,c='C0',alpha=0.5)
+			ax[1].plot(wave,modflux_yst-flux,lw=1.0,c='C1',alpha=0.5)
+			ax[1].set_xlim(5105,5345)
+
+			ax[2].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
+			ax[2].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+			ax[2].plot(wave,flux,lw=0.25,c='k',label='C3K')
+			ax[2].set_xlim(5180,5200)
+
+			ax[3].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
+			ax[3].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+			ax[3].plot(wave,flux,lw=0.25,c='k',label='C3K')
+			ax[3].set_xlim(5260,5280)
+
+			parstr = (
+					'Teff = {TEFF:.0f}\n'+
+					'log(g) = {LOGG:.2f}\n'+
+					'[Fe/H] = {FEH:.2f}\n'+
+					'[a/Fe] = {AFE:.2f}'
+				).format(
+				TEFF=pars[0],
+				LOGG=pars[1],
+				FEH=pars[2],
+				AFE=pars[3]
+				)
+
+			ax[4].text(
+				0.02,0.9,
+				parstr,
+				horizontalalignment='left',
+				verticalalignment='top', 
+				transform=ax[4].transAxes)
+
+			ax[4].hist(np.log10(np.abs(modflux-flux)),lw=1.0,color='C0',
+				bins=50,cumulative=True,density=True,
+				histtype='step',range=[-4.5,-1])
+
+			ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
+				bins=50,cumulative=True,density=True,
+				histtype='step',range=[-4.5,-1])
+			ax[4].set_xlabel('log Abs Deviation')
+			ax[4].set_ylabel('CDF [%]')
 
 			pdf.savefig(fig)
 			plt.close(fig)
 
+			inpars = [4000.0,2.5,0.0,0.0,1.0]
+			out = c3kmods.selspectra(inpars,resolution=100000.0,waverange=[5105,5345])
+
+			pars = list(out[1][0])[:-1]
+			flux = out[0][0]
+			wave = out[2]
+
+			modflux = np.interp(wave,NN.wavelength,NN.eval(pars))
+			modflux_yst = np.interp(wave,NN_yst.wavelength,NN_yst.eval(pars))
+
+			fig,ax = plt.subplots(nrows=5,ncols=1,constrained_layout=True,figsize=(8,8))
+
+			ax[0].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
+			ax[0].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+			ax[0].plot(wave,flux,lw=0.25,c='k',label='C3K')
+			ax[0].set_xlim(5105,5345)
+
+			ax[1].plot(wave,modflux-flux,    lw=1.0,c='C0',alpha=0.5)
+			ax[1].plot(wave,modflux_yst-flux,lw=1.0,c='C1',alpha=0.5)
+			ax[1].set_xlim(5105,5345)
+
+			ax[2].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
+			ax[2].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+			ax[2].plot(wave,flux,lw=0.25,c='k',label='C3K')
+			ax[2].set_xlim(5180,5200)
+
+			ax[3].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
+			ax[3].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+			ax[3].plot(wave,flux,lw=0.25,c='k',label='C3K')
+			ax[3].set_xlim(5260,5280)
+
+			parstr = (
+					'Teff = {TEFF:.0f}\n'+
+					'log(g) = {LOGG:.2f}\n'+
+					'[Fe/H] = {FEH:.2f}\n'+
+					'[a/Fe] = {AFE:.2f}'
+				).format(
+				TEFF=pars[0],
+				LOGG=pars[1],
+				FEH=pars[2],
+				AFE=pars[3]
+				)
+
+			ax[4].text(
+				0.02,0.9,
+				parstr,
+				horizontalalignment='left',
+				verticalalignment='top', 
+				transform=ax[4].transAxes)
+
+			ax[4].hist(np.log10(np.abs(modflux-flux)),lw=1.0,color='C0',
+				bins=50,cumulative=True,density=True,
+				histtype='step',range=[-4.5,-1])
+
+			ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
+				bins=50,cumulative=True,density=True,
+				histtype='step',range=[-4.5,-1])
+			ax[4].set_xlabel('log Abs Deviation')
+			ax[4].set_ylabel('CDF [%]')
+
+			pdf.savefig(fig)
+			plt.close(fig)
+
+			# build MAD for standard stars (Sun, Arcturus, Procyon, 61 CygA)
+
+			fig,ax = plt.subplots(nrows=2,ncols=2,constrained_layout=True,figsize=(8,8))
+
+			pdf.savefig(fig)
+			plt.close(fig)
