@@ -152,6 +152,9 @@ class TrainMod(object):
           # turn on log plotting, could be memory intensive
           self.logplot = kwargs.get('logplot',False)
 
+          # starting learning rate
+          self.lr = kwargs.get('lr',1E-4)
+
           startreadintestmod = datetime.now()
           # initialzie class to pull models
           print('... Pulling a first set of models for test set')
@@ -313,7 +316,7 @@ class TrainMod(object):
           loss_fn = torch.nn.L1Loss(reduction = 'sum')
 
           # initialize the optimizer
-          learning_rate = 1e-4
+          learning_rate = self.lr
           # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
           # optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
           optimizer = torch.optim.RAdam(model.parameters(), lr=learning_rate)
