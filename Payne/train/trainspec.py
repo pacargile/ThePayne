@@ -327,6 +327,7 @@ class TrainMod(object):
           # initialize the scheduler to adjust the learning rate
           scheduler = StepLR(optimizer,100,gamma=0.90)
           # scheduler = ReduceLROnPlateau(optimizer,mode='min',factor=0.1)
+          # scheduler = ExponentialLR(optimizer,100,gamma=0.90)
 
           # number of batches
           nbatches = self.numtrain // self.batchsize
@@ -474,18 +475,20 @@ class TrainMod(object):
                               medres_loss.append(medres)
                               maxres_loss.append(maxres)
 
-                              fig,ax = plt.subplots(nrows=2,ncols=1)
+                              fig,ax = plt.subplots(nrows=3,ncols=1)
                               ax[0].plot(iter_arr,np.log10(training_loss) - np.log10(len(wavelength_valid)),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
                               ax[0].plot(iter_arr,np.log10(validation_loss) - np.log10(len(wavelength_valid)),ls='-',lw=1.0,alpha=0.75,c='C3',label='Validation')
                               ax[0].legend()
                               # ax[0].set_xlabel('Iteration')
                               ax[0].set_ylabel('log(Loss per pixel)')
 
-                              ax[1].plot(iter_arr,np.log10(medres_loss),ls='-',lw=1.0,alpha=0.75,c='C2',label='median')
                               ax[1].plot(iter_arr,np.log10(maxres_loss),ls='-',lw=1.0,alpha=0.75,c='C4',label='max')
-                              ax[1].legend()
-                              ax[1].set_xlabel('Iteration')
-                              ax[1].set_ylabel('log(|Residual|)')
+                              ax[1].set_ylabel('log(|Max Residual|)')
+
+                              ax[2].plot(iter_arr,np.log10(medres_loss),ls='-',lw=1.0,alpha=0.75,c='C2',label='median')
+                              ax[2].set_xlabel('Iteration')
+                              ax[2].set_ylabel('log(|Med Residual|)')
+
 
                               # for spec_i in Y_pred_valid_Tensor.to('cpu').numpy():
                               #      ax[1].plot(
