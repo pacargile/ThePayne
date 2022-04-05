@@ -357,13 +357,13 @@ class TestSpec(object):
 			inpars = [5770.0,4.4,0.0,0.0,1.0]
 
 			NN = predictspec.ANN(nnpath=self.NNfilename,NNtype=self.NNtype,verbose=False)
-			NN_yst = ystpred.Net('/Users/pcargile/Astro/ThePayne/YSdata/YSTANN.h5')
+			NN_yst = ystpred.Net('/Users/pcargile/Astro/ThePayne/YSdata/YSTANN_wvt.h5')
 
 			c3kpath = '/Users/pcargile/Astro/ThePayne/train_grid/grid/'
 			c3kmods = readc3k(MISTpath=None,C3Kpath=c3kpath,vtfixed=True)
 			out = c3kmods.selspectra(inpars,resolution=100000.0,waverange=[5105,5345])
 
-			pars = list(out[1][0])[:-1]
+			pars = list(out[1][0])[:len(testlabels[0])]
 			flux = out[0][0]
 			wave = out[2]
 
@@ -384,7 +384,7 @@ class TestSpec(object):
 			ax[2].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[2].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
 			ax[2].plot(wave,flux,lw=0.25,c='k',label='C3K')
-			ax[2].set_xlim(5180,5200)
+			ax[2].set_xlim(5180,5225)
 
 			ax[3].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[3].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
@@ -404,10 +404,10 @@ class TestSpec(object):
 				)
 
 			ax[4].text(
-				0.02,0.9,
+				0.85,0.05,
 				parstr,
 				horizontalalignment='left',
-				verticalalignment='top', 
+				verticalalignment='bottom', 
 				transform=ax[4].transAxes)
 
 			ax[4].hist(np.log10(np.abs(modflux-flux)),lw=1.0,color='C0',
@@ -417,6 +417,16 @@ class TestSpec(object):
 			ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
 				bins=50,cumulative=True,density=True,
 				histtype='step',range=[-4.5,-1])
+			ax[4].hlines(
+				y=stats.percentileofscore(np.log10(np.abs(modflux-flux)),-2.0)/100.0,
+				xmin=-4.5,xmax=-2.0,
+				colors='C0',alpha=0.8)
+			ax[4].hlines(
+				y=stats.percentileofscore(np.log10(np.abs(modflux_yst-flux)),-2.0)/100.0,
+				xmin=-4.5,xmax=-2.0,
+				colors='C1',alpha=0.8)
+
+			ax[4].set_xlim(-4.5,-1.0)
 			ax[4].set_xlabel('log Abs Deviation')
 			ax[4].set_ylabel('CDF [%]')
 
@@ -426,7 +436,7 @@ class TestSpec(object):
 			inpars = [4000.0,2.5,0.0,0.0,1.0]
 			out = c3kmods.selspectra(inpars,resolution=100000.0,waverange=[5105,5345])
 
-			pars = list(out[1][0])[:-1]
+			pars = list(out[1][0])[:len(testlabels[0])]
 			flux = out[0][0]
 			wave = out[2]
 
@@ -447,7 +457,7 @@ class TestSpec(object):
 			ax[2].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[2].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
 			ax[2].plot(wave,flux,lw=0.25,c='k',label='C3K')
-			ax[2].set_xlim(5180,5200)
+			ax[2].set_xlim(5180,5225)
 
 			ax[3].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[3].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
@@ -467,10 +477,10 @@ class TestSpec(object):
 				)
 
 			ax[4].text(
-				0.02,0.9,
+				0.85,0.05,
 				parstr,
 				horizontalalignment='left',
-				verticalalignment='top', 
+				verticalalignment='bottom', 
 				transform=ax[4].transAxes)
 
 			ax[4].hist(np.log10(np.abs(modflux-flux)),lw=1.0,color='C0',
@@ -480,6 +490,91 @@ class TestSpec(object):
 			ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
 				bins=50,cumulative=True,density=True,
 				histtype='step',range=[-4.5,-1])
+
+			ax[4].hlines(
+				y=stats.percentileofscore(np.log10(np.abs(modflux-flux)),-2.0)/100.0,
+				xmin=-4.5,xmax=-2.0,
+				colors='C0',alpha=0.8)
+			ax[4].hlines(
+				y=stats.percentileofscore(np.log10(np.abs(modflux_yst-flux)),-2.0)/100.0,
+				xmin=-4.5,xmax=-2.0,
+				colors='C1',alpha=0.8)
+
+			ax[4].set_xlim(-4.5,-1.0)
+			ax[4].set_xlabel('log Abs Deviation')
+			ax[4].set_ylabel('CDF [%]')
+
+			pdf.savefig(fig)
+			plt.close(fig)
+
+			inpars = [4500.0,5.0,0.0,0.0,1.0]
+			out = c3kmods.selspectra(inpars,resolution=100000.0,waverange=[5105,5345])
+
+			pars = list(out[1][0])[:len(testlabels[0])]
+			flux = out[0][0]
+			wave = out[2]
+
+			modflux = np.interp(wave,NN.wavelength,NN.eval(pars))
+			modflux_yst = np.interp(wave,NN_yst.wavelength,NN_yst.eval(pars))
+
+			fig,ax = plt.subplots(nrows=5,ncols=1,constrained_layout=True,figsize=(8,8))
+
+			ax[0].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
+			ax[0].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+			ax[0].plot(wave,flux,lw=0.25,c='k',label='C3K')
+			ax[0].set_xlim(5105,5345)
+
+			ax[1].plot(wave,modflux-flux,    lw=1.0,c='C0',alpha=0.5)
+			ax[1].plot(wave,modflux_yst-flux,lw=1.0,c='C1',alpha=0.5)
+			ax[1].set_xlim(5105,5345)
+
+			ax[2].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
+			ax[2].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+			ax[2].plot(wave,flux,lw=0.25,c='k',label='C3K')
+			ax[2].set_xlim(5180,5225)
+
+			ax[3].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
+			ax[3].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+			ax[3].plot(wave,flux,lw=0.25,c='k',label='C3K')
+			ax[3].set_xlim(5260,5280)
+
+			parstr = (
+					'Teff = {TEFF:.0f}\n'+
+					'log(g) = {LOGG:.2f}\n'+
+					'[Fe/H] = {FEH:.2f}\n'+
+					'[a/Fe] = {AFE:.2f}'
+				).format(
+				TEFF=pars[0],
+				LOGG=pars[1],
+				FEH=pars[2],
+				AFE=pars[3]
+				)
+
+			ax[4].text(
+				0.85,0.05,
+				parstr,
+				horizontalalignment='left',
+				verticalalignment='bottom', 
+				transform=ax[4].transAxes)
+
+			ax[4].hist(np.log10(np.abs(modflux-flux)),lw=1.0,color='C0',
+				bins=50,cumulative=True,density=True,
+				histtype='step',range=[-4.5,-1])
+
+			ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
+				bins=50,cumulative=True,density=True,
+				histtype='step',range=[-4.5,-1])
+
+			ax[4].hlines(
+				y=stats.percentileofscore(np.log10(np.abs(modflux-flux)),-2.0)/100.0,
+				xmin=-4.5,xmax=-2.0,
+				colors='C0',alpha=0.8)
+			ax[4].hlines(
+				y=stats.percentileofscore(np.log10(np.abs(modflux_yst-flux)),-2.0)/100.0,
+				xmin=-4.5,xmax=-2.0,
+				colors='C1',alpha=0.8)
+
+			ax[4].set_xlim(-4.5,-1.0)
 			ax[4].set_xlabel('log Abs Deviation')
 			ax[4].set_ylabel('CDF [%]')
 
@@ -488,7 +583,7 @@ class TestSpec(object):
 
 			# build MAD for standard stars (Sun, Arcturus, Procyon, 61 CygA)
 
-			fig,ax = plt.subplots(nrows=2,ncols=2,constrained_layout=True,figsize=(8,8))
+			# fig,ax = plt.subplots(nrows=2,ncols=2,constrained_layout=True,figsize=(8,8))
 
-			pdf.savefig(fig)
-			plt.close(fig)
+			# pdf.savefig(fig)
+			# plt.close(fig)
