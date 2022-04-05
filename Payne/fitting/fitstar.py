@@ -78,7 +78,7 @@ class FitPayne(object):
 
                # deterimine if user defined spec ANN path
                self.fitargs['specANNpath'] = inputdict.get('specANNpath',None)
-               self.fitargs['NNtype'] = inputdict.get('NNtype','PC')
+               self.fitargs['NNtype'] = inputdict.get('NNtype','LinNet')
 
                # check to see if user defined some wavelength range for spectrum
                if 'wave_minmax' in inputdict['spec'].keys():

@@ -17,10 +17,10 @@ class GenMod(object):
         
         NNtype = kwargs.get('NNtype','YST1')
 
-        if NNtype == 'PC':
-            from Payne.predict.predictspec_multi import PayneSpecPredict
-        else:
+        if NNtype == 'YST1':
             from Payne.predict.ystpred import PayneSpecPredict
+        else:
+            from Payne.predict.predictspec import PayneSpecPredict
 
         carbon_bool = kwargs.get('carbon_bool',False)
 
@@ -88,7 +88,7 @@ class GenMod(object):
         modwave_i,modflux_i = self.PP.getspec(
             Teff=Teff,logg=logg,feh=FeH,afe=aFe,rad_vel=radvel,rot_vel=rotvel,
             vmic=vmic,inst_R=input_inst_R,
-            outwave=outwave, CarbonScale=CarbonScale)       
+            outwave=outwave)       
         # if polynomial normalization is turned on then multiply model by it
         if modpoly:
             epoly = polycalc(polycoef,modwave_i)
