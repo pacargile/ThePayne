@@ -38,16 +38,11 @@ class ANN(object):
     else:
       self.nnpath  = Payne.__abspath__+'data/ANN/NN.h5'
 
-    self.normed = kwargs.get('normed',False)
-
     if self.verbose:
       print('... Reading in {0}'.format(self.nnpath))
     th5 = h5py.File(self.nnpath,'r')
     
-    if self.normed:
-        self.ymin = th5['ymin'][()]
-        self.ymax = th5['ymax'][()]
-
+    self.inlabels   = [x.decode('utf-8') for x in th5['label_i'][:]]
     self.xmin       = th5['xmin'][:]
     self.xmax       = th5['xmax'][:]
     self.wavelength = th5['wavelengths'][:]
@@ -76,14 +71,7 @@ class ANN(object):
     outmod = self.model(inputVar)
     outmod = outmod.data.numpy().squeeze()
 
-    # outpars = self.model.npeval(x)
-
-    if self.normed:
-        outmod = np.array([self.unnorm(x,ii) for ii,x in enumerate(outmod)])
     return outmod
-
-  def unnorm(self,x,ii):
-    return (x + 0.5)*(self.ymax[ii]-self.ymin[ii]) + self.ymin[ii]
 
 
 class PayneSpecPredict(object):
@@ -98,9 +86,9 @@ class PayneSpecPredict(object):
                # define aliases for the MIST isochrones and C3K/CKC files
                self.nnpath  = Payne.__abspath__+'data/specANN/YSTANN.h5'
 
-          self.NNtype = kwargs.get('NNtype','SMLP')
-          self.C_NNtype = kwargs.get('C_NNtype','SMLP')
-          self.anns = readNN(self.nnpath,NNtype=self.NNtype)
+          self.NNtype = kwargs.get('NNtype','LinNet')
+          self.C_NNtype = kwargs.get('C_NNtype','LinNet')
+          self.anns = ANN(nnpath=self.nnpath,NNtype=self.NNtype,testing=False,verbose=False)
 
           # # check to see if using NN with Teff / 1000.0
           # if self.anns.xmin[0] < 1000.0:
