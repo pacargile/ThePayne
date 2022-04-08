@@ -183,6 +183,10 @@ class readc3k(object):
 			kwarg boolean that returns arrays that 
 			give how the labels were selected
 
+		: params returncontinuua (optional):
+			kwarg boolean that returns contiunuua in 
+			addition to the normalized spectra
+
 		: returns spectra:
 			Structured array: wave, spectra1, spectra2, spectra3, ...
 			where spectrai is a flux array for ith spectrum. wave is the
@@ -231,6 +235,7 @@ class readc3k(object):
 
 		# set up some booleans
 		reclabelsel   = kwargs.get('reclabelsel',False)
+		continuuabool = kwargs.get('returncontinuua',False)
 		MISTweighting = kwargs.get('MISTweighting',False)
 		# timeit        = kwargs.get('timeit',False)
 
@@ -242,6 +247,8 @@ class readc3k(object):
 		wavelength_o = []
 		if reclabelsel:
 			initlabels = []
+		if continuuabool:
+			continuua = []
 
 		for ii in range(num):
 			if self.verbose:
@@ -389,6 +396,11 @@ class readc3k(object):
 				with np.errstate(divide='ignore', invalid='ignore'):
 					spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
 
+				if continuuabool:
+					continuua_i = C3K_i['continuua'][C3KNN]
+				else:
+					continuua_i = None
+
 				if self.verbose:
 					print('Create C3K spectra in {0}'.format(datetime.now()-starttime))
 
@@ -428,11 +440,24 @@ class readc3k(object):
 				else:
 					spectra_i = spectra_i[wavecond]
 
+				if continuuabool:
+					if resolution != None:
+						continuua_i = self.smoothspecfunc(wavelength_i,continuua_i,resolution,
+							outwave=wavelength_o,smoothtype='R',fftsmooth=True,inres=300000.0)
+					else:
+						continuua_i = continuua_i[wavecond]
+
+
 				if self.verbose:
 					print('Convolve C3K to new R in {0}'.format(datetime.now()-starttime))
 
 				labels.append(label_i)
 				spectra.append(spectra_i)
+
+				# if requested, return continuua
+				if continuuabool:
+					continuua.append(continuua_i)
+
 				# if requested, record random selected parameters
 				if reclabelsel:
 					if len(self.vtarr) > 0:
@@ -443,10 +468,15 @@ class readc3k(object):
 			if self.verbose:
 				print('TOTAL TIME: {0}'.format(datetime.now()-starttime))
 				print('')
+
+		output = [np.array(spectra), np.array(labels),wavelength_o]
 		if reclabelsel:
-			return np.array(spectra), np.array(labels), np.array(initlabels), wavelength_o
-		else:
-			return np.array(spectra), np.array(labels), wavelength_o
+			output += [np.array(initlabels)]
+		if continuuabool:
+			output += [np.array(continuua)]
+
+		return output
+
 
 	def selspectra(self,inlabels,**kwargs):
 		'''
@@ -470,9 +500,15 @@ class readc3k(object):
 			# default is just the MgB triplet 
 			waverange = [5150.0,5200.0]
 
+		# user wants to return continuua
+		continuuabool = kwargs.get('returncontinuua',False)
+
 		labels = []
 		spectra = []
 		wavelength_o = []
+
+		if continuuabool:
+			continuua = []
 
 		if isinstance(inlabels[0],float):
 			inlabels = [inlabels]
@@ -523,6 +559,11 @@ class readc3k(object):
 			with np.errstate(divide='ignore', invalid='ignore'):
 				spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
 
+			if continuuabool:
+				continuua_i = C3K_i['continuua'][C3KNN]
+			else:
+				continuua_i = None
+
 			# check to see if label_i in labels, or spectra_i is nan's
 			# if so, then skip the append and go to next step in while loop
 			# do this before the smoothing to reduce run time
@@ -556,10 +597,24 @@ class readc3k(object):
 			else:
 				spectra_i = spectra_i[wavecond]
 
+			if continuuabool:
+				if resolution != None:
+					continuua_i = self.smoothspecfunc(wavelength_i,continuua_i,resolution,
+						outwave=wavelength_o,smoothtype='R',fftsmooth=True,inres=300000.0)
+				else:
+					continuua_i = continuua_i[wavecond]
+
 			labels.append(label_i)
 			spectra.append(spectra_i)
+			if continuuabool:
+				continuua.append(continuua_i)
 
-		return np.array(spectra), np.array(labels), wavelength_o
+		output = [np.array(spectra), np.array(labels), wavelength_o]
+
+		if continuuabool:
+			output += [np.array(continuua)]
+
+		return output
 
 	def pullpixel(self,pixelnum,**kwargs):
 		# a convience function if you only want to pull one pixel at a time
