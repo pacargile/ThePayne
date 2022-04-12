@@ -15,50 +15,70 @@ speedoflight = constants.c / 1000.0
 
 import Payne
 
+import torch
+from torch import nn
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+if str(device) != 'cpu':
+  dtype = torch.cuda.FloatTensor
+else:
+  dtype = torch.FloatTensor
+from torch.autograd import Variable
+import torch.nn.functional as F
+
 from Payne.jax.smoothing import smoothspec
+from Payne.jax.NNmodels import readNN, YSTNet
 
-class Net(object):
-     def __init__(self, NNpath):
-          self.readNN(nnpath=NNpath)
+class ANN(object):
+     """docstring for ANN"""
+     def __init__(self, nnpath=None,**kwargs):
+          super(ANN, self).__init__()
 
-     def readNN(self,nnpath=''):
+          self.verbose = kwargs.get('verbose',False)
 
-          th5 = h5py.File(nnpath,'r')
-          self.w_array_0 = np.array(th5['w_array_0'],dtype=np.float32)
-          self.w_array_1 = np.array(th5['w_array_1'],dtype=np.float32)
-          self.w_array_2 = np.array(th5['w_array_2'],dtype=np.float32)
-          self.b_array_0 = np.array(th5['b_array_0'],dtype=np.float32)
-          self.b_array_1 = np.array(th5['b_array_1'],dtype=np.float32)
-          self.b_array_2 = np.array(th5['b_array_2'],dtype=np.float32)
-          self.xmin      = np.array(th5['x_min'],dtype=np.float32)
-          self.xmax      = np.array(th5['x_max'],dtype=np.float32)
+          if nnpath != None:
+               self.nnpath = nnpath
+          else:
+               self.nnpath  = Payne.__abspath__+'data/ANN/NN.h5'
 
-          self.wavelength = np.asarray(th5['wavelength'],dtype=np.float32)
+          if self.verbose:
+               print('... Reading in {0}'.format(self.nnpath))
+          th5 = h5py.File(self.nnpath,'r')
 
-          self.resolution = np.array(th5['resolution'],dtype=np.float32)[0]
+          try:
+               self.inlabels   = [x.decode('utf-8') for x in th5['label_i'][:]]
+               self.wavelength = th5['wavelengths'][:]
+               self.resolution = np.array(th5['resolution'],dtype=float)
+          except:
+               self.inlabels = ['teff','logg','feh','afe']
+               self.wavelength = th5['wavelength'][:]
+               self.resolution = np.array(th5['resolution'],dtype=float)
+
+          if kwargs.get('testing',False):
+               self.testlabels = th5['testlabels'][:]
+               self.testpred   = th5['testpred'][:]
+
+          self.NNtype = kwargs.get('NNtype','LinNet')
+
+          if self.NNtype != 'YST1':
+               self.model = readNN(self.nnpath,NNtype=self.NNtype)
+          else:
+               self.model = YSTNet(self.nnpath)
 
           th5.close()
 
-
-
-     def leaky_relu(self,z):
-         '''
-         This is the activation function used by default in all our neural networks.
-         '''
-         return z*(z > 0) + 0.01*z*(z < 0)
-     
-     def encode(self,x):
-          x_np = np.array(x)
-          x_scaled = (x_np-self.xmin)/(self.xmax-self.xmin) - 0.5
-          return x_scaled
-
      def eval(self,x):
-          x_i = self.encode(x)
-          inside = np.einsum('ij,j->i', self.w_array_0, x_i) + self.b_array_0
-          outside = np.einsum('ij,j->i', self.w_array_1, self.leaky_relu(inside)) + self.b_array_1
-          modspec = np.einsum('ij,j->i', self.w_array_2, self.leaky_relu(outside)) + self.b_array_2
 
-          return modspec
+          if isinstance(x,list):
+               x = np.asarray(x)
+          if len(x.shape) == 1:
+               inputD = 1
+          else:
+               inputD = x.shape[0]
+
+          inputVar = x
+          outmod = self.model.npeval(inputVar)
+
+          return outmod
 
 class PayneSpecPredict(object):
      """
@@ -72,18 +92,24 @@ class PayneSpecPredict(object):
                # define aliases for the MIST isochrones and C3K/CKC files
                self.nnpath  = Payne.__abspath__+'data/specANN/YSTANN.h5'
 
-          self.anns = Net(self.nnpath)
+          self.NNtype = kwargs.get('NNtype','LinNet')
+          self.C_NNtype = kwargs.get('C_NNtype','LinNet')
+          self.anns = ANN(nnpath=self.nnpath,NNtype=self.NNtype,testing=False,verbose=False)
 
-          # check to see if using NN with Teff / 1000.0
-          if self.anns.xmin[0] < 1000.0:
-               self.anns.xmin.at[0].multiply(1000.0)
-               self.anns.xmax.at[0].multiply(1000.0)
+          # self.anns = Net(self.nnpath)
 
-          NNtype = kwargs.get('NNtype','YST1')
-          if NNtype == 'YST1':
-               self.modpars = ['teff','logg','feh','afe']
-          else:
-               self.modpars = ['teff','logg','feh','afe','vmic']
+          # # check to see if using NN with Teff / 1000.0
+          # if self.anns.xmin[0] < 1000.0:
+          #      self.anns.xmin.at[0].multiply(1000.0)
+          #      self.anns.xmax.at[0].multiply(1000.0)
+
+          # NNtype = kwargs.get('NNtype','YST1')
+          # if NNtype == 'YST1':
+          #      self.modpars = ['teff','logg','feh','afe']
+          # else:
+          #      self.modpars = ['teff','logg','feh','afe','vmic']
+
+          self.modpars = self.anns.inlabels
 
           self.Cnnpath = kwargs.get('Cnnpath',None)
           if self.Cnnpath is not None:
@@ -187,9 +213,11 @@ class PayneSpecPredict(object):
                self.inputdict['afe'] = 0.0
 
           if 'vmic' in kwargs:
-               self.inputdict['vmic'] = kwargs['vmic']
+               self.inputdict['vturb'] = kwargs['vmic']
+          elif 'vtrub' in kwargs:
+               self.inputdict['vtrub'] = kwargs['vturb']
           else:
-               self.inputdict['vmic'] = np.nan
+               self.inputdict['vturb'] = np.nan
 
           modspec = self.predictspec([self.inputdict[kk] for kk in self.modpars])
           modwave = self.anns.wavelength
