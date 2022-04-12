@@ -4,7 +4,6 @@ from __future__ import print_function
 
 import jax.numpy as np
 import jax.scipy as jsp
-from jax.ops import index, index_add, index_update
 from jax import jit,vmap,lax
 import warnings
 from datetime import datetime
