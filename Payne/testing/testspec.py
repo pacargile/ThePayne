@@ -27,7 +27,7 @@ class TestSpec(object):
 	Class for testing a Payne-learned NN using a testing dataset 
 	different from training spectra
 	"""
-	def __init__(self, NNfilename, NNtype='LinNet'):
+	def __init__(self, NNfilename, NNtype='LinNet',c3kpath=None,ystnn=None):
 		# user inputed neural-net output file
 		self.NNfilename = NNfilename
 
@@ -46,6 +46,16 @@ class TestSpec(object):
 
 		# default resolution is the native resolution of NN
 		self.resolution = self.NN.resolution
+
+		if c3kpath == None:
+			self.c3kpath = '/Users/pcargile/Astro/ThePayne/train_grid/rv31/grid/'
+		else:
+			self.c3kpath = c3kpath
+
+		if ystnn == None:
+			self.ystnn = None#'/Users/pcargile/Astro/ThePayne/YSdata/YSTANN_wvt.h5'
+		else:
+			self.ystnn = ystnn
 
 	def runtest(self,**kwargs):
 		'''
@@ -357,39 +367,44 @@ class TestSpec(object):
 			inpars = [5770.0,4.4,0.0,0.0,1.0]
 
 			NN = predictspec.ANN(nnpath=self.NNfilename,NNtype=self.NNtype,verbose=False)
-			NN_yst = ystpred.Net('/Users/pcargile/Astro/ThePayne/YSdata/YSTANN_wvt.h5')
+			if self.ystnn == None:
+				NN_yst = np.nan
+			else:
+				NN_yst = ystpred.Net(self.ystnn)
 
-			c3kpath = '/Users/pcargile/Astro/ThePayne/train_grid/grid/'
-			c3kmods = readc3k(MISTpath=None,C3Kpath=c3kpath,vtfixed=True)
-			out = c3kmods.selspectra(inpars,resolution=100000.0,waverange=[5105,5345])
+			c3kmods = readc3k(MISTpath=None,C3Kpath=self.c3kpath,vtfixed=True)
+			out = c3kmods.selspectra(inpars,resolution=self.resolution,waverange=[self.wave.min(),self.wave.max()])
 
 			pars = list(out[1][0])[:len(testlabels[0])]
 			flux = out[0][0]
 			wave = out[2]
 
 			modflux = np.interp(wave,NN.wavelength,NN.eval(pars))
-			modflux_yst = np.interp(wave,NN_yst.wavelength,NN_yst.eval(pars))
+			if self.ystnn == None:
+				modflux_yst = [np.nan for _ in range(len(wave))]
+			else:
+				modflux_yst = np.interp(wave,NN_yst.wavelength,NN_yst.eval(pars))
 
 			fig,ax = plt.subplots(nrows=5,ncols=1,constrained_layout=True,figsize=(8,8))
 
 			ax[0].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[0].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
 			ax[0].plot(wave,flux,lw=0.25,c='k',label='C3K')
-			ax[0].set_xlim(5105,5345)
+			ax[0].set_xlim(wave.min(),wave.max())
 
 			ax[1].plot(wave,modflux-flux,    lw=1.0,c='C0',alpha=0.5)
 			ax[1].plot(wave,modflux_yst-flux,lw=1.0,c='C1',alpha=0.5)
-			ax[1].set_xlim(5105,5345)
+			ax[1].set_xlim(wave.min(),wave.max())
 
 			ax[2].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[2].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
 			ax[2].plot(wave,flux,lw=0.25,c='k',label='C3K')
-			ax[2].set_xlim(5180,5225)
+			ax[2].set_xlim(8425,8475)
 
 			ax[3].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[3].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
 			ax[3].plot(wave,flux,lw=0.25,c='k',label='C3K')
-			ax[3].set_xlim(5260,5280)
+			ax[3].set_xlim(8650,8700)
 
 			parstr = (
 					'Teff = {TEFF:.0f}\n'+
@@ -434,35 +449,38 @@ class TestSpec(object):
 			plt.close(fig)
 
 			inpars = [4000.0,2.5,0.0,0.0,1.0]
-			out = c3kmods.selspectra(inpars,resolution=100000.0,waverange=[5105,5345])
+			out = c3kmods.selspectra(inpars,resolution=self.resolution,waverange=[self.wave.min(),self.wave.max()])
 
 			pars = list(out[1][0])[:len(testlabels[0])]
 			flux = out[0][0]
 			wave = out[2]
 
 			modflux = np.interp(wave,NN.wavelength,NN.eval(pars))
-			modflux_yst = np.interp(wave,NN_yst.wavelength,NN_yst.eval(pars))
+			if self.ystnn == None:
+				modflux_yst = [np.nan for _ in range(len(wave))]
+			else:
+				modflux_yst = np.interp(wave,NN_yst.wavelength,NN_yst.eval(pars))
 
 			fig,ax = plt.subplots(nrows=5,ncols=1,constrained_layout=True,figsize=(8,8))
 
 			ax[0].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[0].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
 			ax[0].plot(wave,flux,lw=0.25,c='k',label='C3K')
-			ax[0].set_xlim(5105,5345)
+			ax[0].set_xlim(wave.min(),wave.max())
 
 			ax[1].plot(wave,modflux-flux,    lw=1.0,c='C0',alpha=0.5)
 			ax[1].plot(wave,modflux_yst-flux,lw=1.0,c='C1',alpha=0.5)
-			ax[1].set_xlim(5105,5345)
+			ax[1].set_xlim(wave.min(),wave.max())
 
 			ax[2].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[2].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
 			ax[2].plot(wave,flux,lw=0.25,c='k',label='C3K')
-			ax[2].set_xlim(5180,5225)
+			ax[2].set_xlim(8425,8475)
 
 			ax[3].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[3].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
 			ax[3].plot(wave,flux,lw=0.25,c='k',label='C3K')
-			ax[3].set_xlim(5260,5280)
+			ax[3].set_xlim(8650,8700)
 
 			parstr = (
 					'Teff = {TEFF:.0f}\n'+
@@ -508,35 +526,38 @@ class TestSpec(object):
 			plt.close(fig)
 
 			inpars = [4500.0,5.0,0.0,0.0,1.0]
-			out = c3kmods.selspectra(inpars,resolution=100000.0,waverange=[5105,5345])
+			out = c3kmods.selspectra(inpars,resolution=self.resolution,waverange=[self.wave.min(),self.wave.max()])
 
 			pars = list(out[1][0])[:len(testlabels[0])]
 			flux = out[0][0]
 			wave = out[2]
 
 			modflux = np.interp(wave,NN.wavelength,NN.eval(pars))
-			modflux_yst = np.interp(wave,NN_yst.wavelength,NN_yst.eval(pars))
+			if self.ystnn == None:
+				modflux_yst = [np.nan for _ in range(len(wave))]
+			else:
+				modflux_yst = np.interp(wave,NN_yst.wavelength,NN_yst.eval(pars))
 
 			fig,ax = plt.subplots(nrows=5,ncols=1,constrained_layout=True,figsize=(8,8))
 
 			ax[0].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[0].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
 			ax[0].plot(wave,flux,lw=0.25,c='k',label='C3K')
-			ax[0].set_xlim(5105,5345)
+			ax[0].set_xlim(wave.min(),wave.max())
 
 			ax[1].plot(wave,modflux-flux,    lw=1.0,c='C0',alpha=0.5)
 			ax[1].plot(wave,modflux_yst-flux,lw=1.0,c='C1',alpha=0.5)
-			ax[1].set_xlim(5105,5345)
+			ax[1].set_xlim(wave.min(),wave.max())
 
 			ax[2].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[2].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
 			ax[2].plot(wave,flux,lw=0.25,c='k',label='C3K')
-			ax[2].set_xlim(5180,5225)
+			ax[2].set_xlim(8425,8475)
 
 			ax[3].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
 			ax[3].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
 			ax[3].plot(wave,flux,lw=0.25,c='k',label='C3K')
-			ax[3].set_xlim(5260,5280)
+			ax[3].set_xlim(8650,8700)
 
 			parstr = (
 					'Teff = {TEFF:.0f}\n'+
