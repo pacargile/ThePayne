@@ -49,7 +49,8 @@ class readc3k(object):
 
 		vtfixbool = kwargs.get('vtfixed',False)
 		if vtfixbool:
-			self.vtarr = [1.0]
+			if len(self.vtarr) > 0:
+				self.vtarr = [1.0]
 		else:
 			self.vtarr = np.unique(self.vtarr)
 
