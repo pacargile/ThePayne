@@ -524,8 +524,21 @@ class readc3k(object):
 				vt_i = li[4]
 
 			# find nearest value to FeH and aFe
-			FeH_i   = self.FeHarr[np.argmin(np.abs(np.array(self.FeHarr)-FeH_i))]
-			alpha_i = self.alphaarr[np.argmin(np.abs(np.array(self.alphaarr)-alpha_i))]
+			try:
+				FeH_i   = self.FeHarr[np.argmin(np.abs(np.array(self.FeHarr)-FeH_i))]
+			except:
+				print('Issue with finding nearest FeH')
+				print(self.FeHarr)
+				print(FeH_i)
+				raise
+
+			try:
+				alpha_i = self.alphaarr[np.argmin(np.abs(np.array(self.alphaarr)-alpha_i))]
+			except:
+				print('Issue with finding nearest aFe')
+				print(self.alphaarr)
+				print(alpha_i)
+				raise				
 
 			if len(self.vtarr) > 0:
 				# select the C3K spectra at that [Fe/H], [alpha/Fe], vturb
