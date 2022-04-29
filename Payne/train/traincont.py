@@ -179,20 +179,20 @@ class TrainMod(object):
           self.testlabels = labels_test[:,:len(self.label_i)].tolist()
 
           # resample continuua to many fewer pixels
-          newwavelegnth_test = np.linspace(
+          newwavelength_test = np.linspace(
                wavelength_test[0],
                wavelength_test[-1],
                100)
           continuua_test_arr = []
           for continuua_test_i in continuua_test:
                continuua_test_int = np.interp(
-                    newwavelegnth_test,
+                    newwavelength_test,
                     wavelength_test,
                     continuua_test_i,)
                continuua_test_arr.append(continuua_test_int)          
           continuua_test = np.array(continuua_test_arr)
 
-          self.wavelength_test = newwavelegnth_test
+          self.wavelength_test = newwavelength_test
 
           # # pull a quick set of test models to determine general properties
           # mod_test = self.mistmods.pullmod(
@@ -393,7 +393,7 @@ class TrainMod(object):
                continuua_train_arr = []
                for continuua_train_i in continuua_train:
                     continuua_train_int = np.interp(
-                         self.wavelegnth_test,
+                         self.wavelength_test,
                          wavelength_train,
                          continuua_train_i,)
                     continuua_train_arr.append(continuua_train_int)          
@@ -425,7 +425,7 @@ class TrainMod(object):
                continuua_valid_arr = []
                for continuua_valid_i in continuua_valid:
                     continuua_valid_int = np.interp(
-                         self.wavelegnth_test,
+                         self.wavelength_test,
                          wavelength_valid,
                          continuua_valid_i,)
                     continuua_valid_arr.append(continuua_valid_int)          
