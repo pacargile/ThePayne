@@ -534,7 +534,7 @@ class TrainMod(object):
                               #           ls='-',lw=0.5)
                               #      ax[1].set_xlabel('Wavelength')
                               #      ax[1].set_ylabel('Flux')
-                              fig.savefig('loss_epoch{0}.png'.format(epoch_i+1),dpi=150)
+                              fig.savefig('cont_loss_epoch{0}.png'.format(epoch_i+1),dpi=150)
                               plt.close(fig)
 
                          if iter_i % 500 == 0.0:
