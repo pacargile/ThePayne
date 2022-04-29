@@ -183,12 +183,15 @@ class TrainMod(object):
                wavelength_test[0],
                wavelength_test[-1],
                100)
-          continuua_test = np.array([
-               np.interp(
+          continuua_test_arr = []
+          for continuua_test_i in continuua_test:
+               continuua_test_int = np.interp(
                     newwavelegnth_test,
                     wavelength_test,
-                    continuua_test_i,),
-               for continuua_test_i in continuua_test])
+                    continuua_test_i,)
+               continuua_test_arr.append(continuua_test_int)          
+          continuua_test = np.array(continuua_test_arr)
+
           self.wavelength_test = newwavelegnth_test
 
           # # pull a quick set of test models to determine general properties
@@ -387,12 +390,14 @@ class TrainMod(object):
                X_train_Tensor = X_train_Tensor.to(device)
 
                # create tensor of output training labels
-               continuua_train = np.array([
-                    np.interp(
+               continuua_train_arr = []
+               for continuua_train_i in continuua_train:
+                    continuua_train_int = np.interp(
                          self.wavelegnth_test,
                          wavelength_train,
-                         continuua_train_i,) 
-                    for continuua_train_i in continuua_train])
+                         continuua_train_i,)
+                    continuua_train_arr.append(continuua_train_int)          
+               continuua_train = np.array(continuua_train_arr)
 
                Y_train = np.array(continuua_train)
                Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
@@ -417,12 +422,15 @@ class TrainMod(object):
                X_valid_Tensor = X_valid_Tensor.to(device)
 
                # create tensor of output validation labels
-               continuua_valid = np.array([
-                    np.interp(
+               continuua_valid_arr = []
+               for continuua_valid_i in continuua_valid:
+                    continuua_valid_int = np.interp(
                          self.wavelegnth_test,
                          wavelength_valid,
-                         continuua_valid_i,) 
-                    for continuua_valid_i in continuua_valid])
+                         continuua_valid_i,)
+                    continuua_valid_arr.append(continuua_valid_int)          
+               continuua_valid = np.array(continuua_valid_arr)
+
                Y_valid = np.array(continuua_valid)
                Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
                Y_valid_Tensor = Y_valid_Tensor.to(device)
