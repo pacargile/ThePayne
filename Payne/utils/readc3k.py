@@ -61,12 +61,13 @@ class readc3k(object):
 			print('FOUND {} Vt'.format(len(self.vtarr)))
 
 		# remove the super metal-rich models that only have aFe = 0
-		if 0.75 in self.FeHarr:
-			self.FeHarr.remove(0.75)
-		if 1.00 in self.FeHarr:
-			self.FeHarr.remove(1.00)
-		if 1.25 in self.FeHarr:
-			self.FeHarr.remove(1.25)
+		# if 0.75 in self.FeHarr:
+		# 	self.FeHarr.remove(0.75)
+		# if 1.00 in self.FeHarr:
+		# 	self.FeHarr.remove(1.00)
+		# if 1.25 in self.FeHarr:
+		# 	self.FeHarr.remove(1.25)
+		self.FeHarr = self.FeHarr[self.FeHarr <= 0.5]
 
 		# determine the MIST FeH and aFe arrays
 		self.MISTFeHarr = []
