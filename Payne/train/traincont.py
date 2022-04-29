@@ -185,6 +185,9 @@ class TrainMod(object):
                100)
           continuua_test_arr = []
           for continuua_test_i in continuua_test:
+               # divide by median
+               continuua_test_i = continuua_test_i/np.nanmedian(continuua_test_i)
+               # interpolate onto low-res wavelength grid
                continuua_test_int = np.interp(
                     newwavelength_test,
                     wavelength_test,
@@ -384,20 +387,23 @@ class TrainMod(object):
                     returncontinuua=True
                     )
 
-               # create tensor for input training labels
-               X_train_labels = labels_train[:,:len(self.label_i)]
-               X_train_Tensor = Variable(torch.from_numpy(X_train_labels).type(dtype))
-               X_train_Tensor = X_train_Tensor.to(device)
-
                # create tensor of output training labels
                continuua_train_arr = []
                for continuua_train_i in continuua_train:
+                    # divide by median
+                    continuua_train_i = continuua_train_i/np.nanmedian(continuua_train_i)
+                    # interpolate onto low-res wavelength grid
                     continuua_train_int = np.interp(
                          self.wavelength_test,
                          wavelength_train,
                          continuua_train_i,)
                     continuua_train_arr.append(continuua_train_int)          
                continuua_train = np.array(continuua_train_arr)
+
+               # create tensor for input training labels
+               X_train_labels = labels_train[:,:len(self.label_i)]
+               X_train_Tensor = Variable(torch.from_numpy(X_train_labels).type(dtype))
+               X_train_Tensor = X_train_Tensor.to(device)
 
                Y_train = np.array(continuua_train)
                Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
@@ -416,20 +422,23 @@ class TrainMod(object):
                     excludelabels=np.array(list(self.testlabels)+list(X_train_labels)),
                     returncontinuua=True)
 
-               # create tensor for input validation labels
-               X_valid_labels = labels_valid[:,:len(self.label_i)]
-               X_valid_Tensor = Variable(torch.from_numpy(X_valid_labels).type(dtype))
-               X_valid_Tensor = X_valid_Tensor.to(device)
-
                # create tensor of output validation labels
                continuua_valid_arr = []
                for continuua_valid_i in continuua_valid:
+                    # divide by median
+                    continuua_valid_i = continuua_valid_i/np.nanmedian(continuua_valid_i)
+                    # interpolate onto low-res wavelength grid
                     continuua_valid_int = np.interp(
                          self.wavelength_test,
                          wavelength_valid,
                          continuua_valid_i,)
                     continuua_valid_arr.append(continuua_valid_int)          
                continuua_valid = np.array(continuua_valid_arr)
+
+               # create tensor for input validation labels
+               X_valid_labels = labels_valid[:,:len(self.label_i)]
+               X_valid_Tensor = Variable(torch.from_numpy(X_valid_labels).type(dtype))
+               X_valid_Tensor = X_valid_Tensor.to(device)
 
                Y_valid = np.array(continuua_valid)
                Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
