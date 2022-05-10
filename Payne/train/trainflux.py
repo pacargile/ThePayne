@@ -363,7 +363,7 @@ class TrainMod(object):
 
                startreadintrainmod = datetime.now()
 
-               spectra_train,labels_train,wavelength_train = self.c3kmods.pullspectra(
+               spectra_train,labels_train,wavelength_train,continuua_train = self.c3kmods.pullspectra(
                     self.numtrain,
                     resolution=self.resolution, 
                     waverange=self.waverange,
@@ -374,6 +374,7 @@ class TrainMod(object):
                     aFe=self.aferange,
                     vtrub=self.vtrange,
                     excludelabels=np.array(self.testlabels),
+                    returncontinuua=True
                     )
 
                spectra_train_arr = []
@@ -395,7 +396,7 @@ class TrainMod(object):
                Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
                Y_train_Tensor = Y_train_Tensor.to(device)
 
-               spectra_valid,labels_valid,wavelength_valid = self.c3kmods.pullspectra(
+               spectra_valid,labels_valid,wavelength_valid,continuua_valid = self.c3kmods.pullspectra(
                     self.numtrain,
                     resolution=self.resolution, 
                     waverange=self.waverange,
@@ -405,7 +406,9 @@ class TrainMod(object):
                     FeH=self.fehrange,
                     aFe=self.aferange,
                     vtrub=self.vtrange,
-                    excludelabels=np.array(list(self.testlabels)+list(X_train_labels)),)
+                    excludelabels=np.array(list(self.testlabels)+list(X_train_labels)),
+                    returncontinuua=True
+                    )
 
                spectra_valid_arr = []
                for spectra_valid_i,continuua_valid_i in zip(spectra_valid,continuua_valid):
