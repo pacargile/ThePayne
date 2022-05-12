@@ -114,7 +114,11 @@ class PayneSpecPredict(object):
           self.Cnnpath = kwargs.get('Cnnpath',None)
           if self.Cnnpath is not None:
                self.Canns_bool = True
-               self.Canns = Net(self.Cnnpath)
+               self.Canns = ANN(
+                    nnpath=self.Cnnpath,
+                    NNtype=self.C_NNtype,
+                    testing=False,
+                    verbose=False)
                self.contfn = self.predictcont
           else:
                self.Canns_bool = False
