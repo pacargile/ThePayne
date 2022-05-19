@@ -91,27 +91,14 @@ class PayneSpecPredict(object):
           else:
                # define aliases for the MIST isochrones and C3K/CKC files
                self.nnpath  = Payne.__abspath__+'data/specANN/YSTANN.h5'
-
           self.NNtype = kwargs.get('NNtype','LinNet')
-          self.C_NNtype = kwargs.get('C_NNtype','LinNet')
           self.anns = ANN(nnpath=self.nnpath,NNtype=self.NNtype,testing=False,verbose=False)
 
-          # self.anns = Net(self.nnpath)
-
-          # # check to see if using NN with Teff / 1000.0
-          # if self.anns.xmin[0] < 1000.0:
-          #      self.anns.xmin.at[0].multiply(1000.0)
-          #      self.anns.xmax.at[0].multiply(1000.0)
-
-          # NNtype = kwargs.get('NNtype','YST1')
-          # if NNtype == 'YST1':
-          #      self.modpars = ['teff','logg','feh','afe']
-          # else:
-          #      self.modpars = ['teff','logg','feh','afe','vmic']
-
+          # labels for the spectral NN
           self.modpars = self.anns.inlabels
 
           self.Cnnpath = kwargs.get('Cnnpath',None)
+          self.C_NNtype = kwargs.get('C_NNtype','LinNet')
           if self.Cnnpath is not None:
                self.Canns_bool = True
                self.Canns = ANN(
@@ -120,10 +107,12 @@ class PayneSpecPredict(object):
                     testing=False,
                     verbose=False)
                self.contfn = self.predictcont
+               self.Cmodpars = self.Canns.inlabels
           else:
                self.Canns_bool = False
                self.Canns = None
                self.contfn = lambda _ : 1.0
+               self.Cmodpars = []
 
 
      def predictspec(self,labels):
@@ -164,7 +153,7 @@ class PayneSpecPredict(object):
           modcont = modcont / np.nanmedian(modcont)
 
           # interpolate continuum onto spectrum
-          return np.interp(self.anns.wavelength,modcontwave,modcont,right=np.nan,left=np.nan)
+          return np.interp(self.anns.wavelength,modcontwave,modcont)
 
      def getspec(self,**kwargs):
           '''
@@ -226,7 +215,7 @@ class PayneSpecPredict(object):
           modspec = self.predictspec([self.inputdict[kk] for kk in self.modpars])
           modwave = self.anns.wavelength
 
-          modspec = modspec * self.contfn([self.inputdict[kk] for kk in self.modpars])
+          modspec = modspec * self.contfn([self.inputdict[kk] for kk in self.Cmodpars])
 
           rot_vel_bool = False
           if 'rot_vel' in kwargs:

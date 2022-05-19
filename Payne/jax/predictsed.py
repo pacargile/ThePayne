@@ -5,22 +5,7 @@ import jax.numpy as np
 from jax import lax
 from .photANN import ANN, fastANN
 from .highred import highAv
-
-_ALLFILTERS = (
-    ['2MASS_H', '2MASS_J', '2MASS_Ks', 
-    'Bessell_B', 'Bessell_I', 'Bessell_R', 'Bessell_U', 'Bessell_V', 
-    'DECam_g', 'DECam_i', 'DECam_r', 'DECam_u', 'DECam_Y', 'DECam_z', 
-    'GaiaMAW_BPb', 'GaiaMAW_BPf','GaiaMAW_G', 'GaiaMAW_RP', 
-    # 'GALEX_FUV', 'GALEX_NUV', 
-    'Hipparcos_Hp', 
-    'Kepler_D51', 'Kepler_Kp', 
-    'PS_g', 'PS_i', 'PS_open', 'PS_r', 'PS_w', 'PS_y', 'PS_z', 
-    'SDSS_g', 'SDSS_i', 'SDSS_r', 'SDSS_u', 'SDSS_z', 
-    'TESS_T', 
-    'Tycho_B', 'Tycho_V', 
-    'UKIDSS_H', 'UKIDSS_J', 'UKIDSS_K', 'UKIDSS_Y', 'UKIDSS_Z', 
-    'WISE_W1', 'WISE_W2', 'WISE_W3', 'WISE_W4']
-    )
+import glob
 
 class PayneSEDPredict(object):
 
@@ -29,7 +14,11 @@ class PayneSEDPredict(object):
 
     def _initphotnn(self, usebands=None, nnpath=None):
         if usebands == None:
-            usebands = _ALLFILTERS
+            # user doesn't know which filters, so read in all that
+            # are contained in photNN path
+            flist = glob.glob(nnpath+'/nn*h5')
+            allfilters = [x.split('/')[-1].replace('nnMIST_','').replace('.h5','') for x in flist]
+            usebands = allfilters
         self.filternames = usebands        
 
         ANNdict = {}
@@ -69,7 +58,11 @@ class FastPayneSEDPredict(object):
     
     def __init__(self, usebands=None, nnpath=None):
         if usebands == None:
-            usebands = _ALLFILTERS
+            # user doesn't know which filters, so read in all that
+            # are contained in photNN path
+            flist = glob.glob(nnpath+'/nn*h5')
+            allfilters = [x.split('/')[-1].replace('nnMIST_','').replace('.h5','') for x in flist]
+            usebands = allfilters
         self.filternames = usebands        
         nnlist = [ANN(f, nnpath=nnpath, verbose=False) for f in usebands]
         self.anns = fastANN(nnlist, self.filternames)
