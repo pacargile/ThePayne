@@ -98,3 +98,10 @@ def airtovacuum(inwave):
      deltawave = a + (b1/(c1-(1.0/inwave**2.0))) + (b2/(c2-(1.0/inwave**2.0)))
 
      return inwave*(deltawave+1)
+
+def vacuumtoair(inwave):
+    s = (10**4) / inwave
+    s2 = s**2.0
+    n = 1.0 + 0.0000834254 + 0.02406147 / (130.0 - s2) + 0.00015998 / (38.9 - s2)
+
+    return inwave / n
