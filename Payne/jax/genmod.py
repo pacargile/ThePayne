@@ -72,6 +72,16 @@ class GenMod(object):
         vmic = pars[6]
         inst_R = pars[7]
 
+        if verbose:
+            print('Teff   = {}'.format(Teff))
+            print('log(g) = {}'.format(logg))
+            print('[Fe/H] = {}'.format(FeH))
+            print('[a/Fe] = {}'.format(aFe))
+            print('RV     = {}'.format(radvel))
+            print('Vstar  = {}'.format(rotvel))
+            print('Vmic   = {}'.format(vmic))
+            print('InstR  = {}'.format(inst_R))
+
         # predict model flux at model wavelengths
         modwave_i,modflux_i = self.PP.getspec(
             Teff=Teff,logg=logg,feh=FeH,afe=aFe,rad_vel=radvel,rot_vel=rotvel,
