@@ -23,6 +23,9 @@ def airtovacuum(inwave):
     """
         Using the relationship from Ciddor (1996) and transcribed in Shetrone et al. 2015
     """
+
+    inwave = inwave * (1E-4)
+
     a = 0.0
     b1 = 5.792105E-2
     b2 = 1.67917E-3
@@ -31,7 +34,7 @@ def airtovacuum(inwave):
 
     deltawave = a + (b1/(c1-(1.0/inwave**2.0))) + (b2/(c2-(1.0/inwave**2.0)))
 
-    return inwave*(deltawave+1)
+    return (inwave*(deltawave+1)) * (1E4)
 
 def vacuumtoair(inwave):
     s = (10**4) / inwave
