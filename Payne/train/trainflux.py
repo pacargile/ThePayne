@@ -433,6 +433,7 @@ class TrainMod(object):
 
                cc = 0
                for iter_i in range(int(self.numsteps)):
+                    model.train()
 
                     itertime = datetime.now()
 
@@ -455,7 +456,6 @@ class TrainMod(object):
                               # Backward pass: compute gradient of the loss with respect to model parameters
                               optimizer.zero_grad()
                               loss.backward(retain_graph=False)
-                              # optimizer.step()
                              
                               if np.isnan(loss.item()):
                                    print('PRED TRAIN TENSOR',Y_pred_train_Tensor)
@@ -474,6 +474,7 @@ class TrainMod(object):
 
                     # evaluate the validation set
                     if iter_i % 100 == 0:
+                         model.eval()
                          perm_valid = torch.randperm(self.numtrain)
                          if str(device) != 'cpu':
                               perm_valid = perm_valid.cuda()
