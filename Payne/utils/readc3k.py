@@ -127,6 +127,7 @@ class readc3k(object):
 							fname = fnamelist[0]
 						else:
 							raise IOError('Could not find suitable C3K file: FeH={0}. aFe={1} vt={2}'.format(mm,aa,vv))
+						print(fname)
 						self.C3K[aa][mm][vv] = h5py.File(
 							fname,
 							'r', libver='latest', swmr=True)
