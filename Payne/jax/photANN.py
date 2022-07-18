@@ -89,6 +89,7 @@ class ANN(object):
     except:
       print(self.nnh5)
       print(nparr)
+      print(type(nparr))
       raise
       
     self.model.load_state_dict(newmoddict)
