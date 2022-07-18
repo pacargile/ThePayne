@@ -81,16 +81,16 @@ class ANN(object):
     self.model.xmax = np.array(list(th5['xmax']))#np.amax(np.array(th5['test/X']),axis=0)
 
     newmoddict = {}
-    try:
-      for kk in th5['model'].keys():
+    for kk in th5['model'].keys():
+      try:
         nparr = copy.deepcopy(np.array(th5['model'][kk]))
         torarr = torch.from_numpy(nparr).type(dtype)
-        newmoddict[kk] = torarr    
-    except:
-      print(self.nnh5)
-      print(nparr)
-      print(type(nparr))
-      raise
+      except:
+        print(self.nnh5,kk)
+        print(nparr)
+        print(type(nparr))
+        raise
+      newmoddict[kk] = torarr    
       
     self.model.load_state_dict(newmoddict)
 
