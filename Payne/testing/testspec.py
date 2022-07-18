@@ -27,7 +27,7 @@ class TestSpec(object):
     Class for testing a Payne-learned NN using a testing dataset 
     different from training spectra
     """
-    def __init__(self, NNfilename, NNtype='LinNet',c3kpath=None,ystnn=None,
+    def __init__(self, NNfilename, NNtype='LinNet',c3kpath=None,ystnn=None,MISTpath=None,
         continuum=False,flux=False,window1=[5150,5200],window2=[5250,5300]):
         # user inputed neural-net output file
         self.NNfilename = NNfilename
@@ -52,6 +52,11 @@ class TestSpec(object):
             self.c3kpath = '/Users/pcargile/Astro/ThePayne/train_grid/rv31/grid/'
         else:
             self.c3kpath = c3kpath
+
+        if MISTpath == None:
+            self.MISTpath = '/Users/pcargile/Astro/MIST/MIST_v2.0_spot/EEPTRACKS/MIST_2.0_spot_EEPtrk_small.h5'
+        else:
+            self.MISTpath = MISTpath
 
         if ystnn == None:
             self.ystnn = None#'/Users/pcargile/Astro/ThePayne/YSdata/YSTANN_wvt.h5'
@@ -384,7 +389,7 @@ class TestSpec(object):
             else:
                 returncontinuua = False
 
-            c3kmods = readc3k(MISTpath=None,C3Kpath=self.c3kpath,vtfixed=True)
+            c3kmods = readc3k(MISTpath=self.MISTpath,C3Kpath=self.c3kpath,vtfixed=True)
             out = c3kmods.selspectra(inpars,resolution=self.resolution,
                 waverange=[self.wave.min(),self.wave.max()],returncontinuua=returncontinuua)
 
