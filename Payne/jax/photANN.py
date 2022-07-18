@@ -83,7 +83,7 @@ class ANN(object):
     newmoddict = {}
     for kk in th5['model'].keys():
       try:
-        nparr = copy.deepcopy(np.array(th5['model'][kk]))
+        nparr = copy.deepcopy(th5['model'][kk][()])
         torarr = torch.from_numpy(nparr).type(dtype)
       except:
         print(self.nnh5,kk)
