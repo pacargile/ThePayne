@@ -36,7 +36,7 @@ from scipy import constants
 speedoflight = constants.c / 1000.0
 
 import matplotlib
-matplotlib.use('AGG')
+# matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 
 import Payne

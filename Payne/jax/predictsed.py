@@ -36,8 +36,8 @@ class PayneSEDPredict(object):
         """
 
         if type(filters) == type(None):
-        	filters = self.anns.keys()
-
+            filters = self.anns.keys()
+            
         if type(rv) == type(None):
             inpars = [10.0**logt,logg,feh,afe,av]
         else:
@@ -60,11 +60,16 @@ class FastPayneSEDPredict(object):
         if usebands == None:
             # user doesn't know which filters, so read in all that
             # are contained in photNN path
-            flist = glob.glob(nnpath+'/nn*h5')
+            flist = glob.glob(nnpath+'/nnMIST_*.h5')
             allfilters = [x.split('/')[-1].replace('nnMIST_','').replace('.h5','') for x in flist]
             usebands = allfilters
-        self.filternames = usebands        
-        nnlist = [ANN(f, nnpath=nnpath, verbose=False) for f in usebands]
+        self.filternames = usebands    
+        nnlist = []
+        for f in usebands:
+            try:
+                nnlist.append(ANN(f, nnpath=nnpath, verbose=False))
+            except:
+                pass
         self.anns = fastANN(nnlist, self.filternames)
 
         self.HiAv = highAv(self.filternames)

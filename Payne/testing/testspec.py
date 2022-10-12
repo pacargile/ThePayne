@@ -18,7 +18,7 @@ from numpy.random import default_rng
 rng = default_rng()
 
 import matplotlib
-matplotlib.use('AGG')
+# matplotlib.use('AGG')
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 
