@@ -439,14 +439,14 @@ class readc3k(object):
 				# if user defined resolution to train at, the smooth C3K to that resolution
 				if resolution != None:
 					spectra_i = self.smoothspecfunc(wavelength_i,spectra_i,resolution,
-						outwave=wavelength_o,smoothtype='R',fftsmooth=True,inres=300000.0)
+						outwave=wavelength_o,smoothtype='R',fftsmooth=True)
 				else:
 					spectra_i = spectra_i[wavecond]
 
 				if continuuabool:
 					if resolution != None:
 						continuua_i = self.smoothspecfunc(wavelength_i,continuua_i,resolution,
-							outwave=wavelength_o,smoothtype='R',fftsmooth=True,inres=300000.0)
+							outwave=wavelength_o,smoothtype='R',fftsmooth=True)
 					else:
 						continuua_i = continuua_i[wavecond]
 
@@ -609,14 +609,14 @@ class readc3k(object):
 			# if user defined resolution to train at, the smooth C3K to that resolution
 			if resolution != None:
 				spectra_i = self.smoothspecfunc(wavelength_i,spectra_i,resolution,
-					outwave=wavelength_o,smoothtype='R',fftsmooth=True,inres=300000.0)
+					outwave=wavelength_o,smoothtype='R',fftsmooth=True)
 			else:
 				spectra_i = spectra_i[wavecond]
 
 			if continuuabool:
 				if resolution != None:
 					continuua_i = self.smoothspecfunc(wavelength_i,continuua_i,resolution,
-						outwave=wavelength_o,smoothtype='R',fftsmooth=True,inres=300000.0)
+						outwave=wavelength_o,smoothtype='R',fftsmooth=True)
 				else:
 					continuua_i = continuua_i[wavecond]
 
