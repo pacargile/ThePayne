@@ -176,6 +176,9 @@ class TrainMod(object):
                vtrub=self.vtrange,
                returncontinuua=True)
 
+          print('... Number of Pixels: {0}'.format(len(wavelength_test)))
+          sys.stdout.flush()
+          
           self.testlabels = labels_test[:,:len(self.label_i)].tolist()
 
           spectra_test_arr = []
