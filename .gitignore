@@ -20,3 +20,4 @@ demo/*.pdf
 demo/*.png
 demo/*.h5
 Payne/sandbox/
+Payne/__init__.py
