@@ -175,6 +175,9 @@ class TrainMod(object):
                aFe=self.aferange,
                vtrub=self.vtrange)
 
+          print('... Number of Pixels: {0}'.format(len(wavelength_test)))
+          sys.stdout.flush()
+
           self.testlabels = labels_test[:,:len(self.label_i)].tolist()
 
           # # pull a quick set of test models to determine general properties
