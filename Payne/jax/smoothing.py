@@ -36,7 +36,7 @@ ckms = 2.998e5
 sigma_to_fwhm = 2.355
 
 def smoothspec(wave, spec, resolution=None, outwave=None,
-               smoothtype="vel", fftsmooth=True,
+               smoothtype="R", fftsmooth=True,
                min_wave_smooth=0, max_wave_smooth=np.inf, **kwargs):
     """
     :param wave:
