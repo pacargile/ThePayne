@@ -461,18 +461,33 @@ class TestSpec(object):
             ax[4].hist(np.log10(np.abs(modflux-flux)),lw=1.0,color='C0',
                 bins=50,cumulative=True,density=True,
                 histtype='step',range=[-4.5,-1])
-
-            ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
-                bins=50,cumulative=True,density=True,
-                histtype='step',range=[-4.5,-1])
+            oneperCDF = stats.percentileofscore(np.log10(np.abs(modflux-flux)),-2.0)/100.0
             ax[4].hlines(
-                y=stats.percentileofscore(np.log10(np.abs(modflux-flux)),-2.0)/100.0,
+                y=oneperCDF,
                 xmin=-4.5,xmax=-2.0,
                 colors='C0',alpha=0.8)
-            ax[4].hlines(
-                y=stats.percentileofscore(np.log10(np.abs(modflux_yst-flux)),-2.0)/100.0,
-                xmin=-4.5,xmax=-2.0,
-                colors='C1',alpha=0.8)
+            ax[4].text(0.01,0.02,'MAD = 1% @ CDF = {0:.2f}'.format(oneperCDF),
+                       horizontalalignment='left',
+                       verticalalignment='bottom',
+                       transform=ax[4].transAxes,
+                       fontsize=6,
+                       color='C0')
+
+            if self.ystnn is not None:
+                ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
+                    bins=50,cumulative=True,density=True,
+                    histtype='step',range=[-4.5,-1])
+                oneperCDF = stats.percentileofscore(np.log10(np.abs(modflux_yst-flux)),-2.0)/100.0
+                ax[4].hlines(
+                    y=oneperCDF,
+                    xmin=-4.5,xmax=-2.0,
+                    colors='C1',alpha=0.8)
+                ax[4].text(0.01,0.1,'MAD = 1% @ CDF = {0:.2f}'.format(oneperCDF),
+                        horizontalalignment='left',
+                        verticalalignment='bottom',
+                        transform=ax[4].transAxes,
+                        fontsize=6,
+                        color='C1')
 
             ax[4].set_xlim(-4.5,-1.0)
             ax[4].set_xlabel('log Abs Deviation')
@@ -553,19 +568,33 @@ class TestSpec(object):
             ax[4].hist(np.log10(np.abs(modflux-flux)),lw=1.0,color='C0',
                 bins=50,cumulative=True,density=True,
                 histtype='step',range=[-4.5,-1])
-
-            ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
-                bins=50,cumulative=True,density=True,
-                histtype='step',range=[-4.5,-1])
-
+            oneperCDF = stats.percentileofscore(np.log10(np.abs(modflux-flux)),-2.0)/100.0
             ax[4].hlines(
-                y=stats.percentileofscore(np.log10(np.abs(modflux-flux)),-2.0)/100.0,
+                y=oneperCDF,
                 xmin=-4.5,xmax=-2.0,
                 colors='C0',alpha=0.8)
-            ax[4].hlines(
-                y=stats.percentileofscore(np.log10(np.abs(modflux_yst-flux)),-2.0)/100.0,
-                xmin=-4.5,xmax=-2.0,
-                colors='C1',alpha=0.8)
+            ax[4].text(0.01,0.02,'MAD = 1% @ CDF = {0:.2f}'.format(oneperCDF),
+                       horizontalalignment='left',
+                       verticalalignment='bottom',
+                       transform=ax[4].transAxes,
+                       fontsize=6,
+                       color='C0')
+
+            if self.ystnn is not None:
+                ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
+                    bins=50,cumulative=True,density=True,
+                    histtype='step',range=[-4.5,-1])
+                oneperCDF = stats.percentileofscore(np.log10(np.abs(modflux_yst-flux)),-2.0)/100.0
+                ax[4].hlines(
+                    y=oneperCDF,
+                    xmin=-4.5,xmax=-2.0,
+                    colors='C1',alpha=0.8)
+                ax[4].text(0.01,0.1,'MAD = 1% @ CDF = {0:.2f}'.format(oneperCDF),
+                        horizontalalignment='left',
+                        verticalalignment='bottom',
+                        transform=ax[4].transAxes,
+                        fontsize=6,
+                        color='C1')
 
             ax[4].set_xlim(-4.5,-1.0)
             ax[4].set_xlabel('log Abs Deviation')
@@ -646,19 +675,34 @@ class TestSpec(object):
             ax[4].hist(np.log10(np.abs(modflux-flux)),lw=1.0,color='C0',
                 bins=50,cumulative=True,density=True,
                 histtype='step',range=[-4.5,-1])
-
-            ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
-                bins=50,cumulative=True,density=True,
-                histtype='step',range=[-4.5,-1])
-
+            oneperCDF = stats.percentileofscore(np.log10(np.abs(modflux-flux)),-2.0)/100.0
             ax[4].hlines(
-                y=stats.percentileofscore(np.log10(np.abs(modflux-flux)),-2.0)/100.0,
+                y=oneperCDF,
                 xmin=-4.5,xmax=-2.0,
                 colors='C0',alpha=0.8)
-            ax[4].hlines(
-                y=stats.percentileofscore(np.log10(np.abs(modflux_yst-flux)),-2.0)/100.0,
-                xmin=-4.5,xmax=-2.0,
-                colors='C1',alpha=0.8)
+            ax[4].text(0.01,0.02,'MAD = 1% @ CDF = {0:.2f}'.format(oneperCDF),
+                       horizontalalignment='left',
+                       verticalalignment='bottom',
+                       transform=ax[4].transAxes,
+                       fontsize=6,
+                       color='C0')
+
+            if self.ystnn is not None:
+                ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
+                    bins=50,cumulative=True,density=True,
+                    histtype='step',range=[-4.5,-1])
+                oneperCDF = stats.percentileofscore(np.log10(np.abs(modflux_yst-flux)),-2.0)/100.0
+                ax[4].hlines(
+                    y=oneperCDF,
+                    xmin=-4.5,xmax=-2.0,
+                    colors='C1',alpha=0.8)
+                ax[4].text(0.01,0.1,'MAD = 1% @ CDF = {0:.2f}'.format(oneperCDF),
+                        horizontalalignment='left',
+                        verticalalignment='bottom',
+                        transform=ax[4].transAxes,
+                        fontsize=6,
+                        color='C1')
+
 
             ax[4].set_xlim(-4.5,-1.0)
             ax[4].set_xlabel('log Abs Deviation')
