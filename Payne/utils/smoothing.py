@@ -283,6 +283,7 @@ def smooth_vel_fft(wavelength, spectrum, outwave, sigma_out, inres=0.0,
 
     # Do the convolution
     spec_conv = smooth_fft(dv, spec, sigma)
+
     # interpolate onto output grid
     if outwave is not None:
         spec_conv = np.interp(outwave, wave, spec_conv,right=np.nan,left=np.nan)
