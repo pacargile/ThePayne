@@ -247,7 +247,7 @@ class readc3k(object):
 
 		labels = []
 		spectra = []
-		wavelength_o = None
+		wavelength_o_flag = True
 		if reclabelsel:
 			initlabels = []
 		if continuuabool:
@@ -415,8 +415,9 @@ class readc3k(object):
 
 				# store a wavelength array as an instance, all of C3K has 
 				# the same wavelength sampling
-				if wavelength_o == None:
-					wavelength_o = []
+				if wavelength_o_flag:
+					wavelength_o = [] # initialize the output wavelength array
+					wavelength_o_flag = False # turn off this step for all subsequent models
 					wavelength_i = np.array(C3K_i['wavelengths'])
 					if resolution != None:
 						# define new wavelength array with 3*resolution element sampling
@@ -509,7 +510,7 @@ class readc3k(object):
 
 		labels = []
 		spectra = []
-		wavelength_o = None
+		wavelength_o_flag = True
 
 		if continuuabool:
 			continuua = []
@@ -589,8 +590,9 @@ class readc3k(object):
 
 			# store a wavelength array as an instance, all of C3K has 
 			# the same wavelength sampling
-			if wavelength_o == None:
-				wavelength_o = []
+			if wavelength_o_flag:
+				wavelength_o = [] # initialize the output wavelength array
+				wavelength_o_flag = False # turn off this step for all subsequent models
 				wavelength_i = np.array(C3K_i['wavelengths'])
 				if resolution != None:
 					# define new wavelength array with 3*resolution element sampling
