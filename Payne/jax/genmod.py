@@ -35,7 +35,7 @@ class GenMod(object):
 
     def _initphotnn(self,filterarray,nnpath=None):
         self.filterarray = filterarray
-
+        
         from .predictsed import FastPayneSEDPredict
         self.fppsed = FastPayneSEDPredict(
             usebands=self.filterarray,nnpath=nnpath,
@@ -88,6 +88,11 @@ class GenMod(object):
             inst_R=inst_R,vmic=vmic,
             outwave=outwave)       
 
+        print(Teff,logg,FeH,aFe,radvel,rotvel,inst_R,vmic)
+        print(outwave)
+
+        print('1',modflux_i.min(),modflux_i.max(),np.mean(modflux_i))
+
         def modpolyfn(wave):
             polycoef = pars[8:]
             epoly = polycalc(polycoef,wave)
@@ -98,9 +103,11 @@ class GenMod(object):
 
         # if polynomial normalization is turned on then multiply model by it
         epoly = lax.cond(modpoly,modpolyfn,modpolydefault,modwave_i)            
-
+        
         # now multiply the model by the polynomial normalization poly
         modflux_i = modflux_i*epoly
+
+        print('2',modflux_i.min(),modflux_i.max(),np.mean(modflux_i))
 
         return modwave_i,modflux_i
 

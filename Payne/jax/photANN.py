@@ -6,7 +6,7 @@ Contains the code that predicts photometry given set of Teff/log(g)/[Fe/H]/[a/Fe
 """
 
 import jax.numpy as np
-import math
+import os
 import torch
 from torch import nn
 # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -69,30 +69,34 @@ class ANN(object):
 
     if self.verbose:
       print('... Phot ANN: Reading in {0}'.format(self.nnh5))
-    th5 = h5py.File(self.nnh5,'r')
-    
-    self.D_in = th5['model/lin1.weight'].shape[1]
-    self.H = th5['model/lin1.weight'].shape[0]
-    self.D_out = th5['model/lin3.weight'].shape[0]
-    self.model = Net(self.D_in,self.H,self.D_out)
-    # self.model.xmin = np.amin(np.array(th5['test/X']),axis=0)
-    # self.model.xmax = np.amax(np.array(th5['test/X']),axis=0)
-    self.model.xmin = np.array(list(th5['xmin']))#np.amin(np.array(th5['test/X']),axis=0)
-    self.model.xmax = np.array(list(th5['xmax']))#np.amax(np.array(th5['test/X']),axis=0)
 
-    newmoddict = {}
-    for kk in th5['model'].keys():
-      try:
-        nparr = copy.deepcopy(th5['model'][kk][()])
-        torarr = torch.from_numpy(nparr).type(dtype)
-      except:
-        print(self.nnh5,kk)
-        print(nparr)
-        print(type(nparr))
-        raise
-      newmoddict[kk] = torarr    
-      
-    self.model.load_state_dict(newmoddict)
+    if os.path.isfile(self.nnh5):
+      with h5py.File(self.nnh5,'r') as th5:
+        
+        self.D_in = th5['model/lin1.weight'].shape[1]
+        self.H = th5['model/lin1.weight'].shape[0]
+        self.D_out = th5['model/lin3.weight'].shape[0]
+        self.model = Net(self.D_in,self.H,self.D_out)
+        # self.model.xmin = np.amin(np.array(th5['test/X']),axis=0)
+        # self.model.xmax = np.amax(np.array(th5['test/X']),axis=0)
+        self.model.xmin = np.array(list(th5['xmin']))#np.amin(np.array(th5['test/X']),axis=0)
+        self.model.xmax = np.array(list(th5['xmax']))#np.amax(np.array(th5['test/X']),axis=0)
+
+        newmoddict = {}
+        for kk in th5['model'].keys():
+          try:
+            nparr = copy.deepcopy(th5['model'][kk][()])
+            torarr = torch.from_numpy(nparr).type(dtype)
+          except:
+            print(self.nnh5,kk)
+            print(nparr)
+            print(type(nparr))
+            raise
+          newmoddict[kk] = torarr    
+        
+      self.model.load_state_dict(newmoddict)
+    else:
+      raise IOError('Could not find phot NN file {}'.format(self.nnh5))
 
   def eval(self,x):
     if type(x) == type([]):

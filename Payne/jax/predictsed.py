@@ -64,6 +64,7 @@ class FastPayneSEDPredict(object):
             allfilters = [x.split('/')[-1].replace('nnMIST_','').replace('.h5','') for x in flist]
             usebands = allfilters
         self.filternames = usebands    
+
         nnlist = []
         for f in usebands:
             try:
