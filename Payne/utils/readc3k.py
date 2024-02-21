@@ -386,7 +386,7 @@ class readc3k(object):
 
 				# determine the labels for the selected C3K spectrum
 				try:
-					label_i = list(C3Kpars[C3KNN])
+					label_i = list(C3Kpars[int(C3KNN)])
 				except IndexError:
 					print(C3KNN)
 					raise
@@ -575,7 +575,11 @@ class readc3k(object):
 				)((teff_i,logg_i))
 
 			# determine the labels for the selected C3K spectrum
-			label_i = list(C3Kpars[C3KNN])
+			try:
+				label_i = list(C3Kpars[int(C3KNN)])
+			except IndexError:
+				print(C3KNN)
+				raise
 
 			# turn off warnings for this step, C3K has some continuaa with flux = 0
 			with np.errstate(divide='ignore', invalid='ignore'):
