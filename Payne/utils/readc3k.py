@@ -385,7 +385,11 @@ class readc3k(object):
 					)((10.0**logt_MIST,logg_MIST))
 
 				# determine the labels for the selected C3K spectrum
-				label_i = list(C3Kpars[C3KNN])
+				try:
+					label_i = list(C3Kpars[C3KNN])
+				except IndexError:
+					print(C3KNN)
+					raise
 
 				if self.verbose:
 					print('Determine C3K labels in {0}'.format(datetime.now()-starttime))
