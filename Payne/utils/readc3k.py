@@ -383,10 +383,12 @@ class readc3k(object):
 				C3KNN = NearestNDInterpolator(
 					np.array([C3Kpars['teff'],C3Kpars['logg']]).T,range(0,len(C3Kpars))
 					)((10.0**logt_MIST,logg_MIST))
+				C3KNN = int(C3KNN)
+
 
 				# determine the labels for the selected C3K spectrum
 				try:
-					label_i = list(C3Kpars[int(C3KNN)])
+					label_i = list(C3Kpars[C3KNN])
 				except IndexError:
 					print(C3KNN)
 					raise
@@ -573,10 +575,11 @@ class readc3k(object):
 			C3KNN = NearestNDInterpolator(
 				np.array([C3Kpars['teff'],C3Kpars['logg']]).T,range(0,len(C3Kpars))
 				)((teff_i,logg_i))
+			C3KNN = int(C3KNN)
 
 			# determine the labels for the selected C3K spectrum
 			try:
-				label_i = list(C3Kpars[int(C3KNN)])
+				label_i = list(C3Kpars[C3KNN])
 			except IndexError:
 				print(C3KNN)
 				raise
@@ -759,6 +762,7 @@ class readc3k(object):
 			C3KNN = NearestNDInterpolator(
 				np.array([C3Kpars['logt'],C3Kpars['logg']]).T,range(0,len(C3Kpars))
 				)((teff_i,logg_i))
+			C3KNN = int(C3KNN)
 
 			# determine the labels for the selected C3K spectrum
 			label_i = list(C3Kpars[C3KNN])		
