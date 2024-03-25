@@ -255,6 +255,7 @@ class readc3k(object):
 
 		for ii in range(num):
 			if self.verbose:
+				print(f'... {ii+1}')
 				starttime = datetime.now()
 
 			while True:
@@ -270,8 +271,8 @@ class readc3k(object):
 					# [Fe/H] limits
 					if (FeH_i >= fehrange[0]) & (FeH_i <= fehrange[1]):
 						break
-				if self.verbose:
-					print('Pulled random [Fe/H] in {0}'.format(datetime.now()-starttime))
+				# if self.verbose:
+				# 	print('Pulled random [Fe/H] in {0}'.format(datetime.now()-starttime))
 
 				# then draw an alpha abundance
 				while True:
@@ -281,8 +282,8 @@ class readc3k(object):
 					# [alpha/Fe] limits
 					if (alpha_i >= aFerange[0]) & (alpha_i <= aFerange[1]):
 						break
-				if self.verbose:
-					print('Pulled random [a/Fe] in {0}'.format(datetime.now()-starttime))
+				# if self.verbose:
+				# 	print('Pulled random [a/Fe] in {0}'.format(datetime.now()-starttime))
 
 				if len(self.vtarr) > 0:
 					# then draw an vturb
@@ -293,8 +294,8 @@ class readc3k(object):
 						# vturb limits
 						if (vt_i >= vtrange[0]) & (vt_i <= vtrange[1]):
 							break
-					if self.verbose:
-						print('Pulled random vturb in {0}'.format(datetime.now()-starttime))				
+					# if self.verbose:
+					# 	print('Pulled random vturb in {0}'.format(datetime.now()-starttime))				
 
 				if len(self.vtarr) > 0:
 					# select the C3K spectra at that [Fe/H], [alpha/Fe], vturb
@@ -316,8 +317,8 @@ class readc3k(object):
 				C3Kpars['logt'] = 10.0**C3Kpars['logt']
 				C3Kpars = rfn.rename_fields(C3Kpars,{'logt':'teff'})
 
-				if self.verbose:
-					print('create arrray of C3Kpars in {0}'.format(datetime.now()-starttime))
+				# if self.verbose:
+				# 	print('create arrray of C3Kpars in {0}'.format(datetime.now()-starttime))
 
 				# select the range of MIST models with that [Fe/H]
 				# first determine the FeH and aFe that are nearest to MIST values
@@ -325,8 +326,8 @@ class readc3k(object):
 				aFe_i_MIST = self.MISTalphaarr[np.argmin(np.abs(alpha_i-self.MISTalphaarr))]
 				MIST_i = self.MIST['{0:4.2f}/{1:4.2f}/0.40'.format(FeH_i_MIST,aFe_i_MIST)]
 
-				if self.verbose:
-					print('Pulled MIST models in {0}'.format(datetime.now()-starttime))
+				# if self.verbose:
+				# 	print('Pulled MIST models in {0}'.format(datetime.now()-starttime))
 
 				if MISTweighting:
 					# # generate Teff weights
@@ -336,8 +337,8 @@ class readc3k(object):
 				else:
 					teffwgts_i = None
 
-				if self.verbose:
-					print('Created MIST weighting {0}'.format(datetime.now()-starttime))
+				# if self.verbose:
+				# 	print('Created MIST weighting {0}'.format(datetime.now()-starttime))
 
 				while True:
 					# randomly select a EEP, log(age) combination with weighting 
@@ -393,8 +394,8 @@ class readc3k(object):
 					print(C3KNN)
 					raise
 
-				if self.verbose:
-					print('Determine C3K labels in {0}'.format(datetime.now()-starttime))
+				# if self.verbose:
+				# 	print('Determine C3K labels in {0}'.format(datetime.now()-starttime))
 
 				# check to see if user defined labels to exclude, if so
 				# continue on to the next iteration
@@ -410,8 +411,8 @@ class readc3k(object):
 				else:
 					continuua_i = None
 
-				if self.verbose:
-					print('Create C3K spectra in {0}'.format(datetime.now()-starttime))
+				# if self.verbose:
+					# print('Create C3K spectra in {0}'.format(datetime.now()-starttime))
 
 				# check to see if label_i in labels, or spectra_i is nan's
 				# if so, then skip the append and go to next step in while loop
@@ -441,8 +442,8 @@ class readc3k(object):
 						wavecond = np.array(wavecond,dtype=bool)
 						wavelength_o = wavelength_i[wavecond]
 
-				if self.verbose:
-					print('Saved a C3K wavelength instance in {0}'.format(datetime.now()-starttime))
+				# if self.verbose:
+				# 	print('Saved a C3K wavelength instance in {0}'.format(datetime.now()-starttime))
 
 				# if user defined resolution to train at, the smooth C3K to that resolution
 				if resolution != None:
@@ -459,8 +460,8 @@ class readc3k(object):
 						continuua_i = continuua_i[wavecond]
 
 
-				if self.verbose:
-					print('Convolve C3K to new R in {0}'.format(datetime.now()-starttime))
+				# if self.verbose:
+				# 	print('Convolve C3K to new R in {0}'.format(datetime.now()-starttime))
 
 				labels.append(label_i)
 				spectra.append(spectra_i)
