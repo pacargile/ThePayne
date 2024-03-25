@@ -115,6 +115,8 @@ class TrainMod(object):
           else:
                self.label_i = ['teff','logg','feh','afe']
 
+          self.dividecont = kwargs.get('dividecont',True)
+
           resolution_fwhm = kwargs.get('resolution',32000.0)
           # convert resolution to sigma
           self.resolution = resolution_fwhm * fwhm_to_sigma
@@ -169,6 +171,7 @@ class TrainMod(object):
                resolution=self.resolution, 
                waverange=self.waverange,
                MISTweighting=True,
+               dividecont=self.dividecont,
                Teff=self.teffrange,
                logg=self.loggrange,
                FeH=self.fehrange,
@@ -361,6 +364,7 @@ class TrainMod(object):
                     resolution=self.resolution, 
                     waverange=self.waverange,
                     MISTweighting=True,
+                    dividecont=self.dividecont,
                     Teff=self.teffrange,
                     logg=self.loggrange,
                     FeH=self.fehrange,
@@ -384,6 +388,7 @@ class TrainMod(object):
                     resolution=self.resolution, 
                     waverange=self.waverange,
                     MISTweighting=True,
+                    dividecont=self.dividecont,               
                     Teff=self.teffrange,
                     logg=self.loggrange,
                     FeH=self.fehrange,

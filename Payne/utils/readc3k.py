@@ -237,6 +237,7 @@ class readc3k(object):
         waverange = kwargs.get('waverange',[5150.0,5300.0])
 
         # set up some booleans
+        dividecont    = kwargs.get('dividecont',True)
         reclabelsel   = kwargs.get('reclabelsel',False)
         continuuabool = kwargs.get('returncontinuua',False)
         MISTweighting = kwargs.get('MISTweighting',False)
@@ -404,8 +405,9 @@ class readc3k(object):
                     continue
 
                 # turn off warnings for this step, C3K has some continuaa with flux = 0
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
+                if dividecont:
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
 
                 if continuuabool:
                     continuua_i = C3K_i['continuua'][C3KNN]
