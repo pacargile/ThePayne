@@ -423,7 +423,7 @@ class readc3k(object):
                 # check to see if spectrum has nan's, if so remove them as 
                 # long as they are < 0.1% of the total number of pixels
                 if (np.any(np.isnan(spectra_i))):
-                    print('Found a NaN')
+                    print(f'Found {np.isnan(spectra_i).sum()} NaN out of {len(spectra_i)}')
                     print(label_i)
                     continue
 
