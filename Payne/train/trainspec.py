@@ -164,7 +164,7 @@ class TrainMod(object):
           print('    c3k: {0}'.format(self.c3kpath))
           print('    mist: {0}'.format(self.mistpath))
           sys.stdout.flush()
-          self.c3kmods = readc3k(MISTpath=self.mistpath,C3Kpath=self.c3kpath,vtfixed=vtfixed,verbose=True)
+          self.c3kmods = readc3k(MISTpath=self.mistpath,C3Kpath=self.c3kpath,vtfixed=vtfixed,verbose=False)
 
           spectra_test,labels_test,wavelength_test = self.c3kmods.pullspectra(
                self.numtest,
