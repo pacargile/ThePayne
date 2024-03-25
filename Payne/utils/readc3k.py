@@ -408,12 +408,8 @@ class readc3k(object):
                 if dividecont:
                     with np.errstate(divide='ignore', invalid='ignore'):
                         spectra_i = C3K_i['spectra'][C3KNN]/C3K_i['continuua'][C3KNN]
-                    # check to see if spectrum has nan's, if so remove them as 
-                    # long as they are < 0.1% of the total number of pixels
-                    if (np.isfinite(spectra_i).sum() != len(spectra_i)):
-                        print(f'Found {np.isnan(spectra_i).sum()} NaN out of {len(spectra_i)}')
-                        print(label_i)
-                        continue
+                else:
+                    spectra_i = C3K_i['spectra'][C3KNN]
 
                 if continuuabool:
                     continuua_i = C3K_i['continuua'][C3KNN]
@@ -427,6 +423,13 @@ class readc3k(object):
                 # if so, then skip the append and go to next step in while loop
                 # do this before the smoothing to reduce run time
                 if (label_i in labels):
+                    continue
+
+                # check to see if spectrum has nan's, if so remove them as 
+                # long as they are < 0.1% of the total number of pixels
+                if (np.isfinite(spectra_i).sum() != len(spectra_i)):
+                    print(f'Found {np.isnan(spectra_i).sum()} NaN out of {len(spectra_i)}')
+                    print(label_i)
                     continue
 
                 # store a wavelength array as an instance, all of C3K has 
