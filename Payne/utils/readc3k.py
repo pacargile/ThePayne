@@ -355,8 +355,8 @@ class readc3k(object):
 						(logg_MIST_i >= loggrange[0]) and (logg_MIST_i <= loggrange[1])
 						):
 						break
-				if self.verbose:
-					print('Selected MIST pars in {0}'.format(datetime.now()-starttime))
+				# if self.verbose:
+				# 	print('Selected MIST pars in {0}'.format(datetime.now()-starttime))
 
 
 				# add a gaussian blur to the MIST selected Teff and log(g)
@@ -478,8 +478,7 @@ class readc3k(object):
 						initlabels.append([10.0**logt_MIST,logg_MIST,FeH_i,alpha_i])
 				break
 			if self.verbose:
-				print('TOTAL TIME: {0}'.format(datetime.now()-starttime))
-				print('')
+				print(f'-> Added {ii+1}, total time: {0}'.format(datetime.now()-starttime))
 
 		output = [np.array(spectra), np.array(labels),wavelength_o]
 		if reclabelsel:
