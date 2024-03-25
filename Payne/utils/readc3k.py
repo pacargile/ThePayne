@@ -415,11 +415,16 @@ class readc3k(object):
                 # if self.verbose:
                     # print('Create C3K spectra in {0}'.format(datetime.now()-starttime))
 
-                # check to see if label_i in labels, or spectra_i is nan's
+                # check to see if label_i in labels
                 # if so, then skip the append and go to next step in while loop
                 # do this before the smoothing to reduce run time
-                if (label_i in labels) or (np.any(np.isnan(spectra_i))):
-                    print('Found NaN in spectrum')
+                if (label_i in labels):
+                    continue
+                # check to see if spectrum has nan's, if so remove them as 
+                # long as they are < 0.1% of the total number of pixels
+                if (np.any(np.isnan(spectra_i))):
+                    print('Found a NaN')
+                    print(label_i)
                     continue
 
                 # store a wavelength array as an instance, all of C3K has 
