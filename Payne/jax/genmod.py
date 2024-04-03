@@ -88,13 +88,9 @@ class GenMod(object):
             inst_R=inst_R,vmic=vmic,
             outwave=outwave)       
 
-        print(Teff,logg,FeH,aFe,radvel,rotvel,inst_R,vmic)
-        print(outwave)
-
-        print('1',modflux_i.min(),modflux_i.max(),np.mean(modflux_i))
-
-        def modpolyfn(wave):
+        def modpolyfn(wave):            
             polycoef = pars[8:]
+            polycoef += [0]
             epoly = polycalc(polycoef,wave)
             return epoly
 
@@ -106,8 +102,6 @@ class GenMod(object):
         
         # now multiply the model by the polynomial normalization poly
         modflux_i = modflux_i*epoly
-
-        print('2',modflux_i.min(),modflux_i.max(),np.mean(modflux_i))
 
         return modwave_i,modflux_i
 
