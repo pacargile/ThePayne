@@ -128,7 +128,7 @@ class TrainMod(object):
           self.aferange   = kwargs.get('aFe',None)
           self.vtrange    = kwargs.get('vturb',None)
 
-          if self.vtrange is 'fixed':
+          if self.vtrange == 'fixed':
                vtfixed = True
           else:
                vtfixed = False
