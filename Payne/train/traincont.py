@@ -178,23 +178,27 @@ class TrainMod(object):
 
           self.testlabels = labels_test[:,:len(self.label_i)].tolist()
 
-          # resample continuua to many fewer pixels
-          newwavelength_test = np.linspace(
+          # resample continuua to many fewer pixels at 1 AA res
+          newwavelength_test = np.arange(
                wavelength_test[0],
-               wavelength_test[-1],
-               100)
+               wavelength_test[-1]+1.0,
+               1.0)
           continuua_test_arr = []
+          cont_median_test_arr = []
           for continuua_test_i in continuua_test:
                # divide by median
-               continuua_test_i = continuua_test_i/np.nanmedian(continuua_test_i)
+               cont_median_test_i = np.nanmedian(continuua_test_i)
+               continuua_test_i = continuua_test_i/cont_median_test_i
                # interpolate onto low-res wavelength grid
                continuua_test_int = np.interp(
                     newwavelength_test,
                     wavelength_test,
                     continuua_test_i,)
-               continuua_test_arr.append(continuua_test_int)          
+               continuua_test_arr.append(continuua_test_int)      
+               cont_median_test_arr.append(cont_median_test_i)    
           continuua_test = np.array(continuua_test_arr)
-
+          cont_median_test = np.array(cont_median_test_arr)
+          
           self.wavelength_test = newwavelength_test
 
           # # pull a quick set of test models to determine general properties
@@ -220,15 +224,17 @@ class TrainMod(object):
           self.ymax = np.array([self.c3kmods.Fminmax[1]])
 
           # D_in is input dimension
-          # D_out is output dimension
+          # D_out is output dimension, include extra dimension which is median flux
           self.D_in  = len(self.label_i)
-          self.D_out = len(self.wavelength_test)
+          self.D_out = len(self.wavelength_test) + 1
 
           # initialize the output file
           with h5py.File('{0}'.format(self.outfilename),'w') as outfile_i:
                try:
                     outfile_i.create_dataset('testpred',
                          data=np.array(continuua_test),compression='gzip')
+                    outfile_i.create_dataset('testpred_medflux',
+                         data=np.array(cont_median_test),compression='gzip')
                     outfile_i.create_dataset('testlabels',
                          data=self.testlabels,compression='gzip')
                     outfile_i.create_dataset('label_i',
@@ -244,17 +250,18 @@ class TrainMod(object):
                     print('!!! PROBLEM WITH WRITING TO HDF5 !!!')
                     raise
 
-          print('... Din: {}, Dout: {}'.format(self.D_in,self.D_out))
-          print('... Input Labels: {}'.format(self.label_i))
+          print(f'... Din: {self.D_in}, Dout: {self.D_out}')
+          print(f'... Input Labels: {self.label_i}')
           print('... Output WL Range: {0} - {1}'.format(
                self.wavelength_test.min(),
                self.wavelength_test.max(),))
+          print(f'... Number of Pixels: {len(self.wavelength_test)}')
           print('... label min values:')
           print('    {}'.format(self.xmin))
           print('... label max values:')
           print('    {}'.format(self.xmax))
-          print('... Resolution FWHM: {0}'.format(resolution_fwhm))
-          print('... Resolution Sigma: {0}'.format(self.resolution))
+          print(f'... Resolution FWHM: {resolution_fwhm}')
+          print(f'... Resolution Sigma: {self.resolution}')
 
           print('... Finished Init')
           sys.stdout.flush()
@@ -280,7 +287,7 @@ class TrainMod(object):
           # start total timer
           tottimestart = datetime.now()
 
-          print('Starting Training at {0}'.format(tottimestart))
+          print(f'Starting Training at {tottimestart}')
           sys.stdout.flush()
 
           net = self()
@@ -366,10 +373,14 @@ class TrainMod(object):
                # initiate counter
                current_loss = np.inf
                iter_arr = []
-               training_loss =[]
-               validation_loss = []
-               medres_loss = []
-               maxres_loss = []
+               training_loss_cont =[]
+               training_loss_medf = []
+               validation_loss_cont = []
+               validation_loss_medf = []
+               medres_cont_loss = []
+               medres_medf_loss = []
+               maxres_cont_loss = []
+               maxres_medf_loss = []
 
                startreadintrainmod = datetime.now()
 
@@ -389,16 +400,20 @@ class TrainMod(object):
 
                # create tensor of output training labels
                continuua_train_arr = []
+               cont_median_train_arr = []          
                for continuua_train_i in continuua_train:
                     # divide by median
-                    continuua_train_i = continuua_train_i/np.nanmedian(continuua_train_i)
+                    cont_median_train_i = np.nanmedian(continuua_train_i)
+                    continuua_train_i = continuua_train_i/cont_median_train_i
                     # interpolate onto low-res wavelength grid
                     continuua_train_int = np.interp(
                          self.wavelength_test,
                          wavelength_train,
                          continuua_train_i,)
                     continuua_train_arr.append(continuua_train_int)          
+                    cont_median_train_arr.append(cont_median_train_i)    
                continuua_train = np.array(continuua_train_arr)
+               cont_median_train = np.array(cont_median_train_arr)
 
                # create tensor for input training labels
                X_train_labels = labels_train[:,:len(self.label_i)]
@@ -408,6 +423,10 @@ class TrainMod(object):
                Y_train = np.array(continuua_train)
                Y_train_Tensor = Variable(torch.from_numpy(Y_train).type(dtype), requires_grad=False)
                Y_train_Tensor = Y_train_Tensor.to(device)
+
+               Y_train_medf = np.array(cont_median_train)
+               Y_train_medf_Tensor = Variable(torch.from_numpy(Y_train_medf).type(dtype), requires_grad=False)
+               Y_train_medf_Tensor = Y_train_medf_Tensor.to(device)
 
                spectra_valid,labels_valid,wavelength_valid,continuua_valid = self.c3kmods.pullspectra(
                     self.numtrain,
@@ -424,16 +443,20 @@ class TrainMod(object):
 
                # create tensor of output validation labels
                continuua_valid_arr = []
+               cont_median_valid_arr = []
                for continuua_valid_i in continuua_valid:
                     # divide by median
-                    continuua_valid_i = continuua_valid_i/np.nanmedian(continuua_valid_i)
+                    cont_median_valid_i = np.nanmedian(continuua_valid_i)
+                    continuua_valid_i = continuua_valid_i/cont_median_valid_i
                     # interpolate onto low-res wavelength grid
                     continuua_valid_int = np.interp(
                          self.wavelength_test,
                          wavelength_valid,
                          continuua_valid_i,)
                     continuua_valid_arr.append(continuua_valid_int)          
+                    cont_median_valid_arr.append(cont_median_valid_i)    
                continuua_valid = np.array(continuua_valid_arr)
+               cont_median_valid = np.array(cont_median_valid_arr)
 
                # create tensor for input validation labels
                X_valid_labels = labels_valid[:,:len(self.label_i)]
@@ -443,6 +466,10 @@ class TrainMod(object):
                Y_valid = np.array(continuua_valid)
                Y_valid_Tensor = Variable(torch.from_numpy(Y_valid).type(dtype), requires_grad=False)
                Y_valid_Tensor = Y_valid_Tensor.to(device)
+
+               Y_valid_medf = np.array(cont_median_valid)
+               Y_valid_medf_Tensor = Variable(torch.from_numpy(Y_valid_medf).type(dtype), requires_grad=False)
+               Y_valid_medf_Tensor = Y_valid_medf_Tensor.to(device)
 
                print('... Finished reading in models ({})'.format(datetime.now() - startreadintrainmod))
 
@@ -463,10 +490,19 @@ class TrainMod(object):
                          idx = perm[t * self.batchsize : (t+1) * self.batchsize]
                          def closure():
                               # Forward pass: compute predicted y by passing x to the model.
-                              Y_pred_train_Tensor = model(X_train_Tensor[idx])
+                              Y_pred_train_Tensor_full = model(X_train_Tensor[idx])
+
+                              # pull spectrum prediction
+                              Y_pred_train_Tensor = Y_pred_train_Tensor_full[:,:-1]
+                              
+                              # pull median prediction
+                              Y_medf_pred_train_Tensor = Y_pred_train_Tensor_full[:,-1]
 
                               # Compute and print loss.
-                              loss = loss_fn(Y_pred_train_Tensor, Y_train_Tensor[idx])
+                              loss_cont = loss_fn(Y_pred_train_Tensor, Y_train_Tensor[idx])
+                              loss_medf = loss_fn(Y_medf_pred_train_Tensor,Y_train_medf_Tensor[idx])
+
+                              loss = loss_cont + loss_medf
 
                               # Backward pass: compute gradient of the loss with respect to model parameters
                               optimizer.zero_grad()
@@ -476,10 +512,10 @@ class TrainMod(object):
                                    print('PRED TRAIN TENSOR',Y_pred_train_Tensor)
                                    print('TRAIN TENSOR',Y_train_Tensor)
                                    return loss
-                              return loss
+                              return loss,loss_cont,loss_medf
 
                          # Calling the step function on an Optimizer makes an update to its parameters
-                         loss = optimizer.step(closure)
+                         loss,loss_cont,loss_medf = optimizer.step(closure)
 
                          # Y_pred_train_Tensor = model(X_train_Tensor[idx])
                          # loss = loss_fn(Y_pred_train_Tensor, Y_train_Tensor[idx])
@@ -495,44 +531,67 @@ class TrainMod(object):
                               perm_valid = perm_valid.cuda()
 
                          loss_valid = 0
-                         medres = 0
-                         maxres = -np.inf
+                         loss_cont_valid = 0
+                         loss_medf_valid = 0
+                         cont_medres = 0
+                         medf_medres = 0
+                         cont_maxres = -np.inf
+                         medf_maxres = -np.inf
+                         
                          for j in range(nbatches):
                               idx = perm[t * self.batchsize : (t+1) * self.batchsize]
 
-                              Y_pred_valid_Tensor = model(X_valid_Tensor[idx]) 
-                              loss_valid += loss_fn(Y_pred_valid_Tensor, Y_valid_Tensor[idx])
+                              Y_pred_valid_Tensor_full = model(X_valid_Tensor[idx]) 
+                              Y_cont_pred_valid_Tensor =  Y_pred_valid_Tensor_full[:,:-1]
+                              Y_medf_pred_valid_Tensor =  Y_pred_valid_Tensor_full[:,-1]
+                              loss_cont_valid += loss_fn(Y_cont_pred_valid_Tensor, Y_valid_Tensor[idx])
+                              loss_medf_valid += loss_fn(Y_medf_pred_valid_Tensor,Y_valid_medf_Tensor[idx])
                               if self.logplot:
-                                   residual = torch.abs(Y_pred_valid_Tensor-Y_valid_Tensor[idx])
-                                   medres_i,maxres_i = float(residual.median()),float(residual.max())
-                                   if medres_i > medres:
-                                        medres = medres_i
-                                   if maxres_i > maxres:
-                                        maxres = maxres_i
+                                   residual_cont = torch.abs(Y_cont_pred_valid_Tensor-Y_valid_Tensor[idx])
+                                   residual_medf = torch.abs(Y_medf_pred_valid_Tensor-Y_valid_medf_Tensor[idx])
+                                   cont_medres_i,cont_maxres_i = float(residual_cont.median()),float(residual_cont.max())
+                                   if cont_medres_i > cont_medres:
+                                        cont_medres = cont_medres_i
+                                   if cont_maxres_i > cont_maxres:
+                                        cont_maxres = cont_maxres_i
+                                   medf_medres_i,medf_maxres_i = float(residual_medf.median()),float(residual_medf.max())
+                                   if medf_medres_i > medf_medres:
+                                        medf_medres = medf_medres_i
+                                   if medf_maxres_i > medf_maxres:
+                                        medf_maxres = medf_maxres_i
 
-                         loss_valid /= nbatches
+                         loss_cont_valid /= nbatches
+                         loss_medf_valid /= nbatches
 
                          loss_data = loss.detach().data.item()
-                         loss_valid_data = loss_valid.detach().data.item()
+                         loss_cont_data = loss_cont.detach().data.item()
+                         loss_medf_data = loss_medf.detach().data.item()
+                         loss_cont_valid_data = loss_cont_valid.detach().data.item()
+                         loss_medf_valid_data = loss_medf_valid.detach().data.item()
 
                          if self.logplot:
                               iter_arr.append(iter_i)
-                              training_loss.append(loss_data)
-                              validation_loss.append(loss_valid_data)
-                              medres_loss.append(medres)
-                              maxres_loss.append(maxres)
+                              training_loss_cont.append(loss_cont_data)
+                              validation_loss_cont.append(loss_cont_valid_data)
+                              medres_cont_loss.append(cont_medres)
+                              maxres_cont_loss.append(cont_maxres)
+
+                              training_loss_medf.append(loss_medf_data)
+                              validation_loss_medf.append(loss_medf_valid_data)
+                              medres_medf_loss.append(medf_medres)
+                              maxres_medf_loss.append(medf_maxres)
 
                               fig,ax = plt.subplots(nrows=3,ncols=1)
-                              ax[0].plot(iter_arr,np.log10(training_loss) - np.log10(len(wavelength_valid)),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
-                              ax[0].plot(iter_arr,np.log10(validation_loss) - np.log10(len(wavelength_valid)),ls='-',lw=1.0,alpha=0.75,c='C3',label='Validation')
+                              ax[0].plot(iter_arr,np.log10(training_loss_cont) - np.log10(len(wavelength_valid)),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
+                              ax[0].plot(iter_arr,np.log10(validation_loss_cont) - np.log10(len(wavelength_valid)),ls='-',lw=1.0,alpha=0.75,c='C3',label='Validation')
                               ax[0].legend()
                               # ax[0].set_xlabel('Iteration')
                               ax[0].set_ylabel('log(Loss per pixel)')
 
-                              ax[1].plot(iter_arr,np.log10(maxres_loss),ls='-',lw=1.0,alpha=0.75,c='C4',label='max')
+                              ax[1].plot(iter_arr,np.log10(maxres_cont_loss),ls='-',lw=1.0,alpha=0.75,c='C4',label='max')
                               ax[1].set_ylabel('log(|Max Residual|)')
 
-                              ax[2].plot(iter_arr,np.log10(medres_loss),ls='-',lw=1.0,alpha=0.75,c='C2',label='median')
+                              ax[2].plot(iter_arr,np.log10(medres_cont_loss),ls='-',lw=1.0,alpha=0.75,c='C2',label='median')
                               ax[2].set_xlabel('Iteration')
                               ax[2].set_ylabel('log(|Med Residual|)')
 
@@ -547,10 +606,35 @@ class TrainMod(object):
                               fig.savefig('cont_loss_epoch{0}.png'.format(epoch_i+1),dpi=150)
                               plt.close(fig)
 
+                              fig,ax = plt.subplots(nrows=3,ncols=1)
+                              ax[0].plot(iter_arr,np.log10(training_loss_medf) - np.log10(len(wavelength_valid)),ls='-',lw=1.0,alpha=0.75,c='C0',label='Training')
+                              ax[0].plot(iter_arr,np.log10(validation_loss_medf) - np.log10(len(wavelength_valid)),ls='-',lw=1.0,alpha=0.75,c='C3',label='Validation')
+                              ax[0].legend()
+                              # ax[0].set_xlabel('Iteration')
+                              ax[0].set_ylabel('log(Loss per pixel)')
+
+                              ax[1].plot(iter_arr,np.log10(maxres_medf_loss),ls='-',lw=1.0,alpha=0.75,c='C4',label='max')
+                              ax[1].set_ylabel('log(|Max Residual|)')
+
+                              ax[2].plot(iter_arr,np.log10(medres_medf_loss),ls='-',lw=1.0,alpha=0.75,c='C2',label='median')
+                              ax[2].set_xlabel('Iteration')
+                              ax[2].set_ylabel('log(|Med Residual|)')
+
+
+                              # for spec_i in Y_pred_valid_Tensor.to('cpu').numpy():
+                              #      ax[1].plot(
+                              #           wavelength_valid,
+                              #           spec_i,
+                              #           ls='-',lw=0.5)
+                              #      ax[1].set_xlabel('Wavelength')
+                              #      ax[1].set_ylabel('Flux')
+                              fig.savefig('medf_loss_epoch{0}.png'.format(epoch_i+1),dpi=150)
+                              plt.close(fig)
+
                          if iter_i % 500 == 0.0:
                               print(
-                                   '--> Ep: {0:d} -- Iter {1:d}/{2:d} -- Time/step: {3} -- Train Loss: {4:.6f} -- Valid Loss: {5:.6f}'.format(
-                                   int(epoch_i+1),int(iter_i+1),int(self.numsteps), (datetime.now()-itertime), loss_data, loss_valid_data)
+                                   '--> Ep: {0:d} -- Iter {1:d}/{2:d} -- Time/step: {3} -- Cont Train Loss: {4:.6f} -- Cont Valid Loss: {5:.6f}  -- MedF Train Loss: {6:.6f} -- MedF Valid Loss: {7:.6f}'.format(
+                                   int(epoch_i+1),int(iter_i+1),int(self.numsteps), (datetime.now()-itertime), loss_cont_data, loss_cont_valid_data, loss_medf_data, loss_medf_valid_data)
                                    )
                          sys.stdout.flush()                      
 
