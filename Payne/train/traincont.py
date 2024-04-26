@@ -195,7 +195,7 @@ class TrainMod(object):
                     wavelength_test,
                     continuua_test_i,)
                continuua_test_arr.append(continuua_test_int)      
-               cont_median_test_arr.append(cont_median_test_i)    
+               cont_median_test_arr.append(np.log10(cont_median_test_i))
           continuua_test = np.array(continuua_test_arr)
           cont_median_test = np.array(cont_median_test_arr)
           
@@ -411,7 +411,7 @@ class TrainMod(object):
                          wavelength_train,
                          continuua_train_i,)
                     continuua_train_arr.append(continuua_train_int)          
-                    cont_median_train_arr.append(cont_median_train_i)    
+                    cont_median_train_arr.append(np.log10(cont_median_train_i))
                continuua_train = np.array(continuua_train_arr)
                cont_median_train = np.array(cont_median_train_arr)
 
@@ -454,7 +454,7 @@ class TrainMod(object):
                          wavelength_valid,
                          continuua_valid_i,)
                     continuua_valid_arr.append(continuua_valid_int)          
-                    cont_median_valid_arr.append(cont_median_valid_i)    
+                    cont_median_valid_arr.append(np.log10(cont_median_valid_i))
                continuua_valid = np.array(continuua_valid_arr)
                cont_median_valid = np.array(cont_median_valid_arr)
 
