@@ -189,7 +189,7 @@ class PayneContPredict(object):
                self.inputdict['vturb'] = np.nan
 
 
-          modcont = self.predictspec([self.inputdict[kk] for kk in self.modpars])
+          modcont = self.predictcont([self.inputdict[kk] for kk in self.modpars])
 
           # pull out median flux from NN prediction
           modcont = modcont[:-1] * (10.0**modcont[-1])
