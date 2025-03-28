@@ -466,8 +466,8 @@ class TrainMod(object):
             validloss_med.append(np.median(running_valid)/np.sqrt(nbatches))
 
             triggerstop = False
-            if early_stopper.step(valid_loss):
-                triggerstop = True
+            # if early_stopper.step(valid_loss):
+            #     triggerstop = True
             
             # plot the loss curve
             for line in ax_loss[0].lines:
