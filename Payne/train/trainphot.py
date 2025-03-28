@@ -507,7 +507,7 @@ class TrainMod(object):
                 for param_group in optimizer.param_groups:
                     lr_i = param_group['lr']
                 
-                print(f'... Epoch: {epoch+1} / {self.numepochs} - Training Loss: {batch_loss:.5f} - Validation Loss: {valid_loss:.5f} - LR: {lr_i:.2e} - Time: {(datetime.now()-epochtime)/10.0}')
+                print(f'... Epoch: {epoch+1} / {self.numepochs} - Training Loss: {batch_loss:.5f} - Validation Loss: {valid_loss:.5f} - LR: {lr_i:.2e} - Epoch Time: {(datetime.now()-epochtime)}')
                 sys.stdout.flush()
 
                 if triggerstop:
