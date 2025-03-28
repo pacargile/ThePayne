@@ -466,8 +466,8 @@ class TrainMod(object):
             validloss_med.append(np.median(running_valid)/np.sqrt(nbatches))
 
             triggerstop = False
-            # if early_stopper.step(valid_loss):
-            #     triggerstop = True
+            if early_stopper.step(valid_loss):
+                triggerstop = True
             
             # plot the loss curve
             for line in ax_loss[0].lines:
@@ -487,7 +487,7 @@ class TrainMod(object):
 
             fig_loss.savefig('./{0}_loss.png'.format(self.outfilename.replace('.h5','')),dpi=150)
 
-            logcond = True #((epoch > 0) and (epoch % 10 == 0)) or triggerstop
+            logcond = ((epoch > 0) and (epoch % 10 == 0)) or triggerstop
 
             if logcond:
 
