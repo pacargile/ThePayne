@@ -487,7 +487,7 @@ class TrainMod(object):
 
             fig_loss.savefig('./{0}_loss.png'.format(self.outfilename.replace('.h5','')),dpi=150)
 
-            logcond = ((epoch > 0) and (epoch % 10 == 0)) or triggerstop
+            logcond = True #((epoch > 0) and (epoch % 10 == 0)) or triggerstop
 
             if logcond:
 
