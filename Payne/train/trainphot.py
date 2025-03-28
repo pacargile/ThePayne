@@ -3,15 +3,17 @@ from torch import nn
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-if str(device) == "cuda:0":
+if device.type == "cuda":
     dtype = torch.cuda.FloatTensor
+    torch.backends.cudnn.benchmark = True
 else:
     # if torch.backends.mps.is_available():
     #     device = torch.device("mps:0")
     dtype = torch.FloatTensor
 
-import os
-os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+
+# import os
+# os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -319,8 +321,8 @@ class TrainMod(object):
             batch_size=self.batchsize,
             drop_last=True)
 
-        train_dataloader = DataLoader(train_mods, sampler=train_sampler)
-        valid_dataloader = DataLoader(valid_mods, sampler=valid_sampler)
+        train_dataloader = DataLoader(train_mods, sampler=train_sampler,pin_memory=(device.type == "cuda"))
+        valid_dataloader = DataLoader(valid_mods, sampler=valid_sampler,pin_memory=(device.type == "cuda"))
 
         nbatches = len(train_dataloader)
         numtrain = nbatches * self.batchsize
@@ -400,16 +402,16 @@ class TrainMod(object):
 
                 # read in training and validation data
                 # traindata = next(iter(train_dataloader))
-                traindata = np.squeeze(traindata)
+                traindata = traindata.squeeze()
 
                 train_labelsin  = traindata[:,self.datacond_in]
                 train_labelsout = traindata[:,self.datacond_out]
 
                 # create tensor for input training labels
-                X_train_Tensor = Variable(train_labelsin.to(device=device, dtype=torch.float32))
+                X_train_Tensor = Variable(train_labelsin.to(device=device, dtype=torch.float32, non_blocking=True))
                 # X_train_Tensor = X_train_Tensor.to(device)
 
-                Y_train_Tensor = Variable(train_labelsout.to(device=device, dtype=torch.float32), requires_grad=False)
+                Y_train_Tensor = Variable(train_labelsout.to(device=device, dtype=torch.float32, non_blocking=True), requires_grad=False)
                 # Y_train_Tensor = Y_train_Tensor.to(device)
 
                 # Zero the gradients for every batch
@@ -444,15 +446,15 @@ class TrainMod(object):
 
                     # read in training and validation data
                     # validdata = next(iter(valid_dataloader))
-                    validdata = np.squeeze(validdata)
+                    validdata = validdata.squeeze()
 
                     valid_labelsin  = validdata[:,self.datacond_in]
                     valid_labelsout = validdata[:,self.datacond_out]
                     
-                    Y_valid_Tensor = Variable(valid_labelsout.to(device=device, dtype=torch.float32), requires_grad=False)
+                    Y_valid_Tensor = Variable(valid_labelsout.to(device=device, dtype=torch.float32, non_blocking=True), requires_grad=False)
                     # Y_valid_Tensor = Y_valid_Tensor.to(device)
                     
-                    Y_valid_pred_Tensor = model(Variable(valid_labelsin.to(device=device, dtype=torch.float32)))
+                    Y_valid_pred_Tensor = model(Variable(valid_labelsin.to(device=device, dtype=torch.float32, non_blocking=True)))
 
                     vloss = loss_fn(Y_valid_pred_Tensor, Y_valid_Tensor)
                     # running_valid += [vloss.detach().data.item()]
