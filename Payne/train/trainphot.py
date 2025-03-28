@@ -485,7 +485,9 @@ class TrainMod(object):
 
             fig_loss.savefig('./{0}_loss.png'.format(self.outfilename.replace('.h5','')),dpi=150)
 
-            if (epoch % 10 == 0) or (triggerstop):
+            logcond = (epoch > 1) and (epoch % 10 == 0) or (triggerstop)
+
+            if logcond:
 
                 # After Epoch, write network to output HDF5 file to save progress
                 with h5py.File(f'{self.outfilename}','r+') as outfile_i:
