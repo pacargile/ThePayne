@@ -3,7 +3,7 @@ from torch import nn
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-if device.type == "cuda":
+if str(device) != "cpu":
     dtype = torch.cuda.FloatTensor
     torch.backends.cudnn.benchmark = True
 else:
