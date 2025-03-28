@@ -53,7 +53,7 @@ class EarlyStopping:
         self.min_delta = min_delta
         self.verbose = verbose
         self.counter = 0
-        self.best_loss = np.Inf
+        self.best_loss = np.inf
         self.should_stop = False
 
     def step(self, current_loss):
