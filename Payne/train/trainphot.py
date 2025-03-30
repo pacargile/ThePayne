@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 if str(device) != "cpu":
     dtype = torch.cuda.FloatTensor
@@ -11,9 +11,12 @@ else:
     #     device = torch.device("mps:0")
     dtype = torch.FloatTensor
 
-
-# import os
-# os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+if device.type == 'cuda':
+    print(torch.cuda.get_device_name(0))
+    print('Memory Usage:')
+    print('Allocated:', round(torch.cuda.memory_allocated(0)/1024**3,1), 'GB')
+    print('Reserved: ', round(torch.cuda.memory_reserved(0)/1024**3,1), 'GB')
+    print()
 
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -321,8 +324,8 @@ class TrainMod(object):
             batch_size=self.batchsize,
             drop_last=True)
 
-        train_dataloader = DataLoader(train_mods, sampler=train_sampler,pin_memory=(device.type == "cuda:0"))
-        valid_dataloader = DataLoader(valid_mods, sampler=valid_sampler,pin_memory=(device.type == "cuda:0"))
+        train_dataloader = DataLoader(train_mods, sampler=train_sampler,pin_memory=(device.type == "cuda"))
+        valid_dataloader = DataLoader(valid_mods, sampler=valid_sampler,pin_memory=(device.type == "cuda"))
         
         nbatches = len(train_dataloader)
         numtrain = nbatches * self.batchsize
@@ -331,18 +334,6 @@ class TrainMod(object):
         print(f'... Number of models in each batch: {self.batchsize}')
         print(f'... Number of batches: {nbatches}')
         print(f'... Total Number of training/validation data: {numtrain}')
-
-        try:
-            if shutil.which('free') is not None:
-                total_memory, used_memory, free_memory = map(
-                    int, os.popen('free -t -g').readlines()[-1].split()[1:])
-                print('--- Current Memory Usage Before Epoch 1: {0} GB'.format(used_memory))
-            else:
-                total_memory = 0
-                used_memory = 0
-                free_memory = 0
-        except:
-            pass
 
         # initialize the loss function
         # loss_fn = torch.nn.MSELoss(reduction='mean')
