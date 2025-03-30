@@ -44,7 +44,7 @@ from .NNmodels_new import MLP
 from ..predict import photANN_new as photANN
 
 class EarlyStopping:
-    def __init__(self, patience=50, min_delta=0.0, verbose=True):
+    def __init__(self, patience=100, min_delta=0.0, verbose=True):
         """
         Args:
             patience (int): How many epochs to wait after last improvement.
@@ -321,9 +321,9 @@ class TrainMod(object):
             batch_size=self.batchsize,
             drop_last=True)
 
-        train_dataloader = DataLoader(train_mods, sampler=train_sampler,pin_memory=(device.type == "cuda"))
-        valid_dataloader = DataLoader(valid_mods, sampler=valid_sampler,pin_memory=(device.type == "cuda"))
-
+        train_dataloader = DataLoader(train_mods, sampler=train_sampler,pin_memory=(device.type == "cuda:0"))
+        valid_dataloader = DataLoader(valid_mods, sampler=valid_sampler,pin_memory=(device.type == "cuda:0"))
+        
         nbatches = len(train_dataloader)
         numtrain = nbatches * self.batchsize
         
@@ -355,16 +355,15 @@ class TrainMod(object):
         # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        optimizer = torch.optim.RAdam(model.parameters(), lr=learning_rate)
+        # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         #     optimizer, mode='min', factor=0.5, patience=20,
         # )
 
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer, max_lr=1e-2, steps_per_epoch=len(train_dataloader), epochs=self.numepochs
+            optimizer, max_lr=5e-3, steps_per_epoch=len(train_dataloader), epochs=self.numepochs
         )
-
-        early_stopper = EarlyStopping(patience=100, min_delta=1e-3, verbose=True)
 
         fig_loss,ax_loss = plt.subplots(nrows=3,ncols=1,figsize=(7,10),layout='constrained')
 
@@ -392,7 +391,9 @@ class TrainMod(object):
         
         for epoch in range(self.numepochs):
             epochtime = datetime.now()
-            
+
+            early_stopper = EarlyStopping(patience=50, min_delta=1e-4, verbose=True)
+                
             # train the model
             model.train()            
             batch_loss = 0.0
@@ -404,8 +405,8 @@ class TrainMod(object):
                 # traindata = next(iter(train_dataloader))
                 traindata = traindata.squeeze()
 
-                train_labelsin  = traindata[:,self.datacond_in]
-                train_labelsout = traindata[:,self.datacond_out]
+                train_labelsin  = traindata[self.datacond_in,:].T
+                train_labelsout = traindata[self.datacond_out,:].T
 
                 # create tensor for input training labels
                 X_train_Tensor = Variable(train_labelsin.to(device=device, dtype=torch.float32, non_blocking=True))
@@ -414,15 +415,20 @@ class TrainMod(object):
                 Y_train_Tensor = Variable(train_labelsout.to(device=device, dtype=torch.float32, non_blocking=True), requires_grad=False)
                 # Y_train_Tensor = Y_train_Tensor.to(device)
 
+                # compute the model for input training labels
+                Y_pred_train_Tensor = model(X_train_Tensor)
+                
+                # Compute loss and its gradients
+                loss = loss_fn(Y_pred_train_Tensor, Y_train_Tensor)
+
+                # print(f"Loss before backward: {loss.item()}")
+
                 # Zero the gradients for every batch
                 optimizer.zero_grad()
 
-                # compute the model for input training labels
-                Y_pred_train_Tensor = model(X_train_Tensor)
-                                    
-                # Compute loss and its gradients
-                loss = loss_fn(Y_pred_train_Tensor, Y_train_Tensor)
+                # Backpropagation    
                 loss.backward()
+                # print(f"First grad norm: {model.mlp[0].weight.grad.norm()}")
 
                 # step optimizer to update weights
                 optimizer.step()
@@ -448,8 +454,8 @@ class TrainMod(object):
                     # validdata = next(iter(valid_dataloader))
                     validdata = validdata.squeeze()
 
-                    valid_labelsin  = validdata[:,self.datacond_in]
-                    valid_labelsout = validdata[:,self.datacond_out]
+                    valid_labelsin  = validdata[self.datacond_in,:].T
+                    valid_labelsout = validdata[self.datacond_out,:].T
                     
                     Y_valid_Tensor = Variable(valid_labelsout.to(device=device, dtype=torch.float32, non_blocking=True), requires_grad=False)
                     # Y_valid_Tensor = Y_valid_Tensor.to(device)
@@ -466,8 +472,8 @@ class TrainMod(object):
             validloss_med.append(np.median(running_valid)/np.sqrt(nbatches))
 
             triggerstop = False
-            # if early_stopper.step(valid_loss):
-            #     triggerstop = True
+            if early_stopper.step(valid_loss):
+                triggerstop = True
             
             # plot the loss curve
             for line in ax_loss[0].lines:
@@ -507,12 +513,12 @@ class TrainMod(object):
                 for param_group in optimizer.param_groups:
                     lr_i = param_group['lr']
                 
-                print(f'... Epoch: {epoch+1} / {self.numepochs} - Training Loss: {batch_loss:.5f} - Validation Loss: {valid_loss:.5f} - LR: {lr_i:.2e} - Epoch Time: {(datetime.now()-epochtime)}')
+                print(f'... Epoch: {epoch+1} / {self.numepochs} - Training log(Loss): {np.log10(batch_loss):.5f} - Validation log(Loss): {np.log10(valid_loss):.5f} - LR: {lr_i:.2e} - Epoch Time: {(datetime.now()-epochtime)}')
                 sys.stdout.flush()
 
-                if triggerstop:
-                    print('... Early Stopping Triggered')
-                    break
+            if triggerstop:
+                print('... Early Stopping Triggered')
+                break
 
                 
         plt.close(fig_loss)
