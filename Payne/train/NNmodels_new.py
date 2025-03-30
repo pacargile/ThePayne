@@ -1,18 +1,6 @@
-import torch
 from torch import nn
 from collections import OrderedDict
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-if str(device) != "cpu":
-    dtype = torch.cuda.FloatTensor
-    torch.backends.cudnn.benchmark = True
-else:
-    # if torch.backends.mps.is_available():
-    #     device = torch.device("mps:0")
-    dtype = torch.FloatTensor
-
-from torch.autograd import Variable
 
 # linear feed-foward model with simple activation functions
 class MLP(nn.Module):  
