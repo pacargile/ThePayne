@@ -27,8 +27,8 @@ def readNN(nnpath,nntype='MLP'):
         D_in  = nnh5['model/mlp.lin1.weight'].shape[1]
         H1    = nnh5['model/mlp.lin1.bias'].shape[0]
         H2    = nnh5['model/mlp.lin2.bias'].shape[0]
-        H3    = nnh5['model/mlp.lin3.bias'].shape[0]
-        D_out = nnh5['model/mlp.lin5.bias'].shape[0]
+        H3    = nnh5['model/mlp.lin4.bias'].shape[0]
+        D_out = nnh5['model/mlp.lin6.bias'].shape[0]
     elif nntype == 'CNN':
         pass
     
