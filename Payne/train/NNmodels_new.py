@@ -4,8 +4,9 @@ from collections import OrderedDict
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-if str(device) == "cuda:0":
+if str(device) != "cpu":
     dtype = torch.cuda.FloatTensor
+    torch.backends.cudnn.benchmark = True
 else:
     # if torch.backends.mps.is_available():
     #     device = torch.device("mps:0")
@@ -45,14 +46,17 @@ class MLP(nn.Module):
             ('lin2',nn.Linear(H1, H2)),
             ('ln2',nn.LayerNorm(H2)),
             ('af2',nn.SiLU()),
-            ('d1',nn.Dropout(0.2)),
             ('lin3',nn.Linear(H2, H3)),
             ('ln3',nn.LayerNorm(H3)),
             ('af3',nn.SiLU()),
-            ('lin4', nn.Linear(H3, H3)),
-            ('ln4', nn.LayerNorm(H3)),
-            ('af4', nn.SiLU()),
-            ('lin5', nn.Linear(H3, D_out))
+            ('d1',nn.Dropout(0.2)),
+            ('lin4',nn.Linear(H3, H3)),
+            ('ln4',nn.LayerNorm(H3)),
+            ('af4',nn.SiLU()),
+            ('lin5', nn.Linear(H3, H3)),
+            ('ln5', nn.LayerNorm(H3)),
+            ('af5', nn.SiLU()),
+            ('lin6', nn.Linear(H3, D_out))
         ]))
 
 
