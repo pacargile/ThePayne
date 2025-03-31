@@ -346,11 +346,25 @@ class TrainMod(object):
         # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
-        optimizer = torch.optim.RAdam(model.parameters(), lr=learning_rate)
+        # optimizer = torch.optim.RAdam(model.parameters(), lr=learning_rate)
         # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         #     optimizer, mode='min', factor=0.5, patience=20,
         # )
+
+        decay, no_decay = [], []
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                if any(nd in name for nd in ['bias', 'ln', 'norm']):
+                    no_decay.append(param)
+                else:
+                    decay.append(param)
+
+        optimizer = torch.optim.AdamW(
+            [{'params': decay, 'weight_decay': 1e-4},
+            {'params': no_decay, 'weight_decay': 0.0}],
+            lr=learning_rate
+        )
 
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer, max_lr=5e-3, steps_per_epoch=len(train_dataloader), epochs=self.numepochs
