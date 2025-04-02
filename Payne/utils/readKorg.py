@@ -41,12 +41,8 @@ class ReadPhot(Dataset):
         if self.verbose:
             print(f'... Data Set Type: {self.datatype}')
 
-        # define a RNG with a set seed, make sure train and test are 
-        # shuffled the same way
-        if (self.datatype == 'train') | (self.datatype == 'test'):
-            self.rng = np.random.default_rng(0)
-        else:
-            self.rng = np.random.default_rng(42)
+        # define a RNG with a set seed
+        self.rng = np.random.default_rng(42)
 
         # set if user wants to return a pytorch tensor or a numpy array
         self.returntorch = kwargs.get('returntorch',True)
@@ -56,7 +52,10 @@ class ReadPhot(Dataset):
         # set train/test percentage (percentage of MIST that is used for training)
         self.trainper = kwargs.get('trainpercentage',0.9)
         if self.verbose:
-            print(f'... Training/Test Percentage: {self.trainper}')
+            if self.datatype == 'train':
+                print(f'... Training Percentage: {self.trainper}')
+            if self.datatype == 'test':
+                print(f'... Testing Percentage: {1.0-self.trainper}')
 
         # set if user wants to normalize the input parameters
         self.norm = kwargs.get('norm',True)
@@ -135,19 +134,37 @@ class ReadPhot(Dataset):
         self.parameters = rfn.append_fields(self.parameters,'model_index',
             np.arange(len(self.parameters)),usemask=False)
 
+        # apply parameter ranges
+        if self.parrange is not None:
+            for ll in self.label_i:
+                if ll in self.parrange.keys():
+                    if self.verbose:
+                        print(f'... Applying parameter range for {ll}: {self.parrange[ll]}')
+                    # apply the parameter range
+                    self.parameters = self.parameters[self.parameters[ll] >= self.parrange[ll][0]]
+                    self.parameters = self.parameters[self.parameters[ll] <= self.parrange[ll][1]]
+
         # shuffle parameter array
         self.rng.shuffle(self.parameters)
         
-        # determine training/validation and testing sets
-        if (self.datatype == 'train') | (self.datatype == 'valid'):
-            stopind = int(np.rint(self.trainper * self.parameters.shape[0]))
-            self.parameters = self.parameters[:stopind]
-        else: # for test set
-            startind = int(np.rint((1.0-self.trainper) * self.parameters.shape[0]))
-            self.parameters = self.parameters[-startind:]
-
-        # determine how many rows of data are included
-        self.datalen = self.parameters.shape[0]
+        # define test/train/valid split (split non-test data into 70/30 train/valid)
+        if self.datatype == 'test':
+            self.testind = self.parameters['model_index'][:int(np.rint((1.0-self.trainper) * self.parameters.shape[0]))]
+            self.parameters_test = self.parameters[:int(np.rint((1.0-self.trainper) * self.parameters.shape[0]))]
+            self.datalen = len(self.testind)
+        else:
+            trainvalid = self.parameters['model_index'][int(np.rint((1.0-self.trainper) * self.parameters.shape[0])):]
+            parameters_trainvalid = self.parameters[int(np.rint((1.0-self.trainper) * self.parameters.shape[0])):]
+            if self.datatype == 'train' or self.datatype == 'valid':
+                self.trainind = trainvalid[:int(np.rint(0.7*len(trainvalid)))]
+                self.parameters_train = parameters_trainvalid[:int(np.rint(0.7*len(trainvalid)))]
+                if self.datatype == 'train':
+                    self.datalen = len(self.trainind)
+                if self.datatype == 'valid':
+                    self.validind = trainvalid[int(np.rint(0.7*len(trainvalid))):]
+                    self.parameters_valid = parameters_trainvalid[int(np.rint(0.7*len(trainvalid))):]
+                    self.datalen = len(self.validind)
+            
 
     # def normf(self,inarr,label):        
     #     return 1.0 + (inarr-self.normfactor[label][0])/(self.normfactor[label][2]-self.normfactor[label][1]) 
@@ -193,9 +210,17 @@ class ReadPhot(Dataset):
             idx (integer): index integer for row to draw
         """
         # select which set of parameters
-        inpars = self.parameters[idx]
-        selind = inpars['model_index']
-
+        # inpars = self.parameters[idx]
+        if self.datatype == 'test':
+            selind = self.testind[idx]
+            inpars = self.parameters_test[idx]
+        elif self.datatype == 'train':
+            selind = self.trainind[idx]
+            inpars = self.parameters_train[idx]
+        elif self.datatype == 'valid':
+            selind = self.validind[idx]
+            inpars = self.parameters_valid[idx]
+            
         # get BC from HDF5 tables
         bcout = []
         for ff in self.label_o:
