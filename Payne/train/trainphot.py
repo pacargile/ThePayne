@@ -42,7 +42,8 @@ from datetime import datetime
 
 from ..utils import readKorg
 
-from .NNmodels_new import MLP
+from .NNmodels_new import MLP_v0
+from .NNmodels_new import MLP_v1
 
 from ..predict import photANN_new as photANN
 
@@ -73,8 +74,11 @@ class EarlyStopping:
                 self.should_stop = True
         return self.should_stop
 
-def defmod(D_in,H1,H2,H3,D_out,NNtype='MLP'):
-    return MLP(D_in,H1,H2,H3,D_out)
+def defmod(D_in,H1,H2,H3,D_out,NNtype='MLP_v0'):
+    if NNtype == 'MLP_v0':
+        return MLP_v0(D_in,H1,H2,H3,D_out)
+    elif NNtype == 'MLP_v1':
+        return MLP_v1(D_in,H1,H2,H3,D_out)
 
 class TrainMod(object):
     """docstring for TrainMod"""
@@ -96,7 +100,7 @@ class TrainMod(object):
         self.lr = kwargs.get('lr',1E-3)
 
         # type of NN
-        self.NNtype = kwargs.get('NNtype','MLP')
+        self.NNtype = kwargs.get('NNtype','MLP_v0')
 
         # number of nuerons in each layer
         self.H1 = kwargs.get('H1',256)
@@ -336,8 +340,8 @@ class TrainMod(object):
         print(f'... Total Number of training/validation data: {numtrain}')
 
         # initialize the loss function
-        # loss_fn = torch.nn.MSELoss(reduction='mean')
-        loss_fn = torch.nn.SmoothL1Loss(beta=0.01)
+        loss_fn = torch.nn.MSELoss(reduction='mean')
+        # loss_fn = torch.nn.SmoothL1Loss(beta=0.01)
 
         # initialize the optimizer
         learning_rate = self.lr
@@ -361,14 +365,14 @@ class TrainMod(object):
                     decay.append(param)
 
         optimizer = torch.optim.AdamW(
-            [{'params': decay, 'weight_decay': 1e-4},
+            [{'params': decay, 'weight_decay': 5e-4},
             {'params': no_decay, 'weight_decay': 0.0}],
             lr=learning_rate
         )
 
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer, max_lr=5e-3, steps_per_epoch=len(train_dataloader), epochs=self.numepochs
-        )
+        # scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        #     optimizer, max_lr=5e-3, steps_per_epoch=len(train_dataloader), epochs=self.numepochs
+        # )
 
         fig_loss,ax_loss = plt.subplots(nrows=3,ncols=1,figsize=(7,10),layout='constrained')
 
@@ -437,16 +441,16 @@ class TrainMod(object):
 
                 # step optimizer to update weights
                 optimizer.step()
-                scheduler.step()
+                # scheduler.step()
 
                 # running_loss += [loss.detach().data.item()]
                 running_loss += [loss.item()]
 
             # normalize by number of batches
-            batch_loss = np.sum(running_loss) / nbatches
+            batch_loss = np.sum(running_loss) #/ nbatches
             batchloss_arr.append(batch_loss)
-            batchloss_std.append(np.std(running_loss)/np.sqrt(nbatches))
-            batchloss_med.append(np.median(running_loss)/np.sqrt(nbatches))
+            batchloss_std.append(np.std(running_loss))
+            batchloss_med.append(np.median(running_loss))
             
             # evaluate the validation set
             model.eval()
@@ -471,10 +475,10 @@ class TrainMod(object):
                     # running_valid += [vloss.detach().data.item()]
                     running_valid += [vloss.item()]
 
-            valid_loss = np.sum(running_valid) / nbatches
+            valid_loss = np.sum(running_valid) # / nbatches
             validloss_arr.append(valid_loss)
-            validloss_std.append(np.std(running_valid)/np.sqrt(nbatches))
-            validloss_med.append(np.median(running_valid)/np.sqrt(nbatches))
+            validloss_std.append(np.std(running_valid))
+            validloss_med.append(np.median(running_valid))
 
             triggerstop = False
             if early_stopper.step(valid_loss):
