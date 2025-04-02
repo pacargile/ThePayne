@@ -34,7 +34,15 @@ class ReadPhot(Dataset):
             print('... Reading in {0}'.format(self.modpath))
         
         # read in BC tables
-        self.h5 = h5py.File(self.modpath,'r')
+        with h5py.File(self.modpath,'r') as h5:
+
+            # build dictionary to put things in memory
+            self.h5dict = {}
+            self.h5dict['parameters'] = h5['parameters'][()]
+            # loop over all the filters and read them into memory
+            for kk in h5.keys():
+                if not kk == 'parameters':
+                    self.h5dict[kk] = h5[kk][()]
 
        # set training boolean, if false then assume test set
         self.datatype = kwargs.get('type','train')
@@ -85,15 +93,15 @@ class ReadPhot(Dataset):
         if self.label_o is None:
             # if None, then use all filters
             self.label_o = []
-            for kk in self.h5.keys():
+            for kk in self.h5dict.keys():
                 if kk != 'parameters':
-                    self.label_o += [f'{kk}_{x}' for x in list(self.h5[kk][()].dtype.names)]
+                    self.label_o += [f'{kk}_{x}' for x in list(self.h5dict[kk].dtype.names)]
         if self.verbose:
             print('... Output Labels:')
             print(f'{self.label_o}')
         
         # pull input parameters from table
-        self.parameters = self.h5['parameters'][()]
+        self.parameters = self.h5dict['parameters']
 
         # add column names to self
         self.columns = list(self.parameters.dtype.names)
@@ -118,8 +126,8 @@ class ReadPhot(Dataset):
         for ll in self.label_o:
             f = ll.split('_')[-1]
             ss = ll.replace('_'+f,'')    
-            mid = np.mean(self.h5[ss][f][()])
-            std = np.std(self.h5[ss][f][()])
+            mid = np.mean(self.h5dict[ss][f])
+            std = np.std(self.h5dict[ss][f])
             # self.normfactor[ll] = ([
             #     np.median(self.h5[ss][f][()]),
             #     np.min(self.h5[ss][f][()]),
@@ -188,7 +196,7 @@ class ReadPhot(Dataset):
         f = filtername.split('_')[-1]
         ss = filtername.replace('_'+f,'')
                 
-        bc = self.h5[ss][f][index]
+        bc = self.h5dict[ss][f][index]
         if self.norm:
             bc = self.normf(bc,filtername)
         return bc        
