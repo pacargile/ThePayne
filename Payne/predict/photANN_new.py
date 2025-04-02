@@ -16,19 +16,29 @@ from datetime import datetime
 
 from ..train import NNmodels_new as NNmodels
 
-def defmod(D_in,H1,H2,H3,D_out,NNtype='MLP'):
-    return NNmodels.MLP(D_in,H1,H2,H3,D_out)
+def defmod(D_in,H1,H2,H3,D_out,NNtype='MLP_v0'):
+    if NNtype == 'MLP_v0':
+        return NNmodels.MLP_v0(D_in,H1,H2,H3,D_out)
+    elif NNtype == 'MLP_v1':
+        return NNmodels.MLP_v1(D_in,H1,H2,H3,D_out)
 
-def readNN(nnpath,nntype='MLP'):
+def readNN(nnpath,nntype='MLP_v0'):
     # read in the file for the previous run 
     nnh5 = h5py.File(nnpath,'r')
 
-    if nntype == 'MLP':
+    if nntype == 'MLP_v0':
         D_in  = nnh5['model/mlp.lin1.weight'].shape[1]
         H1    = nnh5['model/mlp.lin1.bias'].shape[0]
         H2    = nnh5['model/mlp.lin2.bias'].shape[0]
-        H3    = nnh5['model/mlp.lin4.bias'].shape[0]
+        H3    = nnh5['model/mlp.lin3.bias'].shape[0]
         D_out = nnh5['model/mlp.lin6.bias'].shape[0]
+
+    elif nntype == 'MLP_v1':
+        D_in  = nnh5['model/mlp.lin1.weight'].shape[1]
+        H1    = nnh5['model/mlp.lin1.bias'].shape[0]
+        H2    = nnh5['model/mlp.lin2.bias'].shape[0]
+        H3    = nnh5['model/mlp.lin3.bias'].shape[0]        
+        D_out = nnh5['model/mlp.linout.bias'].shape[0]
     elif nntype == 'CNN':
         pass
     
@@ -130,7 +140,7 @@ class ANN(object):
 
 class modpred(object):
     """docstring for modpred"""
-    def __init__(self, nnpath=None, nntype='MLP', norm=False):
+    def __init__(self, nnpath=None, nntype='MLP_v0', norm=False):
         super(modpred, self).__init__()
         
         if nnpath != None:
