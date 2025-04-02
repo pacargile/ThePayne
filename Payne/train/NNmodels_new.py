@@ -45,7 +45,7 @@ class MLP_v1(nn.Module):
             ('lin2',nn.Linear(H1, H2)),
             ('ln2',nn.LayerNorm(H2)),
             ('af2',nn.SiLU()),
-            ('d1',nn.Dropout(0.4)),
+            ('d1',nn.Dropout(0.01)),
             ('lin3',nn.Linear(H2, H3)),
             ('ln3',nn.LayerNorm(H3)),
             ('af3',nn.SiLU()),
