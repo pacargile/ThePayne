@@ -328,8 +328,8 @@ class TrainMod(object):
             batch_size=self.batchsize,
             drop_last=True)
 
-        train_dataloader = DataLoader(train_mods, sampler=train_sampler,pin_memory=(device.type == "cuda"),num_workers=2)
-        valid_dataloader = DataLoader(valid_mods, sampler=valid_sampler,pin_memory=(device.type == "cuda"),num_workers=2)
+        train_dataloader = DataLoader(train_mods, sampler=train_sampler,pin_memory=(device.type == "cuda"))
+        valid_dataloader = DataLoader(valid_mods, sampler=valid_sampler,pin_memory=(device.type == "cuda"))
         
         nbatches = len(train_dataloader)
         numtrain = nbatches * self.batchsize
@@ -350,25 +350,25 @@ class TrainMod(object):
         # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
-        # optimizer = torch.optim.RAdam(model.parameters(), lr=learning_rate)
+        optimizer = torch.optim.RAdam(model.parameters(), lr=learning_rate)
         # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         #     optimizer, mode='min', factor=0.5, patience=20,
         # )
 
-        decay, no_decay = [], []
-        for name, param in model.named_parameters():
-            if param.requires_grad:
-                if any(nd in name for nd in ['bias', 'ln', 'norm']):
-                    no_decay.append(param)
-                else:
-                    decay.append(param)
+        # decay, no_decay = [], []
+        # for name, param in model.named_parameters():
+        #     if param.requires_grad:
+        #         if any(nd in name for nd in ['bias', 'ln', 'norm']):
+        #             no_decay.append(param)
+        #         else:
+        #             decay.append(param)
 
-        optimizer = torch.optim.AdamW(
-            [{'params': decay, 'weight_decay': 5e-4},
-            {'params': no_decay, 'weight_decay': 0.0}],
-            lr=learning_rate
-        )
+        # optimizer = torch.optim.AdamW(
+        #     [{'params': decay, 'weight_decay': 5e-4},
+        #     {'params': no_decay, 'weight_decay': 0.0}],
+        #     lr=learning_rate
+        # )
 
         # scheduler = torch.optim.lr_scheduler.OneCycleLR(
         #     optimizer, max_lr=5e-3, steps_per_epoch=len(train_dataloader), epochs=self.numepochs
@@ -447,10 +447,10 @@ class TrainMod(object):
                 running_loss += [loss.item()]
 
             # normalize by number of batches
-            batch_loss = np.sum(running_loss) #/ nbatches
+            batch_loss = np.sum(running_loss) / len(running_loss)
             batchloss_arr.append(batch_loss)
-            batchloss_std.append(np.std(running_loss))
-            batchloss_med.append(np.median(running_loss))
+            batchloss_std.append(np.std(running_loss) / len(running_loss))
+            batchloss_med.append(np.median(running_loss) / len(running_loss))
             
             # evaluate the validation set
             model.eval()
@@ -475,10 +475,10 @@ class TrainMod(object):
                     # running_valid += [vloss.detach().data.item()]
                     running_valid += [vloss.item()]
 
-            valid_loss = np.sum(running_valid) # / nbatches
+            valid_loss = np.sum(running_valid) / len(running_valid)
             validloss_arr.append(valid_loss)
-            validloss_std.append(np.std(running_valid))
-            validloss_med.append(np.median(running_valid))
+            validloss_std.append(np.std(running_valid)/ len(running_valid))
+            validloss_med.append(np.median(running_valid)/ len(running_valid))
 
             triggerstop = False
             if early_stopper.step(valid_loss):
