@@ -328,8 +328,8 @@ class TrainMod(object):
             batch_size=self.batchsize,
             drop_last=True)
 
-        train_dataloader = DataLoader(train_mods, sampler=train_sampler,pin_memory=(device.type == "cuda"))
-        valid_dataloader = DataLoader(valid_mods, sampler=valid_sampler,pin_memory=(device.type == "cuda"))
+        train_dataloader = DataLoader(train_mods, sampler=train_sampler,pin_memory=(device.type == "cuda"),num_workers=2)
+        valid_dataloader = DataLoader(valid_mods, sampler=valid_sampler,pin_memory=(device.type == "cuda"),num_workers=2)
         
         nbatches = len(train_dataloader)
         numtrain = nbatches * self.batchsize
