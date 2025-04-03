@@ -50,7 +50,7 @@ class ReadPhot(Dataset):
             print(f'... Data Set Type: {self.datatype}')
 
         # define a RNG with a set seed
-        self.rng = np.random.default_rng(42)
+        self.rng = np.random.default_rng()
 
         # set if user wants to return a pytorch tensor or a numpy array
         self.returntorch = kwargs.get('returntorch',True)
