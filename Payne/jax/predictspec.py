@@ -15,15 +15,14 @@ speedoflight = constants.c / 1000.0
 
 import Payne
 
-import torch
-from torch import nn
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-if str(device) != 'cpu':
-  dtype = torch.cuda.FloatTensor
-else:
-  dtype = torch.FloatTensor
-from torch.autograd import Variable
-import torch.nn.functional as F
+# import torch
+# from torch import nn
+# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# if str(device) != 'cpu':
+#   dtype = torch.cuda.FloatTensor
+# else:
+#   dtype = torch.FloatTensor
+# import torch.nn.functional as F
 
 from Payne.jax.smoothing import smoothspec
 from Payne.jax.NNmodels import readNN, YSTNet

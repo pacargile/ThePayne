@@ -33,33 +33,24 @@ class GenMod(object):
         else:
             self.PP = PayneSpecPredict(nnpath=nnpath,Cnnpath=Cnnpath,NNtype=NNtype)
 
-    def _initphotnn(self,filterarray,nnpath=None):
+    def _initphotnn(self,filterarray,nnpath=None,NNtype=None,**kwargs):
         self.filterarray = filterarray
         
-        from .predictsed import FastPayneSEDPredict
-        self.fppsed = FastPayneSEDPredict(
-            usebands=self.filterarray,nnpath=nnpath,
-            )
-        # from ..predict.predictsed import PayneSEDPredict
-        # self.fppsed = PayneSEDPredict(
-        #     usebands=self.filterarray,nnpath=nnpath,
-        #     )
+        if (NNtype == None) or (NNtype == 'LinNet'):
+            from .predictsed import FastPayneSEDPredict
+            self.fppsed = FastPayneSEDPredict(
+                usebands=self.filterarray,nnpath=nnpath,
+                )
+        elif NNtype == 'MLP_v1':
+            from .predictsed import PayneSEDPredict
+            self.fppsed = PayneSEDPredict(
+                usebands=self.filterarray,nnpath=nnpath,nntype=NNtype,
+                )
+        else:
+            raise IOError('NNtype not recognized')
 
         if self.filterarray is None:
             self.filterarray = self.fppsed.filternames
-
-
-        # from ..predict.photANN import ANN
-
-
-        # # for each input filter, read in the ANN file
-        # ANNdict = {}
-        # for ff in self.filterarray:
-        #   try:
-        #       ANNdict[ff] = ANN(ff,nnpath=nnpath,verbose=self.verbose)
-        #   except IOError:
-        #       print('Cannot find NN HDF5 file for {0}'.format(ff))
-        # self.ANNdict = ANNdict
 
     def genspec(self,pars,outwave=None,verbose=False,modpoly=False):
         # define parameters from pars array
@@ -137,16 +128,11 @@ class GenMod(object):
         # sed = self.ppsed.sed(filters=filterlist,**photpars)
         sed = self.fppsed.sed(**photpars)
 
-        outdict = {ff_i:sed_i for sed_i,ff_i in zip(sed,self.filterarray)}
-
-        # # calculate absolute bolometric magnitude
-        # Mbol = -2.5*(2.0*logR + 4.0*np.log10(Teff/5770.0)) + 4.74
-
-        # # calculate BC for all photometry in obs_phot dict
-        # outdict = {}
-        # for ii,kk in enumerate(self.filterarray):
-        #   BCdict_i = float(self.ANNdict[kk].eval([Teff,logg,FeH,Av]))
-        #   outdict[kk] = (Mbol - BCdict_i) + 5.0*np.log10(Dist) - 5.0
+        # old NN return list of BCs, newer models return dictionaries
+        if isinstance(sed,dict):
+            outdict = sed
+        else:
+            outdict = {ff_i:sed_i for sed_i,ff_i in zip(sed,self.filterarray)}
 
         return outdict
 

@@ -3,53 +3,70 @@
 
 import jax.numpy as np
 from jax import lax
-from .photANN import ANN, fastANN
 from .highred import highAv
 import glob
 
 class PayneSEDPredict(object):
 
-    def __init__(self, usebands=None, nnpath=None):
-        self.anns = self._initphotnn(usebands,nnpath=nnpath)
+    def __init__(self, usebands=None, nnpath=None, nntype='MLP_v1', norm=True):
 
-    def _initphotnn(self, usebands=None, nnpath=None):
+        self.nnpath = nnpath
+        self.nntype = nntype
+        self.norm = norm
+
         if usebands == None:
             # user doesn't know which filters, so read in all that
             # are contained in photNN path
-            flist = glob.glob(nnpath+'/nn*h5')
-            allfilters = [x.split('/')[-1].replace('nnMIST_','').replace('.h5','') for x in flist]
+            flist = glob.glob(self.nnpath+f'/cwc*{self.nntype}*.h5')
+            allfilters = []
+            for x in flist:
+                rootfilename = x.split('/')[-1]
+                f = rootfilename.replace('.h5','')
+                ss = '_'.join(f.split('_')[4:]) # always going to have [grid,version,nntype,version,filtername]
+                allfilters.append(ss)
             usebands = allfilters
+
+        if isinstance(usebands, str):
+            usebands = [usebands]
+
+        self.anns = self._initphotnn(usebands,nnpath=nnpath)
+
+    def _initphotnn(self, usebands=None, nnpath=None):
+        from .photANN_new import modpred
+
         self.filternames = usebands        
 
         ANNdict = {}
         for ff in self.filternames:
             try:
-                ANNdict[ff] = ANN(ff, nnpath=nnpath, verbose=False)
-            except IOError:
-                print('Cannot find NN HDF5 file for {0}'.format(ff))
+                nnfile = glob.glob(nnpath + f'/cwc_*{ff}.h5')[0]
+                ANNdict[ff] = modpred(nnfile, nntype=self.nntype, norm=self.norm)
+            except:
+                print(f'Cannot find NN HDF5 file for {nnpath + f"/cwc_*{ff}.h5"}')
         return ANNdict
 
     def sed(self, logt=None, logg=None, feh=None, afe=None,
-            logl=None, av=0.0, rv=None,
-            dist=None, logA=None, filters=None):
+            logl=None, av=None, rv=None,
+            dist=None, logA=None):
         """
         """
 
-        if type(filters) == type(None):
+        if type(self.filternames) == type(None):
             filters = self.anns.keys()
             
-        if type(rv) == type(None):
-            inpars = [10.0**logt,logg,feh,afe,av]
-        else:
-            inpars = [10.0**logt,logg,feh,afe,av,rv]
+        inpars = [10.0**logt,logg,feh,afe,av,rv]
 
-        BC = np.array([self.anns[f].eval(inpars)
-                       for f in filters])
-        if (type(logl) != type(None)) and (type(dist) != type(None)):
-            mu = 5 * np.log10(dist) - 5
-            m = -2.5 * logl + 4.74 - BC + mu
-        elif (type(logA) != type(None)):
-            m = 5.0*logA - 10.0*(logt - np.log10(5770.0)) - 0.26 - BC
+        BC = {}
+        for f in self.filternames:
+            bcpred = self.anns[f].getbc(inpars)
+        BC.update(bcpred)
+
+        m = {ff:None for ff in BC.keys()}
+        if (logl is not None) and (dist is not None):
+            mu = 5.0 * np.log10(dist) - 5.0
+            m = {kk: -2.5 * logl + 4.74 - BC[kk] + mu for kk in BC.keys()}
+        elif logA is not None:
+            m = {kk: 5.0*logA - 10.0*(logt - np.log10(5770.0)) - 0.26 - BC[kk] for kk in BC.keys()}
         else:
             raise IOError('cannot understand input pars into sed function')
         return m
@@ -57,6 +74,7 @@ class PayneSEDPredict(object):
 class FastPayneSEDPredict(object):
     
     def __init__(self, usebands=None, nnpath=None):
+        from .photANN import ANN, fastANN
         if usebands == None:
             # user doesn't know which filters, so read in all that
             # are contained in photNN path
