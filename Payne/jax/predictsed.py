@@ -8,16 +8,20 @@ import glob
 
 class PayneSEDPredict(object):
 
-    def __init__(self, usebands=None, nnpath=None, nntype='MLP_v1', norm=True):
+    def __init__(self, usebands=None, nnpath=None, singlefile=None, nntype='MLP_v1', norm=True):
 
         self.nnpath = nnpath
         self.nntype = nntype
         self.norm = norm
+        self.singlefile = singlefile
 
         if usebands == None:
             # user doesn't know which filters, so read in all that
             # are contained in photNN path
-            flist = glob.glob(self.nnpath+f'/cwc*{self.nntype}*.h5')
+            if self.singlefile is not None:
+                flist = glob.glob(self.singlefile)
+            else:
+                flist = glob.glob(self.nnpath+f'/cwc*{self.nntype}*.h5')
             allfilters = []
             for x in flist:
                 rootfilename = x.split('/')[-1]
@@ -39,7 +43,10 @@ class PayneSEDPredict(object):
         ANNdict = {}
         for ff in self.filternames:
             try:
-                nnfile = glob.glob(nnpath + f'/cwc_*{ff}.h5')[0]
+                if self.singlefile is not None:
+                    nnfile = self.singlefile
+                else:
+                    nnfile = glob.glob(nnpath + f'/cwc_*{ff}.h5')[0]
                 ANNdict[ff] = modpred(nnfile, nntype=self.nntype, norm=self.norm)
             except:
                 print(f'Cannot find NN HDF5 file for {nnpath + f"/cwc_*{ff}.h5"}')

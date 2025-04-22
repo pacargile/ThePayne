@@ -175,33 +175,43 @@ class Net(object):
 
         x_i = jnp.copy(jnp.asarray(x))        
 
-        if len(x.shape) == 1:
-            if self.normed:
-                x_ii = jnp.zeros(x.shape,dtype=float)
+        if self.normed:
+            x_ii = jnp.zeros(x.shape,dtype=float)
+            if len(x.shape) == 1:
                 for ii,n_i in enumerate(self.norm_i):
-                    x_ii = x_ii.at[ii].set((x_i[ii]-n_i[0])/n_i[1])
+                    mid = n_i[0]
+                    std = n_i[1]
+                    x_n = (x_i[ii]-mid)/std
+                    x_ii = x_ii.at[ii].set(x_n)
+            else:
+                for ii,n_i in enumerate(self.norm_i):
+                    mid = n_i[0]
+                    std = n_i[1]
+                    x_n = (x_i[:,ii]-mid)/std
+                    x_ii = x_ii.at[:,ii].set(x_n)
         else:
-            if self.normed:
-                x_ii = jnp.zeros(x.shape,dtype=float)                
-                for ii,n_i in enumerate(self.norm_i):
-                    x_ii = x_ii.at[:,ii].set((x_i[:,ii]-n_i[0])/n_i[1])
+            x_ii = x_i
 
-
-        y_i = self.mlp(x_ii)
+        y = self.mlp(x_ii)
 
         if self.normed:
+            y_i = jnp.zeros(y.shape,dtype=float)
             if len(x.shape) == 1:
-                y = jnp.zeros(y_i.shape,dtype=float)
                 for ii,n_i in enumerate(self.norm_o):
-                    y = y.at[ii].set((y_i[ii]-n_i[0])/n_i[1])
+                    mid = n_i[0]
+                    std = n_i[1]
+                    y_n = (y[ii]*std) + mid
+                    y_i = y_i.at[ii].set(y_n)
             else:
-                y = jnp.zeros(y_i.shape,dtype=float)
                 for ii,n_i in enumerate(self.norm_o):
-                    y = y.at[:,ii].set((y_i[:,ii]-n_i[0])/n_i[1])
+                    mid = n_i[0]
+                    std = n_i[1]
+                    y_n = (y[:,ii]*std) + mid
+                    y_i = y_i.at[:,ii].set(y_n)
         else:
-            y = y_i
+            y_i = y
 
-        return y        
+        return y_i        
 
 
 class modpred(object):
