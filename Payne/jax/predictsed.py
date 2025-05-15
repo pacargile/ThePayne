@@ -30,10 +30,14 @@ class PayneSEDPredict(object):
                 allfilters.append(ss)
             usebands = allfilters
 
-        if isinstance(usebands, str):
+        elif isinstance(usebands, str):
             usebands = [usebands]
 
+        else:
+            usebands = usebands
+
         self.anns = self._initphotnn(usebands,nnpath=nnpath)
+
 
     def _initphotnn(self, usebands=None, nnpath=None):
         from .photANN_new import modpred
@@ -66,7 +70,7 @@ class PayneSEDPredict(object):
         BC = {}
         for f in self.filternames:
             bcpred = self.anns[f].getbc(inpars)
-        BC.update(bcpred)
+            BC.update(bcpred)
 
         m = {ff:None for ff in BC.keys()}
         if (logl is not None) and (dist is not None):
