@@ -157,6 +157,8 @@ class readc3k(object):
         # create min-max for spectra
         self.Fminmax = [0.0,1.0]
 
+        # init random number object
+        self.rng = np.random.default_rng()
 
     def pullspectra(self,num,**kwargs):
         '''
@@ -266,7 +268,7 @@ class readc3k(object):
                         p_i = self.fehwgts
                     else:
                         p_i = None
-                    FeH_i = np.random.choice(self.FeHarr,p=p_i)
+                    FeH_i = self.rng.choice(self.FeHarr,p=p_i)
 
                     # check to make sure FeH_i is in user defined 
                     # [Fe/H] limits
@@ -277,7 +279,7 @@ class readc3k(object):
 
                 # then draw an alpha abundance
                 while True:
-                    alpha_i = np.random.choice(self.alphaarr)
+                    alpha_i = self.rng.choice(self.alphaarr)
 
                     # check to make sure alpha_i is in user defined
                     # [alpha/Fe] limits
@@ -289,7 +291,7 @@ class readc3k(object):
                 if len(self.vtarr) > 0:
                     # then draw an vturb
                     while True:
-                        vt_i = np.random.choice(self.vtarr)
+                        vt_i = self.rng.choice(self.vtarr)
 
                         # check to make sure vt_i is in user defined
                         # vturb limits
@@ -344,7 +346,7 @@ class readc3k(object):
                 while True:
                     # randomly select a EEP, log(age) combination with weighting 
                     # towards the hotter temps if user wants
-                    MISTsel = np.random.choice(len(MIST_i),p=teffwgts_i)
+                    MISTsel = self.rng.choice(len(MIST_i),p=teffwgts_i)
 
                     # get MIST Teff and log(g) for this selection
                     logt_MIST_i,logg_MIST_i = MIST_i[MISTsel]['log_Teff'], MIST_i[MISTsel]['log_g']
@@ -362,8 +364,8 @@ class readc3k(object):
 
                 # add a gaussian blur to the MIST selected Teff and log(g)
                 # sigma_t = 750K, sigma_g = 1.5
-                randomT = np.random.randn()*500.0
-                randomg = np.random.randn()*0.5
+                randomT = self.rng.standard_normal()*500.0
+                randomg = self.rng.standard_normal()*0.5
 
                 # check to see if randomT is an issue for log10
                 if 10.0**logt_MIST_i + randomT <= 0.0:

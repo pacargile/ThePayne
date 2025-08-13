@@ -22,21 +22,21 @@ import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 
-class TestSpec(object):
+class TestCont(object):
     """
     Class for testing a Payne-learned NN using a testing dataset 
-    different from training spectra
+    different from training continuua
     """
     def __init__(self, NNfilename, NNtype='LinNet',c3kpath=None,ystnn=None,MISTpath=None,
-        continuum=False,flux=False,window1=[5150,5200],window2=[5250,5300],**kwargs):
+        window1=[5150,5200],window2=[5250,5300],**kwargs):
         # user inputed neural-net output file
         self.NNfilename = NNfilename
 
         # type of NN
         self.NNtype = NNtype
 
-        # initialize the Payne Spec Predictor
-        self.NN = predictspec.ANN(
+        # initialize the Payne Cont Predictor
+        self.NN = predictcont.ANN(
             nnpath=self.NNfilename,
             NNtype=self.NNtype,
             testing=True,
@@ -63,10 +63,6 @@ class TestSpec(object):
         else:
             self.ystnn = ystnn
 
-        self.contbool = continuum
-        self.fluxbool = flux
-        self.dividecont = kwargs.get('dividecont',True)
-
         self.window1 = window1
         self.window2 = window2
 
@@ -82,18 +78,31 @@ class TestSpec(object):
             ind = rng.integers(low=0,high=len(self.NN.testlabels),size=testnum)
             testpred = self.NN.testpred[ind]
             testlabels = self.NN.testlabels[ind]
+            testmedflux = self.NN.testmedflux[ind]
             
         else:
             # test with equal number of spectra as training
             testnum = len(self.NN.testlabels)
             testpred = self.NN.testpred
             testlabels = self.NN.testlabels
+            testmedflux = self.NN.testmedflux
 
         # make NN predictions for all test labels
-        nnpred = np.array([self.NN.eval(pars) for pars in testlabels])
+        nnpred_i = np.array([self.NN.eval(pars) for pars in testlabels])
+
+        # multiply NN predicted normalized flux by median flux prediction
+        nnpred = []
+        nnpred_medf = []
+        for ii in range(len(nnpred_i)):
+            nncont = nnpred_i[ii][:-1]
+            nnmedflux = nnpred_i[ii][-1]
+            nnpred.append(nncont)
+            nnpred_medf.append(nnmedflux)
+        nnpred = np.array(nnpred)
+        nnpred_medf = np.array(nnpred_medf)
 
         # make residual array
-        modres = np.array([np.abs((x/np.nanmedian(x))-y) for x,y in zip(testpred,nnpred)])
+        modres = np.array([np.abs(x-y) for x,y in zip(testpred,nnpred)])
 
         # initialize PDF file
         with PdfPages(output) as pdf:
@@ -386,68 +395,41 @@ class TestSpec(object):
 
             # build MAD map for 4 different pars
 
+            wave = self.wave
+
             # build MAD CDF comparison to YST model
             inpars = [5770.0,4.4,0.0,0.0,1.0]
 
-            NN = predictspec.ANN(nnpath=self.NNfilename,NNtype=self.NNtype,verbose=False)
-            if self.ystnn == None:
-                NN_yst = np.nan
-            else:
-                NN_yst = ystpred.Net(self.ystnn)
-
-            if self.contbool or self.fluxbool:
-                returncontinuua = True
-            else:
-                returncontinuua = False
-
             c3kmods = readc3k(MISTpath=self.MISTpath,C3Kpath=self.c3kpath,vtfixed=True)
             out = c3kmods.selspectra(inpars,resolution=self.resolution,
-                waverange=[self.wave.min(),self.wave.max()],returncontinuua=returncontinuua,
-                dividecont=self.dividecont)
-
+                waverange=[self.wave.min(),self.wave.max()],returncontinuua=True)
+            continuum_i = out[-1][0]
+            wave_i = out[2]
+            
             pars = list(out[1][0])[:len(testlabels[0])]
-            wave = out[2]
-            if self.contbool:
-                continuum_i = out[-1][0]
-                # divide by median
-                continuum_i = continuum_i/np.nanmedian(continuum_i)
-                # interpolate onto low-res wavelength grid
-                flux = np.interp(
-                     self.wave,
-                     wave,
-                     continuum_i,)
-                wave = self.wave
-            elif self.fluxbool:
-                continuum_i = out[-1][0]
-                spectrum_i  = out[0][0]
-                flux = spectrum_i * continuum_i
-                flux = flux / np.nanmedian(flux)
-            else:
-                flux = out[0][0]
-            modflux = np.interp(wave,NN.wavelength,NN.eval(pars))
-            if self.ystnn == None:
-                modflux_yst = [np.nan for _ in range(len(wave))]
-            else:
-                modflux_yst = np.interp(wave,NN_yst.wavelength,NN_yst.eval(pars))
+            # interpolate onto low-res wavelength grid
+            flux = np.interp(
+                    wave,
+                    wave_i,
+                    continuum_i,)
+
+            # modcont = np.interp(wave,self.NN.wavelength,self.NN.eval(pars)[:-1])
+            modcont = self.NN.eval(pars)[:-1]
 
             fig,ax = plt.subplots(nrows=5,ncols=1,constrained_layout=True,figsize=(8,8))
 
-            ax[0].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
-            ax[0].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+            ax[0].plot(wave,modcont,lw=1.0,c='C0',label='New NN')
             ax[0].plot(wave,flux,lw=0.25,c='k',label='C3K')
             ax[0].set_xlim(wave.min(),wave.max())
 
-            ax[1].plot(wave,modflux-flux,    lw=1.0,c='C0',alpha=0.5)
-            ax[1].plot(wave,modflux_yst-flux,lw=1.0,c='C1',alpha=0.5)
+            ax[1].plot(wave,modcont-flux,    lw=1.0,c='C0',alpha=0.5)
             ax[1].set_xlim(wave.min(),wave.max())
 
-            ax[2].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
-            ax[2].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+            ax[2].plot(wave,modcont,lw=1.0,c='C0',label='New NN')
             ax[2].plot(wave,flux,lw=0.25,c='k',label='C3K')
             ax[2].set_xlim(self.window1)
 
-            ax[3].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
-            ax[3].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+            ax[3].plot(wave,modcont,lw=1.0,c='C0',label='New NN')
             ax[3].plot(wave,flux,lw=0.25,c='k',label='C3K')
             ax[3].set_xlim(self.window2)
 
@@ -470,10 +452,10 @@ class TestSpec(object):
                 verticalalignment='bottom', 
                 transform=ax[4].transAxes)
 
-            ax[4].hist(np.log10(np.abs(modflux-flux)),lw=1.0,color='C0',
+            ax[4].hist(np.log10(np.abs(modcont-flux)),lw=1.0,color='C0',
                 bins=50,cumulative=True,density=True,
                 histtype='step',range=histxrange)
-            oneperCDF = stats.percentileofscore(np.log10(np.abs(modflux-flux)),-2.0)/100.0
+            oneperCDF = stats.percentileofscore(np.log10(np.abs(modcont-flux)),-2.0)/100.0
             ax[4].hlines(
                 y=oneperCDF,
                 xmin=-4.5,xmax=-2.0,
@@ -484,22 +466,6 @@ class TestSpec(object):
                        transform=ax[4].transAxes,
                        fontsize=6,
                        color='C0')
-
-            if self.ystnn is not None:
-                ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
-                    bins=50,cumulative=True,density=True,
-                    histtype='step',range=histxrange)
-                oneperCDF = stats.percentileofscore(np.log10(np.abs(modflux_yst-flux)),-2.0)/100.0
-                ax[4].hlines(
-                    y=oneperCDF,
-                    xmin=-4.5,xmax=-2.0,
-                    colors='C1',alpha=0.8)
-                ax[4].text(0.01,0.1,'MAD = 1% @ CDF = {0:.2f}'.format(oneperCDF),
-                        horizontalalignment='left',
-                        verticalalignment='bottom',
-                        transform=ax[4].transAxes,
-                        fontsize=6,
-                        color='C1')
 
             # ax[4].set_xlim(-4.5,-1.0)
             ax[4].set_xlim(histxrange)
@@ -510,53 +476,36 @@ class TestSpec(object):
             plt.close(fig)
 
             inpars = [4000.0,2.5,0.0,0.0,1.0]
+            c3kmods = readc3k(MISTpath=self.MISTpath,C3Kpath=self.c3kpath,vtfixed=True)
             out = c3kmods.selspectra(inpars,resolution=self.resolution,
-                waverange=[self.wave.min(),self.wave.max()],returncontinuua=returncontinuua,
-                dividecont=self.dividecont)
-
+                waverange=[self.wave.min(),self.wave.max()],returncontinuua=True)
+            continuum_i = out[-1][0]
+            wave_i = out[2]
+            
             pars = list(out[1][0])[:len(testlabels[0])]
-            wave = out[2]
-            if self.contbool:
-                continuum_i = out[-1][0]
-                # divide by median
-                continuum_i = continuum_i/np.nanmedian(continuum_i)
-                # interpolate onto low-res wavelength grid
-                flux = np.interp(
-                     self.wave,
-                     wave,
-                     continuum_i,)
-                wave = self.wave
-            elif self.fluxbool:
-                continuum_i = out[-1][0]
-                spectrum_i  = out[0][0]
-                flux = spectrum_i * continuum_i
-                flux = flux / np.nanmedian(flux)
-            else:
-                flux = out[0][0]
-            modflux = np.interp(wave,NN.wavelength,NN.eval(pars))
-            if self.ystnn == None:
-                modflux_yst = [np.nan for _ in range(len(wave))]
-            else:
-                modflux_yst = np.interp(wave,NN_yst.wavelength,NN_yst.eval(pars))
+            # interpolate onto low-res wavelength grid
+            flux = np.interp(
+                    wave,
+                    wave_i,
+                    continuum_i,)
+
+            # modcont = np.interp(wave,self.NN.wavelength,self.NN.eval(pars)[:-1])
+            modcont = self.NN.eval(pars)[:-1]
 
             fig,ax = plt.subplots(nrows=5,ncols=1,constrained_layout=True,figsize=(8,8))
 
-            ax[0].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
-            ax[0].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+            ax[0].plot(wave,modcont,lw=1.0,c='C0',label='New NN')
             ax[0].plot(wave,flux,lw=0.25,c='k',label='C3K')
             ax[0].set_xlim(wave.min(),wave.max())
 
-            ax[1].plot(wave,modflux-flux,    lw=1.0,c='C0',alpha=0.5)
-            ax[1].plot(wave,modflux_yst-flux,lw=1.0,c='C1',alpha=0.5)
+            ax[1].plot(wave,modcont-flux,    lw=1.0,c='C0',alpha=0.5)
             ax[1].set_xlim(wave.min(),wave.max())
 
-            ax[2].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
-            ax[2].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+            ax[2].plot(wave,modcont,lw=1.0,c='C0',label='New NN')
             ax[2].plot(wave,flux,lw=0.25,c='k',label='C3K')
             ax[2].set_xlim(self.window1)
 
-            ax[3].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
-            ax[3].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
+            ax[3].plot(wave,modcont,lw=1.0,c='C0',label='New NN')
             ax[3].plot(wave,flux,lw=0.25,c='k',label='C3K')
             ax[3].set_xlim(self.window2)
 
@@ -579,10 +528,10 @@ class TestSpec(object):
                 verticalalignment='bottom', 
                 transform=ax[4].transAxes)
 
-            ax[4].hist(np.log10(np.abs(modflux-flux)),lw=1.0,color='C0',
+            ax[4].hist(np.log10(np.abs(modcont-flux)),lw=1.0,color='C0',
                 bins=50,cumulative=True,density=True,
                 histtype='step',range=histxrange)
-            oneperCDF = stats.percentileofscore(np.log10(np.abs(modflux-flux)),-2.0)/100.0
+            oneperCDF = stats.percentileofscore(np.log10(np.abs(modcont-flux)),-2.0)/100.0
             ax[4].hlines(
                 y=oneperCDF,
                 xmin=-4.5,xmax=-2.0,
@@ -594,22 +543,6 @@ class TestSpec(object):
                        fontsize=6,
                        color='C0')
 
-            if self.ystnn is not None:
-                ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
-                    bins=50,cumulative=True,density=True,
-                    histtype='step',range=histxrange)
-                oneperCDF = stats.percentileofscore(np.log10(np.abs(modflux_yst-flux)),-2.0)/100.0
-                ax[4].hlines(
-                    y=oneperCDF,
-                    xmin=-4.5,xmax=-2.0,
-                    colors='C1',alpha=0.8)
-                ax[4].text(0.01,0.1,'MAD = 1% @ CDF = {0:.2f}'.format(oneperCDF),
-                        horizontalalignment='left',
-                        verticalalignment='bottom',
-                        transform=ax[4].transAxes,
-                        fontsize=6,
-                        color='C1')
-
             # ax[4].set_xlim(-4.5,-1.0)
             ax[4].set_xlim(histxrange)
             ax[4].set_xlabel('log Abs Deviation')
@@ -619,58 +552,37 @@ class TestSpec(object):
             plt.close(fig)
 
             inpars = [4500.0,5.0,0.0,0.0,1.0]
+            c3kmods = readc3k(MISTpath=self.MISTpath,C3Kpath=self.c3kpath,vtfixed=True)
             out = c3kmods.selspectra(inpars,resolution=self.resolution,
-                waverange=[self.wave.min(),self.wave.max()],returncontinuua=returncontinuua,
-                dividecont=self.dividecont)
-
+                waverange=[self.wave.min(),self.wave.max()],returncontinuua=True)
+            continuum_i = out[-1][0]
+            wave_i = out[2]
+            
             pars = list(out[1][0])[:len(testlabels[0])]
-            wave = out[2]
-            if self.contbool:
-                continuum_i = out[-1][0]
-                # divide by median
-                continuum_i = continuum_i/np.nanmedian(continuum_i)
-                # interpolate onto low-res wavelength grid
-                flux = np.interp(
-                     self.wave,
-                     wave,
-                     continuum_i,)
-                wave = self.wave
-            elif self.fluxbool:
-                continuum_i = out[-1][0]
-                spectrum_i  = out[0][0]
-                flux = spectrum_i * continuum_i
-                flux = flux / np.nanmedian(flux)
-            else:
-                flux = out[0][0] / np.nanmedian(out[0][0])
-            modflux = np.interp(wave,NN.wavelength,NN.eval(pars))
-            modflux = modflux / np.nanmedian(modflux)
-            if self.ystnn == None:
-                modflux_yst = [np.nan for _ in range(len(wave))]
-            else:
-                modflux_yst = np.interp(wave,NN_yst.wavelength,NN_yst.eval(pars))
+            # interpolate onto low-res wavelength grid
+            flux = np.interp(
+                    wave,
+                    wave_i,
+                    continuum_i,)
 
-            print(np.nanmedian(flux))
-            print(np.nanmedian(modflux))
+            # modcont = np.interp(wave,self.NN.wavelength,self.NN.eval(pars)[:-1])
+            modcont = self.NN.eval(pars)[:-1]
 
             fig,ax = plt.subplots(nrows=5,ncols=1,constrained_layout=True,figsize=(8,8))
-            
-            ax[0].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
-            ax[0].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
-            ax[0].plot(wave,flux/np.nanmedian(flux),lw=0.25,c='k',label='C3K')
+
+            ax[0].plot(wave,modcont,lw=1.0,c='C0',label='New NN')
+            ax[0].plot(wave,flux,lw=0.25,c='k',label='C3K')
             ax[0].set_xlim(wave.min(),wave.max())
 
-            ax[1].plot(wave,modflux-flux,    lw=1.0,c='C0',alpha=0.5)
-            ax[1].plot(wave,modflux_yst-flux,lw=1.0,c='C1',alpha=0.5)
+            ax[1].plot(wave,modcont-flux,    lw=1.0,c='C0',alpha=0.5)
             ax[1].set_xlim(wave.min(),wave.max())
 
-            ax[2].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
-            ax[2].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
-            ax[2].plot(wave,flux/np.nanmedian(flux),lw=0.25,c='k',label='C3K')
+            ax[2].plot(wave,modcont,lw=1.0,c='C0',label='New NN')
+            ax[2].plot(wave,flux,lw=0.25,c='k',label='C3K')
             ax[2].set_xlim(self.window1)
 
-            ax[3].plot(wave,modflux,lw=1.0,c='C0',label='New NN')
-            ax[3].plot(wave,modflux_yst,lw=1.0,c='C1',label='YST NN')
-            ax[3].plot(wave,flux/np.nanmedian(flux),lw=0.25,c='k',label='C3K')
+            ax[3].plot(wave,modcont,lw=1.0,c='C0',label='New NN')
+            ax[3].plot(wave,flux,lw=0.25,c='k',label='C3K')
             ax[3].set_xlim(self.window2)
 
             parstr = (
@@ -692,10 +604,10 @@ class TestSpec(object):
                 verticalalignment='bottom', 
                 transform=ax[4].transAxes)
 
-            ax[4].hist(np.log10(np.abs(modflux-flux)),lw=1.0,color='C0',
+            ax[4].hist(np.log10(np.abs(modcont-flux)),lw=1.0,color='C0',
                 bins=50,cumulative=True,density=True,
                 histtype='step',range=histxrange)
-            oneperCDF = stats.percentileofscore(np.log10(np.abs(modflux-flux)),-2.0)/100.0
+            oneperCDF = stats.percentileofscore(np.log10(np.abs(modcont-flux)),-2.0)/100.0
             ax[4].hlines(
                 y=oneperCDF,
                 xmin=-4.5,xmax=-2.0,
@@ -706,23 +618,6 @@ class TestSpec(object):
                        transform=ax[4].transAxes,
                        fontsize=6,
                        color='C0')
-
-            if self.ystnn is not None:
-                ax[4].hist(np.log10(np.abs(modflux_yst-flux)),lw=1.0,color='C1',
-                    bins=50,cumulative=True,density=True,
-                    histtype='step',range=histxrange)
-                oneperCDF = stats.percentileofscore(np.log10(np.abs(modflux_yst-flux)),-2.0)/100.0
-                ax[4].hlines(
-                    y=oneperCDF,
-                    xmin=-4.5,xmax=-2.0,
-                    colors='C1',alpha=0.8)
-                ax[4].text(0.01,0.1,'MAD = 1% @ CDF = {0:.2f}'.format(oneperCDF),
-                        horizontalalignment='left',
-                        verticalalignment='bottom',
-                        transform=ax[4].transAxes,
-                        fontsize=6,
-                        color='C1')
-
 
             # ax[4].set_xlim(-4.5,-1.0)
             ax[4].set_xlim(histxrange)

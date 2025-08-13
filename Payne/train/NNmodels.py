@@ -11,7 +11,7 @@ else:
   dtype = torch.FloatTensor
 from torch.autograd import Variable
 import torch.nn.functional as F
-from torch.optim.lr_scheduler import StepLR,ReduceLROnPlateau
+from torch.optim.lr_scheduler import StepLR
 
 import torch.multiprocessing as multiprocessing
 from torch.multiprocessing import Pool

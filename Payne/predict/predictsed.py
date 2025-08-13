@@ -23,10 +23,9 @@ _ALLFILTERS = (
     )
 
 class PayneSEDPredict(object):
-
     def __init__(self, usebands=None, nnpath=None):
         self.anns = self._initphotnn(usebands,nnpath=nnpath)
-
+    
     def _initphotnn(self, filterarray, nnpath=None):
         ANNdict = {}
         for ff in filterarray:
@@ -37,14 +36,12 @@ class PayneSEDPredict(object):
         return ANNdict
 
     def sed(self, logt=None, logg=None, feh=None, afe=None,
-            logl=None, av=0.0, rv=None,
-            dist=None, logA=None, filters=None):
-        """
-        """
+        logl=None, av=0.0, rv=None,
+        dist=None, logA=None, filters=None):
 
         if type(filters) == type(None):
-        	filters = self.anns.keys()
-
+            filters = self.anns.keys()
+                     
         if type(rv) == type(None):
             inpars = [10.0**logt,logg,feh,afe,av]
         else:

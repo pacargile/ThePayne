@@ -3,6 +3,7 @@ import numpy as np
 from numpy.lib import recfunctions as rfn
 import torch
 from torch.utils.data import Dataset, Sampler
+from dust_extinction.parameter_averages import G23
 
 class ReadPhot(Dataset):
     """
@@ -102,6 +103,13 @@ class ReadPhot(Dataset):
         
         # pull input parameters from table
         self.parameters = self.h5dict['parameters']
+
+        # add Av and Rv grids to parameters and compute/add label_o labels
+        self.avgrid = [0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]+list(range(1,10,1))+list(range(10,50,5))+list(range(50,101,10))
+        self.rvgrid = [2.3,2.5,3.1,3.5,4.0,5.0,5.6]
+
+        # add Av and Rv to parameters if not already present
+
 
         # add column names to self
         self.columns = list(self.parameters.dtype.names)
