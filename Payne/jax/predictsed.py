@@ -113,7 +113,7 @@ class FastPayneSEDPredict(object):
         # if type(rv) == type(None):
         #     inpars = [10.0**logt,logg,feh,afe,av]
         # else:
-        inpars = [10.0**logt,logg,feh,afe,av,rv]
+        inpars = np.asarray([10.0**logt,logg,feh,afe,av,rv])
 
         def bcdefault(x):
             return self.anns.eval(inpars)
