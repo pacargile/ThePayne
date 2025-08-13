@@ -119,7 +119,7 @@ class FastPayneSEDPredict(object):
             return self.anns.eval(inpars)
 
         def bchiav(x):
-            BC0 = self.anns.eval([10.0**logt,logg,feh,afe,0.0,3.1])
+            BC0 = self.anns.eval(np.asarray([10.0**logt,logg,feh,afe,0.0,3.1]))
             return self.HiAv.calc(BC0,av,rv)
         
         BC = lax.cond(av < 5.0,bcdefault,bchiav,None)
