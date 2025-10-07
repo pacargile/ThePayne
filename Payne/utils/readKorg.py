@@ -1,253 +1,538 @@
-import h5py
+import os, glob, h5py, re
 import numpy as np
 from numpy.lib import recfunctions as rfn
 import torch
-from torch.utils.data import Dataset, Sampler
+from torch.utils.data import Dataset
 from dust_extinction.parameter_averages import G23
+from astropy import units as u
 
+try:
+    from sedpy import observate
+    from sedpy.observate import Filter as SEDpyFilter
+except Exception as e:
+    raise ImportError("`sedpy` is required when using `filters`.") from e
+
+# ------------------------------
+# Inlined SEDpy wavelength tools
+# ------------------------------
+def _pivot_wavelength(wave_A, trans):
+    w = np.asarray(wave_A, dtype=float)
+    S = np.asarray(trans, dtype=float)
+    num = np.trapz(S * w, w)
+    den = np.trapz(S / w, w)
+    return np.sqrt(num / den)
+
+def _logmean_wavelength(wave_A, trans):
+    w = np.asarray(wave_A, dtype=float); S = np.asarray(trans, dtype=float)
+    lnw = np.log(w); dlnw = np.gradient(lnw)
+    return np.exp(np.sum(lnw * S * dlnw) / np.sum(S * dlnw))
+
+def _as_dict_of_paths(modpath):
+    if isinstance(modpath, dict): return modpath
+    if os.path.isdir(modpath):
+        out = {}
+        for p in sorted(glob.glob(os.path.join(modpath, "*.h5"))):
+            sysname = os.path.splitext(os.path.basename(p))[0]
+            out[sysname] = p
+        if not out: raise FileNotFoundError(f"No .h5 under: {modpath}")
+        return out
+    if os.path.isfile(modpath):
+        return {"__single__": modpath}
+    raise FileNotFoundError(f"modpath not found: {modpath}")
+
+def _first_attr(obj, names):
+    for n in names:
+        if hasattr(obj, n):
+            v = getattr(obj, n)
+            # skip callables; accept arrays/lists
+            if v is not None and not callable(v):
+                return v
+    return None
+
+def _get_filter_arrays(f):
+    """
+    Return (wave_A, trans) from a sedpy Filter object, robust to API variants.
+    wave_A in Angstrom, trans unitless.
+    """
+    wave = _first_attr(f, ("wave", "wavelength", "lam", "_wavelength"))
+    trans = _first_attr(f, ("trans", "throughput", "_transmission"))
+
+    if wave is None or trans is None:
+        raise TypeError(
+            "Could not find wavelength/throughput on sedpy Filter. "
+            "Tried wave|wavelength|lam|_wavelength and trans|throughput|_transmission."
+        )
+    return np.asarray(wave, dtype=float), np.asarray(trans, dtype=float)
+
+# ------------------------------
+# SEDpy-name → (system, band) resolver
+# ------------------------------
+_DEFAULT_PREFIX_MAP = {
+    r"^ps_":         ("panstarrs", lambda name: name.split("_", 1)[1]),     # panstarrs_g -> g
+    r"^gaia_":       ("gaia",      lambda name: name.split("_", 1)[1]),     # gaia_bp -> bp
+    r"^twomass_":    ("twomass",   lambda name: name.split("_", 1)[1]),     # twomass_J -> J
+    r"^wise_":       ("wise",      lambda name: name.split("_", 1)[1]),     # wise_w1 -> w1
+    r"^sdss_":       ("sdss", lambda name: name.split("_", 1)[1].rstrip("0")),     # sdss_g0 -> g
+    r"^decam_":      ("decam",     lambda name: name.split("_", 1)[1]),     # decam_g -> g
+    r"^lsst_":       ("lsst",      lambda name: name.split("_", 1)[1]),     # lsst_r -> r
+    r"^roman_":      ("roman_wfi", lambda name: name.split("_", 2)[2]),     # roman_wfi_f062 -> f062
+    r"^swift_":      ("uvot",      lambda name: name.split("_", 1)[1]),     # uvot_f062 -> f062
+    r"^spx_":        ("spherex",   lambda name: name.split("_", 1)[1]),     # spherex_ch062 -> ch062
+}
+
+def _resolve_system_band_from_sedpy_name(
+    sedpy_name,
+    h5_system_names,
+    h5_fields_by_system,
+    user_system_alias=None,
+    user_band_alias=None,
+):
+    """
+    Map a SEDpy filter name to (system, band) used in your HDF5.
+
+    - Uses _DEFAULT_PREFIX_MAP (incl. Roman WFI).
+    - Applies optional user aliases.
+    - Adapts band 'case' automatically to match HDF5 field names.
+    """
+    name_lc = sedpy_name.lower()
+
+    # 1) Rule-based inference of system + band guess
+    system = None; band_guess = None
+    for pref, (sysname, band_fn) in _DEFAULT_PREFIX_MAP.items():
+        if re.match(pref, name_lc):
+            system = sysname
+            band_guess = band_fn(sedpy_name)  # may be lower/upper/mixed
+            break
+    if system is None:
+        # fallback: split at first underscore
+        parts = sedpy_name.split("_", 1)
+        system = parts[0].lower() if len(parts) == 2 else sedpy_name.lower()
+        band_guess = parts[1] if len(parts) == 2 else sedpy_name
+
+    # 2) Apply user aliases (optional)
+    if user_system_alias and system in user_system_alias:
+        system = user_system_alias[system]
+    if user_band_alias and (system, band_guess) in user_band_alias:
+        band_guess = user_band_alias[(system, band_guess)]
+
+    # 3) Snap system to a real HDF5 system name if needed
+    if system not in h5_system_names:
+        # try prefix match (e.g., "roman" → "roman_wfi") or case-insensitive match
+        cand = [s for s in h5_system_names if s.lower() == system.lower() or s.lower().startswith(system)]
+        if len(cand) == 1:
+            system = cand[0]
+        elif len(cand) > 1:
+            # pick the longest (most specific) match
+            system = sorted(cand, key=len, reverse=True)[0]
+        else:
+            raise KeyError(f"System '{system}' (from '{sedpy_name}') not found in HDF5 systems {sorted(h5_system_names)}")
+
+    # 4) Snap band to an exact HDF5 field (case-insensitive, tolerant to small style diffs)
+    fields = list(h5_fields_by_system.get(system, []))
+    if not fields:
+        raise KeyError(f"No filter fields found for system '{system}' in HDF5.")
+
+    # exact match first
+    if band_guess in fields:
+        return system, band_guess
+
+    # build normalization maps for tolerant matching
+    def _norm(s):
+        return re.sub(r"[^a-z0-9]", "", s.lower())
+
+    fields_norm = {_norm(f): f for f in fields}       # normalized field → original field
+    band_norm = _norm(band_guess)
+
+    # try (i) case-insensitive exact, (ii) normalized matching
+    ci_map = {f.lower(): f for f in fields}
+    if band_guess.lower() in ci_map:
+        return system, ci_map[band_guess.lower()]
+    if band_norm in fields_norm:
+        return system, fields_norm[band_norm]
+
+    # last resort: prefix/contains match on normalized keys
+    hits = [orig for norm, orig in fields_norm.items() if norm.startswith(band_norm) or band_norm.startswith(norm)]
+    if len(hits) == 1:
+        return system, hits[0]
+
+    raise KeyError(
+        f"Cannot map SEDpy filter '{sedpy_name}' to HDF5 ({system}, '{band_guess}'). "
+        f"Available fields in '{system}': {sorted(fields)}"
+    )
+    
 class ReadPhot(Dataset):
     """
-    Read in Korg BC tables into a torch Dataset object.
+    Read BC tables (no Av/Rv baked in) and apply G23 extinction on-the-fly.
 
-    Args:
-        Dataset (_type_): _description_
+    Pass a simple list of SEDpy filter names via `filters=[...]`.
+    The loader will:
+      * compute representative wavelengths with SEDpy (pivot by default),
+      * resolve each SEDpy name to (system, band) in your HDF5,
+      * build outputs only for those requested bands.
 
-    Kwargs:
-        h5path (str): path to HDF5 file that contains the Korg BC tables
-        filters (str): which filters to use
-        verbose (bool): print out information
-    
+    HDF5 layout (per-system file OR legacy single file):
+      - 'parameters': structured array with fields ('logt','logg','feh','afe','vmic')
+      - '<system>': structured array with one field per filter (e.g., 'g','r','i',...)
 
+    Key kwargs:
+      modpath: str|dict
+      filters: list[str]  # SEDpy names, e.g. ['ps1_g','ps1_r','gaia_g','gaia_bp',...]
+      filter_wavelength_method: 'pivot'|'logmean' (default 'pivot')
+      system_alias: dict[str,str] optional renames for systems in HDF5
+      band_alias: dict[(system,band_inferred)->band_in_h5] optional band remaps
+
+      type: 'train'|'valid'|'test'
+      extinction_mode: 'sample' (default train) | 'grid' (default valid/test) | 'fixed' | 'none'
+      avgrid, rvgrid, fixed_av, fixed_rv
+      norm: z-score inputs/outputs (outputs normed on intrinsic BCs)
+
+      label_i default: ['logt','logg','feh','afe','av','rv']
     """
-
     def __init__(self, *args, **kwargs):
-        super(ReadPhot, self).__init__()
-
-        self.args = args
+        super().__init__()
         self.kwargs = kwargs
-        
-        self.verbose = self.kwargs.get('verbose',False)
+        self.verbose = kwargs.get('verbose', False)
 
-        # path to HDF5 file that contains the Korg BC tables
-        self.modpath = self.kwargs.get('modpath',None)
-        
-        if self.verbose:
-            print('... Reading in {0}'.format(self.modpath))
-        
-        # read in BC tables
-        with h5py.File(self.modpath,'r') as h5:
+        # ---------------- Sources ----------------
+        self.modpaths = _as_dict_of_paths(kwargs.get('modpath', None))
+        if self.modpaths is None:
+            raise ValueError("Provide modpath")
 
-            # build dictionary to put things in memory
-            self.h5dict = {}
-            self.h5dict['parameters'] = h5['parameters'][()]
-            # loop over all the filters and read them into memory
-            for kk in h5.keys():
-                if not kk == 'parameters':
-                    self.h5dict[kk] = h5[kk][()]
+        # HDF5 file paths
+        self.h5dict = {}
+        self._systems = []
 
-       # set training boolean, if false then assume test set
-        self.datatype = kwargs.get('type','train')
-        if self.verbose:
-            print(f'... Data Set Type: {self.datatype}')
+        # ------------- Load HDF5s -------------
+        if "__single__" in self.modpaths:
+            path = self.modpaths["__single__"]
+            if self.verbose:
+                print(f"... Reading (single-file) {path}")
+            with h5py.File(path, "r") as h5:
+                # ----- parameters (required) -----
+                if "parameters" not in h5 or not isinstance(h5["parameters"], h5py.Dataset):
+                    raise KeyError("HDF5 must contain a dataset '/parameters'.")
+                self.parameters = h5["parameters"][()]
+                # schema check
+                expected = ("logt","logg","feh","afe","vmic")
+                have = self.parameters.dtype.names
+                missing = [f for f in expected if f not in have]
+                if missing:
+                    raise ValueError(f"/parameters missing fields: {missing}; found: {have}")
 
-        # define a RNG with a set seed
-        self.rng = np.random.default_rng()
+                # ----- optional meta & rowkey -----
+                if "meta" in h5:
+                    # meta is a group or dataset with attrs; capture attrs only
+                    self.meta = dict(h5["meta"].attrs)
+                else:
+                    self.meta = {}
 
-        # set if user wants to return a pytorch tensor or a numpy array
-        self.returntorch = kwargs.get('returntorch',True)
-        if self.verbose:
-            print(f'... Return Torch Tensor: {self.returntorch}')
+                if "rowkey" in h5 and isinstance(h5["rowkey"], h5py.Dataset):
+                    self.rowkey = h5["rowkey"][()]
+                    # optional sanity: same length as parameters
+                    if len(self.rowkey) != len(self.parameters):
+                        raise ValueError(f"/rowkey length {len(self.rowkey)} != /parameters length {len(self.parameters)}")
+                else:
+                    self.rowkey = None
 
-        # set train/test percentage (percentage of MIST that is used for training)
-        self.trainper = kwargs.get('trainpercentage',0.9)
-        if self.verbose:
-            if self.datatype == 'train':
-                print(f'... Training Percentage: {self.trainper}')
-            if self.datatype == 'test':
-                print(f'... Testing Percentage: {1.0-self.trainper}')
+                # ----- which photometric systems to load? -----
+                # Determine requested systems from the provided filters using your prefix map.
+                sedpy_filters = kwargs.get("filters", None)
+                if not sedpy_filters:
+                    raise ValueError("Pass `filters` (list of filter names).")
 
-        # set if user wants to normalize the input parameters
-        self.norm = kwargs.get('norm',True)
-        if self.verbose:
-            print(f'... Running with Norm: {self.norm}')
+                requested_systems = set()
+                for fname in sedpy_filters:
+                    # use your resolver/prefix map to get (system, _band_guess)
+                    # if you have a helper, call it; otherwise a minimal fallback:
+                    name_lc = fname.lower()
+                    matched = False
+                    for pref, (sysname, band_fn) in _DEFAULT_PREFIX_MAP.items():
+                        if re.match(pref, name_lc):
+                            requested_systems.add(sysname)
+                            matched = True
+                            break
+                    if not matched:
+                        # fallback: assume <system>_<band>
+                        parts = fname.split("_", 1)
+                        if len(parts) == 2:
+                            requested_systems.add(parts[0].lower())
 
-        # check for user defined ranges for atm models
-        defaultparrange = None
-        self.parrange = kwargs.get('parrange',defaultparrange)
+                # Available dataset names at root (excluding non-systems)
+                NON_SYSTEM_KEYS = {"parameters", "meta", "rowkey"}
+                available_systems = {k for k, v in h5.items()
+                                    if isinstance(v, h5py.Dataset) and k not in NON_SYSTEM_KEYS}
+                # Guard: every requested system must exist
+                missing_sys = sorted(requested_systems - available_systems)
+                if missing_sys:
+                    raise KeyError(f"Requested systems {missing_sys} not found. "
+                                f"Available systems in file: {sorted(available_systems)}")
 
-        # define input labels
-        default_label_i = ([
-            'teff',
-            'logg',
-            'feh',
-            'afe',
-            'av',
-            'rv'
-            ])        
-        self.label_i = kwargs.get('label_i',default_label_i)
-        if self.verbose:
-            print('... Input Labels:')
-            print(f'{self.label_i}')
-
-        # define output labels (i.e., photometric bands)
-        self.label_o = kwargs.get('label_o',None)
-        if self.label_o is None:
-            # if None, then use all filters
-            self.label_o = []
-            for kk in self.h5dict.keys():
-                if kk != 'parameters':
-                    self.label_o += [f'{kk}_{x}' for x in list(self.h5dict[kk].dtype.names)]
-        if self.verbose:
-            print('... Output Labels:')
-            print(f'{self.label_o}')
-        
-        # pull input parameters from table
-        self.parameters = self.h5dict['parameters']
-
-        # add Av and Rv grids to parameters and compute/add label_o labels
-        self.avgrid = [0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]+list(range(1,10,1))+list(range(10,50,5))+list(range(50,101,10))
-        self.rvgrid = [2.3,2.5,3.1,3.5,4.0,5.0,5.6]
-
-        # add Av and Rv to parameters if not already present
-
-
-        # add column names to self
-        self.columns = list(self.parameters.dtype.names)
-        self.columns += list(self.label_o)
-        
-        # compute normaliztion factors for all labels
-        self.normfactor = {}
-        for ll in self.label_i:
-            mid = np.mean(self.parameters[ll])
-            std = np.std(self.parameters[ll])
-            # self.normfactor[ll] = ([
-            #     np.median(self.parameters[ll]),
-            #     np.min(self.parameters[ll]),
-            #     np.max(self.parameters[ll]),
-            #     ])
-            self.normfactor[ll] = ([
-                mid,
-                std,
-                ])
-
-            
-        for ll in self.label_o:
-            f = ll.split('_')[-1]
-            ss = ll.replace('_'+f,'')    
-            mid = np.mean(self.h5dict[ss][f])
-            std = np.std(self.h5dict[ss][f])
-            # self.normfactor[ll] = ([
-            #     np.median(self.h5[ss][f][()]),
-            #     np.min(self.h5[ss][f][()]),
-            #     np.max(self.h5[ss][f][()]),
-            #     ])
-            self.normfactor[ll] = ([
-                mid,
-                std,
-                ])
-            
-        # add model index to parameter table
-        self.parameters = rfn.append_fields(self.parameters,'model_index',
-            np.arange(len(self.parameters)),usemask=False)
-
-        # apply parameter ranges
-        if self.parrange is not None:
-            for ll in self.label_i:
-                if ll in self.parrange.keys():
-                    if self.verbose:
-                        print(f'... Applying parameter range for {ll}: {self.parrange[ll]}')
-                    # apply the parameter range
-                    self.parameters = self.parameters[self.parameters[ll] >= self.parrange[ll][0]]
-                    self.parameters = self.parameters[self.parameters[ll] <= self.parrange[ll][1]]
-
-        # shuffle parameter array
-        self.rng.shuffle(self.parameters)
-        
-        # define test/train/valid split (split non-test data into 70/30 train/valid)
-        if self.datatype == 'test':
-            self.testind = self.parameters['model_index'][:int(np.rint((1.0-self.trainper) * self.parameters.shape[0]))]
-            self.parameters_test = self.parameters[:int(np.rint((1.0-self.trainper) * self.parameters.shape[0]))]
-            self.datalen = len(self.testind)
+                # ----- load only the requested system datasets -----
+                for sysname in sorted(requested_systems):
+                    ds = h5[sysname]
+                    if ds.dtype.names is None:
+                        raise TypeError(f"Dataset '/{sysname}' must be a structured array with one field per band.")
+                    self.h5dict[sysname] = ds[()]   # load structured array
+                    self._systems.append(sysname)
         else:
-            trainvalid = self.parameters['model_index'][int(np.rint((1.0-self.trainper) * self.parameters.shape[0])):]
-            parameters_trainvalid = self.parameters[int(np.rint((1.0-self.trainper) * self.parameters.shape[0])):]
-            if self.datatype == 'train' or self.datatype == 'valid':
-                self.trainind = trainvalid[:int(np.rint(0.7*len(trainvalid)))]
-                self.parameters_train = parameters_trainvalid[:int(np.rint(0.7*len(trainvalid)))]
-                if self.datatype == 'train':
-                    self.datalen = len(self.trainind)
-                if self.datatype == 'valid':
-                    self.validind = trainvalid[int(np.rint(0.7*len(trainvalid))):]
-                    self.parameters_valid = parameters_trainvalid[int(np.rint(0.7*len(trainvalid))):]
-                    self.datalen = len(self.validind)
-            
+            params_ref = None
+            for sysname, path in self.modpaths.items():
+                if self.verbose:
+                    print(f"... Reading {sysname} from {path}")
+                with h5py.File(path, "r") as h5:
+                    params = h5["parameters"][()]
+                    phot   = h5[sysname][()]
+                    if params_ref is None:
+                        params_ref = params
+                        self.parameters = params
+                    else:
+                        if len(params) != len(params_ref):
+                            raise ValueError(f"Row mismatch in {sysname}: {len(params)} vs {len(params_ref)}")
+                    self.h5dict[sysname] = phot
+                    self._systems.append(sysname)
 
-    # def normf(self,inarr,label):        
-    #     return 1.0 + (inarr-self.normfactor[label][0])/(self.normfactor[label][2]-self.normfactor[label][1]) 
+        # Sanity on parameters schema
+        expected = ("logt", "logg", "feh", "afe", "vmic")
+        have = self.parameters.dtype.names
+        missing = [f for f in expected if f not in have]
+        if missing:
+            raise ValueError(f"/parameters missing required fields: {missing}; found: {have}")
 
-    def normf(self, inarr, label):
-        mean, std = self.normfactor[label]
-        return (inarr - mean) / std
+        # ----------- Discover available bands per system -----------
+        fields_by_system = {sys: list(self.h5dict[sys].dtype.names) for sys in self._systems}
 
-    # def unnormf(self,inarr,label):
-    #     return ((inarr-1.0)*(self.normfactor[label][2]-self.normfactor[label][1])) + self.normfactor[label][0]
+        # ----------- SEDpy filters list → wavelengths + mapping -----------
+        sedpy_filters = kwargs.get('filters', None)
+        if not sedpy_filters:
+            raise ValueError("Pass `filters` as a list of SEDpy filter names (e.g., ['ps1_g','gaia_g', ...])")
 
-    def unnormf(self, inarr, label):
-        mean, std = self.normfactor[label]
-        return (inarr * std) + mean
+        method = kwargs.get('filter_wavelength_method', 'pivot')
+        system_alias = kwargs.get('system_alias', None)
+        band_alias   = kwargs.get('band_alias', None)
 
-    def readmod(self,index,filtername):
-        """
-        Returns a model for index given the filtername
-        
-        """
-        f = filtername.split('_')[-1]
-        ss = filtername.replace('_'+f,'')
-                
-        bc = self.h5dict[ss][f][index]
-        if self.norm:
-            bc = self.normf(bc,filtername)
-        return bc        
-        
-    def __len__(self):
-        """
-        Return the total number of Korg BC rows        
+        # Load SEDpy filters
+        sed_list = list(sedpy_filters)
 
-        Returns:
-            float : Total rows in Korg BC table
-        """
-        return self.datalen
+        sed_objs = []
+        for ff in sed_list:
+            if ff.lower().startswith("ch"):  # treat anything like "ch001", "ch002", ...
+                sed_objs.append(SEDpyFilter(kname="spherex", trans_colname=ff))
+            else:
+                # observate.load_filters returns a list, but we want a single Filter object here
+                sed_objs.extend(observate.load_filters([ff]))
+
+        sed_by_name = {f.name: f for f in sed_objs}
+
+        # Compute λ and map to (system, band) in HDF5
+        self.filter_wavelengths = {}           # {system:{band: lambda_A}}
+        self._out_labels = []                  # ["system_band", ...] in the same order as `filters`
+        self._filter_map = []                  # list of tuples for fast access: (system, band, sedpy_name)
+
+        for sname in sed_list:
+            f = sed_by_name[sname]
+            wA, T = _get_filter_arrays(f)
+            lamA = float(_pivot_wavelength(wA, T) if method == "pivot"
+                        else _logmean_wavelength(wA, T))
+            # lazily fill system dict
+            # we must map sname -> (system, band) in HDF5
+            system, band = _resolve_system_band_from_sedpy_name(
+                sname, set(self._systems), fields_by_system,
+                user_system_alias=system_alias, user_band_alias=band_alias
+            )
+            if system not in self.filter_wavelengths:
+                self.filter_wavelengths[system] = {}
+            self.filter_wavelengths[system][band] = lamA
+            self._out_labels.append(f"{system}_{band}")
+            self._filter_map.append((system, band, sname))
+
+        # ------------- Dataset type / splits -------------
+        self.datatype = kwargs.get('type', 'train')
+        self.returntorch = kwargs.get('returntorch', True)
+        self.trainper = kwargs.get('trainpercentage', 0.9)
+        self.norm = kwargs.get('norm', True)
+        self.rng = np.random.default_rng(kwargs.get('seed', None))
+
+        # ------------- Labels -------------
+        default_label_i = ['logt','logg','feh','afe','av','rv']
+        self.label_i = kwargs.get('label_i', default_label_i)
+        self.label_o = kwargs.get('label_o', self._out_labels)
+
+        # ------------- Parameter selection -------------
+        self.parrange = kwargs.get('parrange', None)
+        self.parameters = rfn.append_fields(self.parameters, 'model_index',
+                                            np.arange(len(self.parameters)), usemask=False)
+        if self.parrange is not None:
+            for k, (lo, hi) in self.parrange.items():
+                if self.verbose: print(f"... Applying parameter range for {k}: [{lo},{hi}]")
+                try:
+                    self.parameters = self.parameters[(self.parameters[k] >= lo) & (self.parameters[k] <= hi)]
+                except ValueError: # catch Av and Rv because these aren't defined yet
+                    pass
+
+        self.rng.shuffle(self.parameters)
+        cut = int(np.rint((1.0 - self.trainper) * len(self.parameters)))
+        if self.datatype == 'test':
+            self.parameters_test = self.parameters[:cut]; base_block = self.parameters_test
+        else:
+            rest = self.parameters[cut:]; mid = int(np.rint(0.7 * len(rest)))
+            self.parameters_train = rest[:mid]; self.parameters_valid = rest[mid:]
+            base_block = self.parameters_valid if self.datatype=='valid' else self.parameters_train
+
+        # ------------- Extinction control -------------
+        self.extinction_mode = kwargs.get('extinction_mode', None)
+        if self.extinction_mode is None:
+            self.extinction_mode = 'sample' if self.datatype == 'train' else 'grid'
+
+        self.avgrid = kwargs.get('avgrid',
+            [0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9] +
+            list(range(1,10,1)) + list(range(10,50,5)) + list(range(50,101,10))
+        )
+        self.rvgrid = kwargs.get('rvgrid', [2.3,2.5,3.1,3.5,4.0,5.0,5.6])
+
+        # parse avgrid and rvgrid based on input parrange
+        self.avgrid = np.array(self.avgrid, dtype=np.float32)
+        self.rvgrid = np.array(self.rvgrid, dtype=np.float32)
+        if self.parrange is not None and 'av' in self.parrange:
+            self.avgrid = self.avgrid[(self.avgrid >= min(self.parrange['av'])) & (self.avgrid <= max(self.parrange['av']))]
+        if self.parrange is not None and 'rv' in self.parrange:
+            self.rvgrid = self.rvgrid[(self.rvgrid >= min(self.parrange['rv'])) & (self.rvgrid <= max(self.parrange['rv']))]
+
+        # check to make sure we have something in the grids
+        if len(self.avgrid) == 0:
+            raise ValueError("No valid values found in avgrid")
+        if len(self.rvgrid) == 0:
+            raise ValueError("No valid values found in rvgrid")
+
+        self.fixed_av = kwargs.get('fixed_av', 0.0)
+        self.fixed_rv = kwargs.get('fixed_rv', 3.1)
+
+        base_idx = base_block['model_index']
+        if self.extinction_mode == 'grid':
+            self._av_list = np.array([a for a in self.avgrid for _ in self.rvgrid], dtype=np.float32)
+            self._rv_list = np.array([r for _ in self.avgrid for r in self.rvgrid], dtype=np.float32)
+            self._selind = np.repeat(base_idx, len(self._av_list))
+            self._param_rows = np.repeat(base_block, len(self._av_list))
+        else:
+            self._selind = base_idx; self._param_rows = base_block
+
+        # ------------- Normalization (intrinsic BCs) -------------
+        self.normfactor = {}
+        # Inputs
+        for ll in self.label_i:
+            if ll in self._param_rows.dtype.names:
+                x = self._param_rows[ll].astype(np.float64)
+            elif ll == 'av':
+                x = np.array(self.avgrid, dtype=np.float64)
+            elif ll == 'rv':
+                x = np.array(self.rvgrid, dtype=np.float64)
+            else:
+                self.normfactor[ll] = (0.0, 1.0); continue
+            mu, sd = float(np.mean(x)), float(np.std(x) if np.std(x) > 0 else 1.0)
+            self.normfactor[ll] = (mu, sd)
+        # Outputs (intrinsic, unreddened)
+        for lab, (system, band, _) in zip(self.label_o, self._filter_map):
+            bc_arr = self.h5dict[system][band].astype(np.float64)
+            mu, sd = float(np.mean(bc_arr)), float(np.std(bc_arr) if np.std(bc_arr) > 0 else 1.0)
+            self.normfactor[lab] = (mu, sd)
+
+        # ------------- k(λ) cache -------------
+        self._k_cache = {}  # (rv, system, band) -> k_lambda
+        self.datalen = len(self._selind)
+
+        if self.verbose:
+            print(f"... Data Set Type: {self.datatype}")
+            print(f"... Extinction mode: {self.extinction_mode}")
+            print(f"... N rows (effective): {self.datalen}")
+            print(f"... Systems present: {self._systems}")
+            print(f"... Outputs: {self.label_o}")
+
+    # ------------- helpers -------------
+    def normf(self, x, label):
+        mu, sd = self.normfactor[label]; return (x - mu) / sd
+    def unnormf(self, x, label):
+        mu, sd = self.normfactor[label]; return x * sd + mu
+
+    def _k_for(self, rv, system, band):
+        key = (float(rv), system, band)
+        if key in self._k_cache:
+            return self._k_cache[key]
+
+        lamA = self.filter_wavelengths[system][band]    # Å
+        # --- clamp Rv to the valid open interval (avoid FP boundary hits)
+        lo, hi = 2.3, 5.6
+        eps = np.finfo(np.float64).eps
+        rvf = float(rv)
+        if rvf <= lo:
+            rvf = float(np.nextafter(lo, 10.0))     # smallest float > 2.3
+        elif rvf >= hi:
+            rvf = float(np.nextafter(hi, 0.0))      # largest float < 5.6
+
+        # use units path (silences warning and is explicit)
+        from astropy import units as u
+        x_inv_micron = (1.0 / (lamA * 1e-4)) * u.micron**-1
+        k = float(G23(Rv=rvf)(x_inv_micron))  # A(λ)/A(V)
+
+        self._k_cache[key] = k
+        return k
+
+    def _bc_with_extinction(self, bc_intrinsic, system, band, av, rv):
+        if self.extinction_mode == 'none': return bc_intrinsic
+        return bc_intrinsic - av * self._k_for(rv, system, band)
+
+    # ------------- Dataset API -------------
+    def __len__(self): return self.datalen
 
     def __getitem__(self, idx):
-        """
-        Return a draw from the Korg BC table
+        selind = self._selind[idx]
+        row = self._param_rows[idx]
 
-        Args:
-            idx (integer): index integer for row to draw
-        """
-        # select which set of parameters
-        # inpars = self.parameters[idx]
-        if self.datatype == 'test':
-            selind = self.testind[idx]
-            inpars = self.parameters_test[idx]
-        elif self.datatype == 'train':
-            selind = self.trainind[idx]
-            inpars = self.parameters_train[idx]
-        elif self.datatype == 'valid':
-            selind = self.validind[idx]
-            inpars = self.parameters_valid[idx]
-            
-        # get BC from HDF5 tables
-        bcout = []
-        for ff in self.label_o:
-            bcout.append(self.readmod(selind,ff))
-
-        # build output array with input parametersf
-        outarr = [self.normf(inpars[ll],ll) if self.norm else inpars[ll] for ll in self.label_i] + bcout
-        outarr = np.array(outarr,dtype=np.float32)
-        
-        if self.returntorch:
-            return torch.tensor(outarr)
+        if self.extinction_mode == 'grid':
+            per_row = len(self.avgrid) * len(self.rvgrid)
+            gpos = idx % per_row
+            av = float(self.avgrid[gpos // len(self.rvgrid)])
+            rv = float(self.rvgrid[gpos % len(self.rvgrid)])
+        elif self.extinction_mode == 'fixed':
+            av, rv = float(self.fixed_av), float(self.fixed_rv)
+        elif self.extinction_mode == 'sample':
+            av = float(self.rng.choice(self.avgrid)); rv = float(self.rng.choice(self.rvgrid))
         else:
-            return outarr
-        
+            av, rv = 0.0, 3.1
+
+        # outputs with extinction, in the same order as self.label_o / self._filter_map
+        bcout = []
+        for lab, (system, band, _) in zip(self.label_o, self._filter_map):
+            bc = self.h5dict[system][band][selind]
+            bc = self._bc_with_extinction(bc, system, band, av, rv)
+            if self.norm: bc = self.normf(bc, lab)
+            bcout.append(bc)
+
+        # inputs
+        inputs = []
+        for ll in self.label_i:
+            if ll in row.dtype.names: val = float(row[ll])
+            elif ll == 'av':         val = av
+            elif ll == 'rv':         val = rv
+            else: raise KeyError(f"Input label '{ll}' not found (expected in parameters or av/rv).")
+            inputs.append(self.normf(val, ll) if self.norm else val)
+
+        outarr = np.array(inputs + bcout, dtype=np.float32)
+        return torch.tensor(outarr) if self.returntorch else outarr
+    
+class XYFromFlat(torch.utils.data.Dataset):
+    """
+    Wrap a ReadPhot dataset (which returns 1D tensor [n_in + n_out])
+    and return (x, y) tensors directly.
+    """
+    def __init__(self, base_ds):
+        self.ds = base_ds
+        self.n_in = len(base_ds.label_i)
+        self.n_out = len(base_ds.label_o)
+
+    def __len__(self):
+        return len(self.ds)
+
+    def __getitem__(self, idx):
+        flat = self.ds[idx]  # 1D tensor
+        x = flat[: self.n_in]
+        y = flat[self.n_in :]
+        return x, y
