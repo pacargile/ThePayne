@@ -160,6 +160,11 @@ class TrainMod(object):
         self.stress_max_batches= kwargs.get("stress_max_batches", 200)  # or None
         self.stress_seed       = kwargs.get("stress_seed", 1234)     # reproducible subsetting
 
+        # ---- Early Stopping Parameters
+        self.early_stopping = kwargs.get('early_stopping', True)
+        self.early_stopping_patience = kwargs.get('early_stopping_patience', 100)
+        self.early_stopping_min_delta = kwargs.get('early_stopping_min_delta', 1e-5)
+
         # if verbose
         self.verbose = kwargs.get('verbose', True)
 
@@ -475,7 +480,7 @@ class TrainMod(object):
             return [model, optimizer, datetime.now() - datetime.now()]
 
         # ---- early stopping (persist across epochs) ----
-        early_stopper = EarlyStopping(patience=50, min_delta=5e-5, verbose=True)
+        early_stopper = EarlyStopping(patience=self.early_stopping_patience, min_delta=self.early_stopping_min_delta, verbose=True)
 
         batchloss_arr, batchloss_std, batchloss_med = [], [], []
         validloss_arr, validloss_std, validloss_med = [], [], []
@@ -597,8 +602,11 @@ class TrainMod(object):
                 validloss_med.append(validloss_med[-1] if validloss_med else val_m)            
                         
             if do_val:
-                # compute stop criteria
-                stop = (val_checks_without_improve >= early_stopper.patience)
+                if self.early_stopping:
+                    # compute stop criteria
+                    stop = (val_checks_without_improve >= early_stopper.patience)
+                else:
+                    stop = False
             else:
                 stop = False
 
@@ -622,7 +630,10 @@ class TrainMod(object):
                     fig_loss.savefig(outputplot, dpi=150)
 
             # early stop
-            val_tag = f"(val {val_checks_without_improve}/{early_stopper.patience})" if do_val else "(skip)"
+            if self.early_stopping and do_val:
+                val_tag = f"(val {val_checks_without_improve}/{early_stopper.patience})" if do_val else "(skip)"
+            else:
+                val_tag = "(No ES)"
             val_display = np.log10(val_m) if np.isfinite(val_m) else float('nan')
             print(f"... Epoch {epoch+1}/{self.numepochs} {val_tag} "
                 f"train_logMSE={np.log10(train_m):.5f}  "
