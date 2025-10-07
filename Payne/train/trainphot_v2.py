@@ -302,6 +302,7 @@ class TrainMod(object):
             type='train',
             trainpercentage=self.trainper,
             parrange=self.parrange,
+            extinction_mode="sample",
         )
         valid_ds_flat = readKorg.ReadPhot(
             modpath=self.modpath,
@@ -314,6 +315,7 @@ class TrainMod(object):
             type='valid',
             trainpercentage=self.trainper,
             parrange=self.parrange,
+            extinction_mode="sample",            
         )
 
         print(f"... ReadPhot sizes: train={len(train_ds_flat)}  valid={len(valid_ds_flat)}")
@@ -329,25 +331,25 @@ class TrainMod(object):
         train_bs = min(self.batchsize, max(1, n_train))
         valid_bs = min(self.batchsize, max(1, n_valid))
     
-        linux_gpu = (device.type == "cuda" and sys.platform != "darwin")
-        nw  = self.num_workers if not linux_gpu else max(self.num_workers, 4)
-        ppf = 2 if nw == 0 else 4
+        # linux_gpu = (device.type == "cuda" and sys.platform != "darwin")
+        nw  = 0 # self.num_workers if not linux_gpu else max(self.num_workers, 4)
+        # ppf = 2 if nw == 0 else 4
 
         train_kwargs = dict(
             sampler=RandomSampler(train_ds),
             batch_size=train_bs,
             num_workers=nw,
-            pin_memory=(device.type == "cuda"),
+            pin_memory=False,#(device.type == "cuda"),
             drop_last=False,
-            persistent_workers=(nw > 0 and linux_gpu),
+            persistent_workers=False,#(nw > 0 and linux_gpu),
         )
         valid_kwargs = dict(
             sampler=SequentialSampler(valid_ds),
             batch_size=valid_bs,
             num_workers=nw,
-            pin_memory=(device.type == "cuda"),
+            pin_memory=False,#(device.type == "cuda"),
             drop_last=False,
-            persistent_workers=(nw > 0 and linux_gpu),
+            persistent_workers=False,#(nw > 0 and linux_gpu),
         )
         if nw > 0:
             train_kwargs["prefetch_factor"] = ppf
