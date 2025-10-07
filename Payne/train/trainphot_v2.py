@@ -160,6 +160,9 @@ class TrainMod(object):
         self.stress_max_batches= kwargs.get("stress_max_batches", 200)  # or None
         self.stress_seed       = kwargs.get("stress_seed", 1234)     # reproducible subsetting
 
+        # if verbose
+        self.verbose = kwargs.get('verbose', True)
+
         # create plot directory if it doesn't exist
         os.makedirs(self.plotdir, exist_ok=True)
 
