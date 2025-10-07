@@ -151,6 +151,15 @@ class TrainMod(object):
         self.plotevery = kwargs.get('plotevery', 20)
         self.plotdir   = kwargs.get('plotdir', './plots/')
 
+        # --- two-phase validation knobs ---
+        self.stress_every      = kwargs.get("stress_every", 5)  # run stress test every N validations
+        self.stress_avgrid     = kwargs.get("stress_avgrid",
+                                            [0.0, 0.5, 1, 2, 3, 5, 10, 20, 50, 75, 100])
+        self.stress_rvgrid     = kwargs.get("stress_rvgrid", [2.5, 3.1, 4.0, 5.0])
+        self.stress_limit      = kwargs.get("stress_limit", 20000)   # cap number of stress samples
+        self.stress_max_batches= kwargs.get("stress_max_batches", 200)  # or None
+        self.stress_seed       = kwargs.get("stress_seed", 1234)     # reproducible subsetting
+
         # create plot directory if it doesn't exist
         os.makedirs(self.plotdir, exist_ok=True)
 
@@ -226,6 +235,7 @@ class TrainMod(object):
         print(f'... Output Labels: {self.label_o}')
         print('... Finished Init')
         sys.stdout.flush()
+        
     def __call__(self, dryrun=False):
         '''
         call instance so that train_pixel can be called with multiprocessing
@@ -315,7 +325,9 @@ class TrainMod(object):
             type='valid',
             trainpercentage=self.trainper,
             parrange=self.parrange,
-            extinction_mode="sample",            
+            extinction_mode="fixed",
+            fixed_av=0.0,
+            fixed_rv=3.1,
         )
 
         print(f"... ReadPhot sizes: train={len(train_ds_flat)}  valid={len(valid_ds_flat)}")
@@ -360,6 +372,55 @@ class TrainMod(object):
         
         print(f"... Train samples: {n_train}, batch: {train_bs}")
         print(f"... Valid  samples: {n_valid}, batch: {valid_bs}")
+
+        # --- lazy stress-test loader (built on first use and cached) ---
+        _stress_loader = None
+        def get_stress_loader():
+            nonlocal _stress_loader
+            if _stress_loader is not None:
+                return _stress_loader
+
+            stress_ds_flat = readKorg.ReadPhot(
+                modpath=self.modpath,
+                filters=self.label_o,
+                filter_wavelength_method="pivot",
+                label_i=self.label_i,
+                label_o=self.label_o,
+                norm=self.norm,
+                returntorch=True,
+                type='valid',
+                trainpercentage=self.trainper,
+                parrange=self.parrange,
+                extinction_mode="grid",
+                avgrid=self.stress_avgrid,
+                rvgrid=self.stress_rvgrid,
+            )
+
+            # cap size deterministically
+            total = len(stress_ds_flat)
+            rng = np.random.default_rng(self.stress_seed)
+            if (self.stress_limit is not None) and (total > self.stress_limit):
+                idx = rng.choice(total, size=self.stress_limit, replace=False)
+                stress_ds = torch.utils.data.Subset(XYFromFlat(stress_ds_flat), idx)
+            else:
+                stress_ds = XYFromFlat(stress_ds_flat)
+
+            # always single-process, non-pinned to avoid HDF5+fork issues
+            stress_loader = DataLoader(
+                stress_ds,
+                batch_size=min(self.batchsize, 2048),
+                shuffle=False,
+                num_workers=0,
+                pin_memory=False,
+                drop_last=False,
+                persistent_workers=False,
+            )
+            _stress_loader = stress_loader
+            if self.verbose:
+                print(f"... Built stress loader: base={total}, "
+                    f"kept={len(stress_ds)} | Av×Rv = {len(self.stress_avgrid)}×{len(self.stress_rvgrid)}")
+            return _stress_loader        
+
 
         # ---- loss & optimizer ----
         loss_fn = torch.nn.MSELoss(reduction='mean')
@@ -411,7 +472,7 @@ class TrainMod(object):
             return [model, optimizer, datetime.now() - datetime.now()]
 
         # ---- early stopping (persist across epochs) ----
-        early_stopper = EarlyStopping(patience=50, min_delta=1e-4, verbose=True)
+        early_stopper = EarlyStopping(patience=50, min_delta=5e-5, verbose=True)
 
         batchloss_arr, batchloss_std, batchloss_med = [], [], []
         validloss_arr, validloss_std, validloss_med = [], [], []
@@ -433,9 +494,27 @@ class TrainMod(object):
             def autocast_ctx():
                 return torch.cuda.amp.autocast(enabled=use_cuda)
 
+
         train_loss_hist = []
         last_val_m = float("inf")
         val_checks_without_improve = 0
+
+        # define local function to compute validation metrics
+        def run_validation(loader):
+            model.eval()
+            v_sum, v_sumsq, v_cnt = 0.0, 0.0, 0
+            with torch.inference_mode():
+                for b, (x, y) in enumerate(loader):
+                    x = x.to(device, non_blocking=True); y = y.to(device, non_blocking=True)
+                    with autocast_ctx():
+                        vloss = loss_fn(model(x), y)
+                    li = float(vloss)
+                    v_sum += li; v_sumsq += li*li; v_cnt += 1
+                    if loader is not valid_loader and self.stress_max_batches is not None and (b+1) >= self.stress_max_batches:
+                        break
+            val_m = v_sum / max(1, v_cnt)
+            val_std = math.sqrt(max(0.0, v_sumsq / max(1, v_cnt) - val_m*val_m))
+            return val_m, val_std, v_cnt
     
         print('----- Starting Training Loop ------')
         for epoch in range(self.numepochs):
@@ -473,35 +552,19 @@ class TrainMod(object):
             # validation decision
             do_val = should_validate(epoch, self.numepochs, train_loss_hist)
 
-            # validation step
             if do_val:
-                model.eval()
-                v_sum, v_sumsq, v_cnt = 0.0, 0.0, 0
-                with torch.inference_mode():
-                    for x, y in valid_loader:
-                        x = x.to(device, non_blocking=True); y = y.to(device, non_blocking=True)
-                        with autocast_ctx():
-                            vloss = loss_fn(model(x), y)
-                        li = float(vloss)
-                        v_sum += li; v_sumsq += li*li; v_cnt += 1
-
-                val_m = v_sum / max(1, v_cnt)
-                val_std = math.sqrt(max(0.0, v_sumsq / max(1, v_cnt) - val_m*val_m))
+                # --- primary, stable validation (fixed Av/Rv) ---
+                val_m, val_std, val_batches = run_validation(valid_loader)
                 validloss_arr.append(val_m)
                 validloss_std.append(val_std)
-                validloss_med.append(val_m)  # med≈mean for MSE here
+                validloss_med.append(val_m)
                 last_val_m = val_m
 
-                # checkpoint & patience update only when we actually validated
+                # checkpoint & patience **based only on fixed validation**
                 if val_m < best_val:
                     best_val = val_m
                     val_checks_without_improve = 0
-                    # save best → HDF5
-                    
-                    # unwrap compiled model if torch.compile was used
                     base = _unwrap(model)
-
-                    # now store
                     save_state_dict_to_h5(base.state_dict(), self.outfilename, group="model", compression="gzip")
                     save_labels_norms_to_h5(self.outfilename, self.label_i, self.label_o,
                                             normfactor=(train_ds_flat.normfactor if self.norm else None))
@@ -515,14 +578,21 @@ class TrainMod(object):
                 else:
                     val_checks_without_improve += 1
 
-
+                # --- periodic stress test (small Av/Rv grid) ---
+                do_stress = (self.stress_every is not None) and (self.stress_every > 0) and ((epoch % self.stress_every) == 0)
+                if do_stress:
+                    stress_loader = get_stress_loader()
+                    stress_m, stress_std, stress_batches = run_validation(stress_loader)
+                    # lightweight print; do not use for checkpoint decisions
+                    print(f"    [stress] Av×Rv grid: mean MSE={stress_m:.6e} "
+                        f"(std={stress_std:.6e}, batches={stress_batches})", flush=True)
             else:
                 # carry forward last validation metrics for logging/plots
                 val_m = last_val_m
                 validloss_arr.append(val_m)
                 validloss_std.append(validloss_std[-1] if validloss_std else 0.0)
-                validloss_med.append(validloss_med[-1] if validloss_med else val_m)
-
+                validloss_med.append(validloss_med[-1] if validloss_med else val_m)            
+                        
             if do_val:
                 # compute stop criteria
                 stop = (val_checks_without_improve >= early_stopper.patience)
