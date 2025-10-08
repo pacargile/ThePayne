@@ -646,6 +646,9 @@ class TrainMod(object):
                 print("... Early Stopping Triggered")
                 break
 
+        # rescale x-axis in case of early stopping
+        for ax in ax_loss:
+            ax.set_xlim(0, epoch + 1)
         plt.close(fig_loss)
         torch.cuda.empty_cache()
         print('Finished training model.')
