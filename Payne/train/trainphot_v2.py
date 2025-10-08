@@ -632,7 +632,7 @@ class TrainMod(object):
                     fig_loss.savefig(outputplot, dpi=150)
 
             # early stop
-            if self.early_stopping and do_val:
+            if self.early_stopping:
                 val_tag = f"(val {val_checks_without_improve}/{early_stopper.patience})" if do_val else "(skip)"
             else:
                 val_tag = "(No ES)"
