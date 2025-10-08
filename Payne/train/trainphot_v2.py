@@ -165,6 +165,8 @@ class TrainMod(object):
         self.early_stopping_patience = kwargs.get('early_stopping_patience', 100)
         self.early_stopping_min_delta = kwargs.get('early_stopping_min_delta', 1e-5)
 
+        print(f'... Early Stopping: {self.early_stopping}, {self.early_stopping_patience}, {self.early_stopping_min_delta}')
+
         # if verbose
         self.verbose = kwargs.get('verbose', True)
 
