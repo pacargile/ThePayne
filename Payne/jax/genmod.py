@@ -33,25 +33,25 @@ class GenMod(object):
         else:
             self.PP = PayneSpecPredict(nnpath=nnpath,Cnnpath=Cnnpath,NNtype=NNtype)
 
-    def _initphotnn(self,filterarray,nnpath=None,NNtype=None,**kwargs):
+    def _initphotnn(self, filterarray, nnpath=None, NNtype=None, **kwargs):
         self.filterarray = filterarray
-        
-        if (NNtype == None) or (NNtype == 'LinNet'):
+
+        if (NNtype is None) or (NNtype == 'LinNet'):
             from .predictsed import FastPayneSEDPredict
             self.fppsed = FastPayneSEDPredict(
-                usebands=self.filterarray,nnpath=nnpath,
-                )
-        elif NNtype == 'MLP_v1':
+                usesys=self.filterarray, nnpath=nnpath,
+            )
+        elif NNtype in ('MLP_v0', 'MLP_v1', 'MLP_v2'):   # <— support v0,v1,v2 here
             from .predictsed import PayneSEDPredict
             self.fppsed = PayneSEDPredict(
-                usebands=self.filterarray,nnpath=nnpath,nntype=NNtype,
-                )
+                usesys=self.filterarray, nnpath=nnpath, nntype=NNtype,
+            )
         else:
             raise IOError('NNtype not recognized')
 
         if self.filterarray is None:
             self.filterarray = self.fppsed.filternames
-
+            
     def genspec(self,pars,outwave=None,verbose=False,modpoly=False):
         # define parameters from pars array
         Teff = pars[0]

@@ -5,56 +5,48 @@ import jax.numpy as np
 from jax import lax
 from .highred import highAv
 import glob
+from .photANN_new import modpred
 
 class PayneSEDPredict(object):
 
-    def __init__(self, usebands=None, nnpath=None, singlefile=None, nntype='MLP_v1', norm=True):
+    def __init__(self, usesys=None, nnpath=None, singlefile=None, nntype='MLP_v1', norm=True, cwcversion='v1.0', nnversion='v0'):
 
         self.nnpath = nnpath
         self.nntype = nntype
         self.norm = norm
         self.singlefile = singlefile
+        self.cwcversion = cwcversion
+        self.nnversion = nnversion
 
-        if usebands == None:
+
+        if usesys == None:
             # user doesn't know which filters, so read in all that
             # are contained in photNN path
             if self.singlefile is not None:
                 flist = glob.glob(self.singlefile)
             else:
-                flist = glob.glob(self.nnpath+f'/cwc*{self.nntype}*.h5')
+                flist = glob.glob(nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_*_{self.nnversion}.h5')
+                if not flist:
+                    raise FileNotFoundError(f"No files found for {nnpath}/cwc_{self.cwcversion}_{self.nntype}_*_{self.nnversion}.h5")
             allfilters = []
             for x in flist:
                 rootfilename = x.split('/')[-1]
-                f = rootfilename.replace('.h5','')
-                ss = '_'.join(f.split('_')[4:]) # always going to have [grid,version,nntype,version,filtername]
-                allfilters.append(ss)
-            usebands = allfilters
+                f = rootfilename.split('_')[-2]
+                allfilters.append(f)
+            usesys = allfilters
 
-        elif isinstance(usebands, str):
-            usebands = [usebands]
-
+        elif isinstance(usesys, str):
+            # user just gives a single string
+            flist = [nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_{usesys}_{self.nnversion}.h5']
+            usesys = [usesys]
         else:
-            usebands = usebands
+            # user gives a list of filter stings
+            flist = [nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_{uu}_{self.nnversion}.h5' for uu in usesys]
+            usesys = usesys
 
-        self.anns = self._initphotnn(usebands,nnpath=nnpath)
+        self.anns = {fn:modpred(fp, nntype=self.nntype, norm=self.norm) for fn, fp in zip(usesys, flist)}
+        self.filternames = usesys
 
-
-    def _initphotnn(self, usebands=None, nnpath=None):
-        from .photANN_new import modpred
-
-        self.filternames = usebands        
-
-        ANNdict = {}
-        for ff in self.filternames:
-            try:
-                if self.singlefile is not None:
-                    nnfile = self.singlefile
-                else:
-                    nnfile = glob.glob(nnpath + f'/cwc_*{ff}.h5')[0]
-                ANNdict[ff] = modpred(nnfile, nntype=self.nntype, norm=self.norm)
-            except:
-                print(f'Cannot find NN HDF5 file for {nnpath + f"/cwc_*{ff}.h5"}')
-        return ANNdict
 
     def sed(self, logt=None, logg=None, feh=None, afe=None,
             logl=None, av=None, rv=None,
