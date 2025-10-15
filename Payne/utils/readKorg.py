@@ -193,6 +193,18 @@ class ReadPhot(Dataset):
         self.kwargs = kwargs
         self.verbose = kwargs.get('verbose', False)
 
+        # --- reproducible splits + norm override ---
+        self.split_seed = kwargs.get('split_seed', kwargs.get('seed', None))
+        self.rng = np.random.default_rng(self.split_seed)
+
+        # Externally supplied split indices (by model_index values)
+        # Example: split={'train': np.array([...]), 'valid': np.array([...]), 'test': np.array([...])}
+        self.split = kwargs.get('split', None)
+
+        # Externally supplied normalization dict: {label: (mean, std)}
+        # Must cover all labels in label_i + label_o if provided.
+        self.normfactor_override = kwargs.get('normfactor', None)
+        
         # ---------------- Sources ----------------
         self.modpaths = _as_dict_of_paths(kwargs.get('modpath', None))
         if self.modpaths is None:
@@ -315,8 +327,8 @@ class ReadPhot(Dataset):
 
         sed_objs = []
         for ff in sed_list:
-            if ff.lower().startswith("ch"):  # treat anything like "ch001", "ch002", ...
-                sed_objs.append(SEDpyFilter(kname="spherex", trans_colname=ff))
+            if ff.lower().startswith("spherex"):  # treat anything starting with spherex
+                sed_objs.append(SEDpyFilter(kname="spherex", trans_colname=ff.split('_')[1]))
             else:
                 # observate.load_filters returns a list, but we want a single Filter object here
                 sed_objs.extend(observate.load_filters([ff]))
@@ -350,12 +362,18 @@ class ReadPhot(Dataset):
         self.returntorch = kwargs.get('returntorch', True)
         self.trainper = kwargs.get('trainpercentage', 0.9)
         self.norm = kwargs.get('norm', True)
-        self.rng = np.random.default_rng(kwargs.get('seed', None))
 
         # ------------- Labels -------------
         default_label_i = ['logt','logg','feh','afe','av','rv']
         self.label_i = kwargs.get('label_i', default_label_i)
         self.label_o = kwargs.get('label_o', self._out_labels)
+
+        # check to make sure norm factors are provided
+        if self.normfactor_override is not None:
+            missing = [k for k in (self.label_i + self.label_o) if k not in self.normfactor_override]
+            if missing:
+                raise ValueError(f"normfactor override missing labels: {missing}")
+    
 
         # ------------- Parameter selection -------------
         self.parrange = kwargs.get('parrange', None)
@@ -369,14 +387,53 @@ class ReadPhot(Dataset):
                 except ValueError: # catch Av and Rv because these aren't defined yet
                     pass
 
-        self.rng.shuffle(self.parameters)
-        cut = int(np.rint((1.0 - self.trainper) * len(self.parameters)))
-        if self.datatype == 'test':
-            self.parameters_test = self.parameters[:cut]; base_block = self.parameters_test
+        # --- build splits ---
+        # If explicit split indices were supplied, use them.
+        # Otherwise, do a deterministic shuffle with split_seed and then slice.
+
+        # check if splits are correctly supplied
+        if self.split is not None:
+            for key in ("train","valid","test"):
+                if key not in self.split:
+                    raise ValueError(f"split dict missing key '{key}'")
+
+        if self.split is not None:
+            # Keep only rows present in the supplied split for this datatype
+            want = self.split.get(self.datatype, None)
+            if want is None:
+                raise ValueError(f"split dict missing key '{self.datatype}'")
+            # map from model_index → row boolean
+            mask = np.isin(self.parameters['model_index'], want)
+            base_block = self.parameters[mask]
+            # also keep the other splits for export
+            self.parameters_train = self.parameters[np.isin(self.parameters['model_index'], self.split.get('train', []))]
+            self.parameters_valid = self.parameters[np.isin(self.parameters['model_index'], self.split.get('valid', []))]
+            self.parameters_test  = self.parameters[np.isin(self.parameters['model_index'], self.split.get('test',  []))]
+
         else:
-            rest = self.parameters[cut:]; mid = int(np.rint(0.7 * len(rest)))
-            self.parameters_train = rest[:mid]; self.parameters_valid = rest[mid:]
-            base_block = self.parameters_valid if self.datatype=='valid' else self.parameters_train
+            # Deterministic shuffle using split_seed (or None → nondeterministic)
+            self.rng.shuffle(self.parameters)
+
+            cut = int(np.rint((1.0 - self.trainper) * len(self.parameters)))
+            test_block = self.parameters[:cut]
+            rest = self.parameters[cut:]
+            mid = int(np.rint(0.7 * len(rest)))
+
+            train_block = rest[:mid]
+            valid_block = rest[mid:]
+
+            self.parameters_train = train_block
+            self.parameters_valid = valid_block
+            self.parameters_test  = test_block
+
+            base_block = {'train': train_block, 'valid': valid_block, 'test': test_block}[self.datatype]
+    
+        # keep handy for saving out
+        self.split_indices = {
+            'train': np.asarray(self.parameters_train['model_index']) if hasattr(self, 'parameters_train') else np.array([], dtype=int),
+            'valid': np.asarray(self.parameters_valid['model_index']) if hasattr(self, 'parameters_valid') else np.array([], dtype=int),
+            'test':  np.asarray(self.parameters_test['model_index'])  if hasattr(self, 'parameters_test')  else np.array([], dtype=int),
+        }
 
         # ------------- Extinction control -------------
         self.extinction_mode = kwargs.get('extinction_mode', None)
@@ -416,24 +473,31 @@ class ReadPhot(Dataset):
             self._selind = base_idx; self._param_rows = base_block
 
         # ------------- Normalization (intrinsic BCs) -------------
-        self.normfactor = {}
-        # Inputs
-        for ll in self.label_i:
-            if ll in self._param_rows.dtype.names:
-                x = self._param_rows[ll].astype(np.float64)
-            elif ll == 'av':
-                x = np.array(self.avgrid, dtype=np.float64)
-            elif ll == 'rv':
-                x = np.array(self.rvgrid, dtype=np.float64)
-            else:
-                self.normfactor[ll] = (0.0, 1.0); continue
-            mu, sd = float(np.mean(x)), float(np.std(x) if np.std(x) > 0 else 1.0)
-            self.normfactor[ll] = (mu, sd)
-        # Outputs (intrinsic, unreddened)
-        for lab, (system, band, _) in zip(self.label_o, self._filter_map):
-            bc_arr = self.h5dict[system][band].astype(np.float64)
-            mu, sd = float(np.mean(bc_arr)), float(np.std(bc_arr) if np.std(bc_arr) > 0 else 1.0)
-            self.normfactor[lab] = (mu, sd)
+        if self.normfactor_override is not None:
+            # Use supplied (mean,std) for all labels
+            self.normfactor = dict(self.normfactor_override)
+        else:
+            self.normfactor = {}
+            # Inputs
+            for ll in self.label_i:
+                if ll in base_block.dtype.names:
+                    x = base_block[ll].astype(np.float64)
+                elif ll == 'av':
+                    x = np.array(self.avgrid, dtype=np.float64)
+                elif ll == 'rv':
+                    x = np.array(self.rvgrid, dtype=np.float64)
+                else:
+                    self.normfactor[ll] = (0.0, 1.0); continue
+                mu = float(np.mean(x))
+                sd = float(np.std(x)) if np.std(x) > 0 else 1.0
+                self.normfactor[ll] = (mu, sd)
+
+            # Outputs (intrinsic, unreddened) – stats computed over *all* rows to be robust
+            for lab, (system, band, _) in zip(self.label_o, self._filter_map):
+                bc_arr = self.h5dict[system][band].astype(np.float64)
+                mu = float(np.mean(bc_arr))
+                sd = float(np.std(bc_arr)) if np.std(bc_arr) > 0 else 1.0
+                self.normfactor[lab] = (mu, sd)
 
         # ------------- k(λ) cache -------------
         self._k_cache = {}  # (rv, system, band) -> k_lambda
@@ -460,7 +524,6 @@ class ReadPhot(Dataset):
         lamA = self.filter_wavelengths[system][band]    # Å
         # --- clamp Rv to the valid open interval (avoid FP boundary hits)
         lo, hi = 2.3, 5.6
-        eps = np.finfo(np.float64).eps
         rvf = float(rv)
         if rvf <= lo:
             rvf = float(np.nextafter(lo, 10.0))     # smallest float > 2.3
