@@ -44,6 +44,7 @@ from ..utils import readKorg
 
 from .NNmodels_new import MLP_v0
 from .NNmodels_new import MLP_v1
+from .NNmodels_new import MLP_v2
 
 from ..predict import photANN_new as photANN
 
@@ -59,7 +60,7 @@ class EarlyStopping:
         self.min_delta = min_delta
         self.verbose = verbose
         self.counter = 0
-        self.best_loss = np.inf
+        self.best_loss = float("inf")
         self.should_stop = False
 
     def step(self, current_loss):
@@ -79,6 +80,8 @@ def defmod(D_in,H1,H2,H3,D_out,NNtype='MLP_v0'):
         return MLP_v0(D_in,H1,H2,H3,D_out)
     elif NNtype == 'MLP_v1':
         return MLP_v1(D_in,H1,H2,H3,D_out)
+    elif NNtype == 'MLP_v2':
+        return MLP_v2(D_in,H1,H2,H3,D_out)
 
 class TrainMod(object):
     """docstring for TrainMod"""

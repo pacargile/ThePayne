@@ -59,6 +59,14 @@ def _unwrap(model):
     """Return the underlying nn.Module if this is a compiled model."""
     return getattr(model, "_orig_mod", model)
 
+def _nparams(m):
+    return sum(p.numel() for p in m.parameters() if p.requires_grad)
+
+def _fmt(n):
+    if n >= 1e6:  return f"{n/1e6:.2f} M"
+    if n >= 1e3:  return f"{n/1e3:.2f} K"
+    return str(n)
+
 def should_validate(epoch, total_epochs, train_loss_hist):
     """
     Decide whether to run validation this epoch.
@@ -138,6 +146,9 @@ class TrainMod(object):
 
         print(f'... Start Training Code at {datetime.now()}')
         sys.stdout.flush()
+
+        # --- reproducible data split seed ---
+        self.split_seed = kwargs.get('split_seed', 1337)
 
         # ---- logging / plotting
         self.logplot   = kwargs.get('logplot', True)
@@ -293,37 +304,70 @@ class TrainMod(object):
         # ---- model (new or restart) ----
         if self.restartfile is not None and os.path.isfile(self.restartfile):
             print(f'Restarting from: {self.restartfile} ({self.NNtype})')
-            model = photANN.readNN(self.restartfile, nntype=self.NNtype)
+            # Construct the architecture from your *current* config
+            model = defmod(self.D_in, self.H1, self.H2, self.H3, self.D_out, NNtype=self.NNtype)
+            # Load weights from HDF5 (strict)
+            load_state_dict_from_h5(model, self.restartfile, group="model", strict=True, dtype=torch.float32)
         else:
             print(f'Running New NN with NNtype: {self.NNtype}')
             model = defmod(self.D_in, self.H1, self.H2, self.H3, self.D_out, NNtype=self.NNtype)
-
+            
         print('Model Arch:\n', model)
         model.to(device)
 
-        # compile model to speed things up
-        if hasattr(torch, "compile"):
-            compile_mode = "max-autotune" if use_cuda else "reduce-overhead"
-            try:
-                model = torch.compile(model, mode=compile_mode, fullgraph=False)
-            except Exception as _e:
-                if self.verbose:
-                    print(f"... torch.compile unavailable or failed ({_e}); continuing without compile.")
-            
+        # # compile model to speed things up
+        # if hasattr(torch, "compile"):
+        #     compile_mode = "max-autotune" if use_cuda else "reduce-overhead"
+        #     try:
+        #         model = torch.compile(model, mode=compile_mode, fullgraph=False)
+        #     except Exception as _e:
+        #         if self.verbose:
+        #             print(f"... torch.compile unavailable or failed ({_e}); continuing without compile.")
+
+        try:
+            base = _unwrap(model)  # you already use this when saving
+        except NameError:
+            base = model
+
+        total = _nparams(base)
+        print(f"... Trainable parameters (total): {total}  [{_fmt(total)}]")
+
+        # per-head breakdown if present
+        if hasattr(base, "f0"):
+            n = _nparams(base.f0)
+            print(f"    ├─ f0 (stellar head): {n}  [{_fmt(n)}]")
+        if hasattr(base, "khat"):
+            n = _nparams(base.khat)
+            print(f"    ├─ khat (extinction lane): {n}  [{_fmt(n)}]")
+        if hasattr(base, "resid"):
+            n = _nparams(base.resid)
+            print(f"    └─ resid (small residual): {n}  [{_fmt(n)}]")
+
         # ---- datasets & loaders ----
-        train_ds_flat = readKorg.ReadPhot(
+        # Build ONE anchor dataset to define the split & training normalization
+        anchor_train_ds = readKorg.ReadPhot(
             modpath=self.modpath,
             filters=self.label_o,
             filter_wavelength_method="pivot",
             label_i=self.label_i,
             label_o=self.label_o,
-            norm=self.norm,
+            norm=self.norm,                 # compute training norms here
             returntorch=True,
             type='train',
             trainpercentage=self.trainper,
             parrange=self.parrange,
             extinction_mode="sample",
+            split_seed=self.split_seed,     # deterministic split
         )
+
+        # Extract split indices and the training normalization
+        split = anchor_train_ds.split_indices            # {'train','valid','test'} of model_index values
+        train_norms = dict(anchor_train_ds.normfactor)   # {label: (mean, std)}
+
+        # Reuse the anchor as the training dataset
+        train_ds_flat = anchor_train_ds
+
+        # Build VALID with identical rows and identical normalization
         valid_ds_flat = readKorg.ReadPhot(
             modpath=self.modpath,
             filters=self.label_o,
@@ -331,18 +375,21 @@ class TrainMod(object):
             label_i=self.label_i,
             label_o=self.label_o,
             norm=self.norm,
+            normfactor=train_norms,          # force training norms
             returntorch=True,
             type='valid',
-            trainpercentage=self.trainper,
+            trainpercentage=self.trainper,   # ignored once split=... is given; kept for clarity
             parrange=self.parrange,
             extinction_mode="fixed",
             fixed_av=0.0,
             fixed_rv=3.1,
+            split_seed=self.split_seed,      
+            split=split,                     # force same rows as anchor
         )
 
         print(f"... ReadPhot sizes: train={len(train_ds_flat)}  valid={len(valid_ds_flat)}")
-        
-        # wrap to yield (x, y)
+
+        # Wrap to (x,y)
         train_ds = XYFromFlat(train_ds_flat)
         valid_ds = XYFromFlat(valid_ds_flat)
         
@@ -383,6 +430,32 @@ class TrainMod(object):
         print(f"... Train samples: {n_train}, batch: {train_bs}")
         print(f"... Valid  samples: {n_valid}, batch: {valid_bs}")
 
+        # --- persist split & norms once per run (safe to overwrite) ---
+        with h5py.File(self.outfilename, "a") as h5:
+            gsplit = h5.require_group("split")
+            for name in ("train_idx", "valid_idx", "test_idx"):
+                if name in gsplit: del gsplit[name]
+            gsplit.create_dataset("train_idx", data=split["train"], compression="gzip")
+            gsplit.create_dataset("valid_idx", data=split["valid"], compression="gzip")
+            gsplit.create_dataset("test_idx",  data=split["test"],  compression="gzip")
+            gsplit.attrs["split_seed"] = int(self.split_seed)
+
+            gnorms = h5.require_group("norms")
+            # clear and write training norms (label_i + label_o)
+            for k in list(gnorms.keys()):
+                del gnorms[k]
+            for k, (mu, sd) in train_norms.items():
+                g = gnorms.require_group(k)
+                g.attrs["mean"] = float(mu)
+                g.attrs["std"]  = float(sd)
+
+        # --- ensure the output file also contains the current weights ---
+        # At this point, `model` already has weights loaded from `self.restartfile`
+        # (since you swapped to defmod(...) + load_state_dict_from_h5(...)).
+        # Save them into `self.outfilename` so eval can load from there.
+        base = _unwrap(model)
+        save_state_dict_to_h5(base.state_dict(), self.outfilename, group="model", compression="gzip")
+        
         # --- lazy stress-test loader (built on first use and cached) ---
         _stress_loader = None
         def get_stress_loader():
@@ -397,13 +470,16 @@ class TrainMod(object):
                 label_i=self.label_i,
                 label_o=self.label_o,
                 norm=self.norm,
+                normfactor=train_norms,          
                 returntorch=True,
-                type='valid',
+                type='valid',                    
                 trainpercentage=self.trainper,
                 parrange=self.parrange,
                 extinction_mode="grid",
                 avgrid=self.stress_avgrid,
                 rvgrid=self.stress_rvgrid,
+                split_seed=self.split_seed,
+                split=split,
             )
 
             # cap size deterministically
@@ -450,7 +526,7 @@ class TrainMod(object):
         #     betas=(0.9, 0.999)
         # )
         optimizer = torch.optim.AdamW(
-            [{"params": decay, "weight_decay": 5e-4},
+            [{"params": decay, "weight_decay": 1e-4},
             {"params": no_decay, "weight_decay": 0.0}],
             lr=self.lr, betas=(0.9, 0.999),
             fused=(device.type == "cuda")
@@ -532,18 +608,65 @@ class TrainMod(object):
             model.train()
             batch_losses = []
 
+            # for x, y in train_loader:
+            #     x = x.to(device, non_blocking=True)
+            #     y = y.to(device, non_blocking=True)
+
+            #     optimizer.zero_grad(set_to_none=True)
+            #     # with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+            #     #     yhat = model(x)
+            #     #     loss = loss_fn(yhat, y)
+                    
+            #     with autocast_ctx():
+            #         yhat = model(x)
+            #         tloss = loss_fn(yhat, y)
+            #     scaler.scale(tloss).backward()
+            #     scaler.unscale_(optimizer)
+            #     torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+            #     scaler.step(optimizer)
+            #     scaler.update()
+
+            #     batch_losses.append(tloss.item())
+
+            AV_IDX = 4   # x[:,4] is Av
+
             for x, y in train_loader:
                 x = x.to(device, non_blocking=True)
                 y = y.to(device, non_blocking=True)
 
+                # we need autograd w.r.t. Av for the derivative lock
+                Av = x[:, AV_IDX].clone().detach().to(device)
+                Av.requires_grad_(True)
+                x_mod = x.clone()
+                x_mod[:, AV_IDX] = Av  # ensure this tensor is the one used in forward
+
                 optimizer.zero_grad(set_to_none=True)
-                # with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
-                #     yhat = model(x)
-                #     loss = loss_fn(yhat, y)
-                    
+
                 with autocast_ctx():
-                    yhat = model(x)
-                    tloss = loss_fn(yhat, y)
+                    # return k_hat so we don't re-run the model
+                    yhat, k_hat = model(x_mod, return_khat=True)
+
+                    # base photometry loss (Huber or MSE)
+                    loss_data = loss_fn(yhat, y)
+
+                    # -------- (1) Batchwise slope penalty: residual vs true magnitude --------
+                    res = yhat - y                      # (B, D_out)
+                    yt  = y - y.mean(dim=0, keepdim=True)
+                    rt  = res - res.mean(dim=0, keepdim=True)
+                    slope = (yt * rt).mean(dim=0) / (yt.pow(2).mean(dim=0) + 1e-8)
+                    loss_slope = (slope.pow(2)).mean()  # scalar
+
+                    # -------- (2) Av-linearity lock: ∂(m̂ − Av·k̂)/∂Av → 0 --------
+                    # NOTE: This does not need y. It enforces that only k_hat carries Av.
+                    m_minus_Avk = yhat - Av[:, None] * k_hat         # (B, D_out)
+                    dAv = torch.autograd.grad(
+                        m_minus_Avk.sum(), Av, create_graph=True, allow_unused=False
+                    )[0]                                            # (B,)
+                    loss_dAv = (dAv.pow(2)).mean()
+
+                    # total loss (start with 1e-2; tune 3e-3–3e-2 if needed)
+                    tloss = loss_data #+ 1e-2*loss_slope + 1e-2*loss_dAv
+
                 scaler.scale(tloss).backward()
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
