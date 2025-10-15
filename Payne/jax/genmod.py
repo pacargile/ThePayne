@@ -39,7 +39,7 @@ class GenMod(object):
         if (NNtype is None) or (NNtype == 'LinNet'):
             from .predictsed import FastPayneSEDPredict
             self.fppsed = FastPayneSEDPredict(
-                usesys=self.filterarray, nnpath=nnpath,
+                usebands=self.filterarray, nnpath=nnpath,
             )
         elif NNtype in ('MLP_v0', 'MLP_v1', 'MLP_v2'):   # <— support v0,v1,v2 here
             from .predictsed import PayneSEDPredict
