@@ -9,7 +9,7 @@ from .photANN_new import modpred
 
 class PayneSEDPredict(object):
 
-    def __init__(self, usesys=None, nnpath=None, singlefile=None, nntype='MLP_v1', norm=True, cwcversion='v1.0', nnversion='v0'):
+    def __init__(self, usesys=None, nnpath=None, singlefile=None, nntype='MLP_v1', norm=True, cwcversion='v1.0', nnversion=None):
 
         self.nnpath = nnpath
         self.nntype = nntype
@@ -17,7 +17,11 @@ class PayneSEDPredict(object):
         self.singlefile = singlefile
         self.cwcversion = cwcversion
         self.nnversion = nnversion
-
+        
+        if self.nnversion == None:
+            nnversion_i = 'v?'
+        else:
+            nnversion_i = self.nnversion
 
         if usesys == None:
             # user doesn't know which filters, so read in all that
@@ -25,9 +29,9 @@ class PayneSEDPredict(object):
             if self.singlefile is not None:
                 flist = glob.glob(self.singlefile)
             else:
-                flist = glob.glob(nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_*_{self.nnversion}.h5')
-                if not flist:
-                    raise FileNotFoundError(f"No files found for {nnpath}/cwc_{self.cwcversion}_{self.nntype}_*_{self.nnversion}.h5")
+                flist = glob.glob(nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_*_{nnversion_i}.h5')
+                if len(flist) == 0:
+                    raise FileNotFoundError(f"No files found for {nnpath}/cwc_{self.cwcversion}_{self.nntype}_*_{nnversion_i}.h5")
             allfilters = []
             for x in flist:
                 rootfilename = x.split('/')[-1]
@@ -37,11 +41,12 @@ class PayneSEDPredict(object):
 
         elif isinstance(usesys, str):
             # user just gives a single string
-            flist = [nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_{usesys}_{self.nnversion}.h5']
+            flist = [nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_{usesys}_{nnversion_i}.h5']
             usesys = [usesys]
         else:
             # user gives a list of filter stings
-            flist = [nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_{uu}_{self.nnversion}.h5' for uu in usesys]
+            flist_l = [glob.glob(nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_{uu}_{nnversion_i}.h5') for uu in usesys]
+            flist = [item for sublist in flist_l for item in sublist]
             usesys = usesys
 
         self.anns = {fn:modpred(fp, nntype=self.nntype, norm=self.norm) for fn, fp in zip(usesys, flist)}

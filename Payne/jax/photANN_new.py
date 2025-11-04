@@ -17,58 +17,56 @@ def _exists(h5, path: str) -> bool:
 
 def _read_norms(nnh5, label_i, label_o):
     """
-    Return (norm_i, norm_o) lists where each element is jnp.array([mean, std]).
-    Supports:
-      • NEW (your file):   norms/<label> with attrs {'mean','std'}
-      • Legacy A:          norm_i/<label>, norm_o/<label> datasets (value = [mean,std])
-      • Legacy B:          packed arrays: norm_i_mean, norm_i_std, norm_o_mean, norm_o_std
-      • Legacy C:          subgroup packed: norm_i/{mean,std}, norm_o/{mean,std}
+    Return norm_i, norm_o as dicts: {label: (mean, std)}.
+    Priority:
+        1. /norms group (new unified format, must contain all labels)
+        2. /norm_i and /norm_o groups (legacy A)
+        3. root-level packed arrays (legacy B)
     """
-    import jax.numpy as jnp
 
-    # --- try NEW layout first ---
+    def _fetch_group(g, labels):
+        out = {}
+        for lbl in labels:
+            if lbl in g:
+                ds = g[lbl]
+                if 'mean' in ds.attrs and 'std' in ds.attrs:
+                    out[lbl] = (float(ds.attrs['mean']), float(ds.attrs['std']))
+                else:
+                    arr = jnp.array(ds[()])
+                    out[lbl] = (float(arr[0]), float(arr[1]))
+        return out
+
+    # --- (1) Unified /norms format ---
     if _exists(nnh5, 'norms'):
         g = nnh5['norms']
-        def _fetch(label):
-            if label in g:
-                ds = g[label]
-                # attributes required: mean, std
-                if 'mean' in ds.attrs and 'std' in ds.attrs:
-                    return jnp.array([ds.attrs['mean'], ds.attrs['std']])
-            raise KeyError(f"norms/{label} missing or lacks attrs ['mean','std']")
-        try:
-            norm_i = [ _fetch(lbl) for lbl in label_i ]
-            norm_o = [ _fetch(lbl) for lbl in label_o ]
+        norm_i = _fetch_group(g, label_i)
+        norm_o = _fetch_group(g, label_o)
+        if (len(norm_i) == len(label_i)) and (len(norm_o) == len(label_o)):
+            # ✅ Found full, consistent norms → use this
             return norm_i, norm_o
-        except KeyError:
-            pass  # fall through to legacy paths
+        else:
+            # ⚠️ Warn and fall through
+            print("Warning: '/norms' group incomplete; falling back to legacy groups.")
 
-    # --- Legacy A: per-label datasets under norm_i/ and norm_o/ ---
+    # --- (2) Separate /norm_i and /norm_o groups ---
     if _exists(nnh5, 'norm_i') and _exists(nnh5, 'norm_o'):
         gi, go = nnh5['norm_i'], nnh5['norm_o']
-        try:
-            norm_i = [ jnp.array(gi[lbl][()]) for lbl in label_i ]
-            norm_o = [ jnp.array(go[lbl][()]) for lbl in label_o ]
+        norm_i = _fetch_group(gi, label_i)
+        norm_o = _fetch_group(go, label_o)
+        if (len(norm_i) == len(label_i)) and (len(norm_o) == len(label_o)):
             return norm_i, norm_o
-        except Exception:
-            # maybe subgroup packed:
-            if all(_exists(gi, k) for k in ('mean', 'std')) and all(_exists(go, k) for k in ('mean', 'std')):
-                mi, si = gi['mean'][()], gi['std'][()]
-                mo, so = go['mean'][()], go['std'][()]
-                norm_i = [ jnp.array([mi[i], si[i]]) for i in range(len(label_i)) ]
-                norm_o = [ jnp.array([mo[i], so[i]]) for i in range(len(label_o)) ]
-                return norm_i, norm_o
-            # else keep falling through
+        else:
+            print("Warning: '/norm_i' or '/norm_o' incomplete; falling back to packed arrays.")
 
-    # --- Legacy B: root-level packed arrays ---
-    if all(_exists(nnh5, k) for k in ('norm_i_mean','norm_i_std','norm_o_mean','norm_o_std')):
+    # --- (3) Root-level packed arrays ---
+    if all(_exists(nnh5, k) for k in ('norm_i_mean', 'norm_i_std', 'norm_o_mean', 'norm_o_std')):
         mi, si = nnh5['norm_i_mean'][()], nnh5['norm_i_std'][()]
         mo, so = nnh5['norm_o_mean'][()], nnh5['norm_o_std'][()]
-        norm_i = [ jnp.array([mi[i], si[i]]) for i in range(len(label_i)) ]
-        norm_o = [ jnp.array([mo[i], so[i]]) for i in range(len(label_o)) ]
+        norm_i = {lbl: (float(mi[i]), float(si[i])) for i, lbl in enumerate(label_i)}
+        norm_o = {lbl: (float(mo[i]), float(so[i])) for i, lbl in enumerate(label_o)}
         return norm_i, norm_o
 
-    raise KeyError("Could not locate normalization statistics in any supported layout.")
+    raise KeyError("Could not locate valid normalization statistics in any supported layout.")
 
 
 class Net(object):
@@ -297,213 +295,174 @@ class Net(object):
 
         # ===== MLP_v2 loader =====
         if (nntype == 'MLP_v2'):
-            import jax.numpy as jnp
 
-            def _rp(k):  # read param helper (works with dotted or slashed)
+            def _rp(k):
                 if k in nnh5: return nnh5[k][()]
                 ks = k.replace('.', '/')
                 if ks in nnh5: return nnh5[ks][()]
                 raise KeyError(f"Param key not found: {k}")
 
-            def _as_in_out(W, expected_in):
-                W = jnp.asarray(W)
-                if W.ndim != 2:
-                    raise ValueError(f"Linear weight must be 2D, got {W.shape}")
-                if W.shape[0] == expected_in:
-                    return W
-                if W.shape[1] == expected_in:
-                    return W.T
-                raise ValueError(f"Weight shape {W.shape} incompatible with expected_in={expected_in}")
+            to32 = lambda a: jnp.asarray(a, dtype=jnp.float32)
 
+            # ----- f0 (phys-only) -----
+            b1    = to32(_rp('model/f0.lin1.bias'))
+            b2    = to32(_rp('model/f0.lin2.bias'))
+            b3    = to32(_rp('model/f0.lin3.bias'))
+            bout  = to32(_rp('model/f0.linout.bias'))
+            W1    = to32(_rp('model/f0.lin1.weight')).T      # (out,in)->(in,out)
+            W2    = to32(_rp('model/f0.lin2.weight')).T
+            W3    = to32(_rp('model/f0.lin3.weight')).T
+            Wout  = to32(_rp('model/f0.linout.weight')).T
+            ln1b  = to32(_rp('model/f0.ln1.bias'))
+            ln2b  = to32(_rp('model/f0.ln2.bias'))
+            ln3b  = to32(_rp('model/f0.ln3.bias'))
+            ln1s  = to32(_rp('model/f0.ln1.weight'))
+            ln2s  = to32(_rp('model/f0.ln2.weight'))
+            ln3s  = to32(_rp('model/f0.ln3.weight'))
 
+            # ----- khat ([phys,Rv]) -----
+            kb1   = to32(_rp('model/khat.lin1.bias'))
+            kb2   = to32(_rp('model/khat.lin2.bias'))
+            kbout = to32(_rp('model/khat.linout.bias'))
+            Wk1   = to32(_rp('model/khat.lin1.weight')).T
+            Wk2   = to32(_rp('model/khat.lin2.weight')).T
+            Wkout = to32(_rp('model/khat.linout.weight')).T
 
-            # ----- f0 -----
-            b1   = jnp.array(_rp('model/f0.lin1.bias'));   W1   = jnp.array(_rp('model/f0.lin1.weight'))
-            b2   = jnp.array(_rp('model/f0.lin2.bias'));   W2   = jnp.array(_rp('model/f0.lin2.weight'))
-            b3   = jnp.array(_rp('model/f0.lin3.bias'));   W3   = jnp.array(_rp('model/f0.lin3.weight'))
-            bout = jnp.array(_rp('model/f0.linout.bias')); Wout = jnp.array(_rp('model/f0.linout.weight'))
-            ln1b = jnp.array(_rp('model/f0.ln1.bias'));    ln1s = jnp.array(_rp('model/f0.ln1.weight'))
-            ln2b = jnp.array(_rp('model/f0.ln2.bias'));    ln2s = jnp.array(_rp('model/f0.ln2.weight'))
-            ln3b = jnp.array(_rp('model/f0.ln3.bias'));    ln3s = jnp.array(_rp('model/f0.ln3.weight'))
+            # ----- resid (full input) -----
+            rb1   = to32(_rp('model/resid.lin1.bias'))
+            rb2   = to32(_rp('model/resid.lin2.bias'))
+            Wr1   = to32(_rp('model/resid.lin1.weight')).T
+            Wr2   = to32(_rp('model/resid.lin2.weight')).T
 
-            # ----- khat (new two-hidden + softplus) -----
-            kb1   = jnp.array(_rp('model/khat.lin1.bias'));   kW1   = jnp.array(_rp('model/khat.lin1.weight'))
-            kb2   = jnp.array(_rp('model/khat.lin2.bias'));   kW2   = jnp.array(_rp('model/khat.lin2.weight'))
-            kbout = jnp.array(_rp('model/khat.linout.bias')); kWout = jnp.array(_rp('model/khat.linout.weight'))
+            # Dimensions (safety)
+            d_phys = 4
+            D_in   = self.D_in
+            D_out  = self.D_out
+            assert W1.shape[0] == d_phys
+            assert Wout.shape[1] == D_out
+            assert Wr1.shape[0] == D_in
+            assert Wk1.shape[0] == (d_phys + 1)
 
-            # ----- resid -----
-            rb1  = jnp.array(_rp('model/resid.lin1.bias'));  rW1 = jnp.array(_rp('model/resid.lin1.weight'))
-            rb2  = jnp.array(_rp('model/resid.lin2.bias'));  rW2 = jnp.array(_rp('model/resid.lin2.weight'))
+            # ----- build layers (nnx.Linear expects (in,out)) -----
+            f0_lin1 = nnx.Linear(W1.shape[0],   W1.shape[1],   rngs=nnx.Rngs(0)); f0_lin1.kernel = nnx.Param(W1);   f0_lin1.bias = nnx.Param(b1)
+            f0_lin2 = nnx.Linear(W2.shape[0],   W2.shape[1],   rngs=nnx.Rngs(0)); f0_lin2.kernel = nnx.Param(W2);   f0_lin2.bias = nnx.Param(b2)
+            f0_lin3 = nnx.Linear(W3.shape[0],   W3.shape[1],   rngs=nnx.Rngs(0)); f0_lin3.kernel = nnx.Param(W3);   f0_lin3.bias = nnx.Param(b3)
+            f0_out  = nnx.Linear(Wout.shape[0], Wout.shape[1], rngs=nnx.Rngs(0)); f0_out.kernel  = nnx.Param(Wout); f0_out.bias  = nnx.Param(bout)
 
-            # Compute Expected Input Sizes and Orientations
-            d_phys = 4                               # model definition
-            H1, H2, H3 = b1.shape[0], b2.shape[0], b3.shape[0]
+            kh_lin1 = nnx.Linear(Wk1.shape[0],  Wk1.shape[1],  rngs=nnx.Rngs(0)); kh_lin1.kernel = nnx.Param(Wk1);  kh_lin1.bias = nnx.Param(kb1)
+            kh_lin2 = nnx.Linear(Wk2.shape[0],  Wk2.shape[1],  rngs=nnx.Rngs(0)); kh_lin2.kernel = nnx.Param(Wk2);  kh_lin2.bias = nnx.Param(kb2)
+            kh_out  = nnx.Linear(Wkout.shape[0],Wkout.shape[1],rngs=nnx.Rngs(0)); kh_out.kernel  = nnx.Param(Wkout);kh_out.bias  = nnx.Param(kbout)
 
-            W1   = _as_in_out(W1,   d_phys)
-            W2   = _as_in_out(W2,   H1)
-            W3   = _as_in_out(W3,   H2)
-            Wout = _as_in_out(Wout, H3)
+            rs_lin1 = nnx.Linear(Wr1.shape[0],  Wr1.shape[1],  rngs=nnx.Rngs(0)); rs_lin1.kernel = nnx.Param(Wr1);  rs_lin1.bias = nnx.Param(rb1)
+            rs_out  = nnx.Linear(Wr2.shape[0],  Wr2.shape[1],  rngs=nnx.Rngs(0)); rs_out.kernel  = nnx.Param(Wr2);  rs_out.bias  = nnx.Param(rb2)
 
-            # khat expected ins
-            d_khat_in = d_phys + 1                   # phys + Rv
-            Wk1   = _as_in_out(kW1,   d_khat_in)
-            Wk2   = _as_in_out(kW2,   kb1.shape[0])  # next layer in = prev out = len(bias)
-            Wkout = _as_in_out(kWout, kb2.shape[0])
-
-            # resid expected ins
-            d_full = self.D_in                       # full input vector length from file
-            Wr1 = _as_in_out(rW1, d_full)
-            Wr2 = _as_in_out(rW2, rb1.shape[0])
-
-            # ----- build layers (nnx) -----
-            # f0
-            f0_lin1 = nnx.Linear(W1.shape[0], W1.shape[1], rngs=nnx.Rngs(0)); f0_lin1.kernel = nnx.Param(W1);   f0_lin1.bias = nnx.Param(b1)
-            f0_ln1  = nnx.LayerNorm(f0_lin1.bias.shape[0], rngs=nnx.Rngs(0));  f0_ln1.bias    = nnx.Param(ln1b); f0_ln1.scale = nnx.Param(ln1s)
-            f0_lin2 = nnx.Linear(W2.shape[0], W2.shape[1], rngs=nnx.Rngs(0)); f0_lin2.kernel = nnx.Param(W2);   f0_lin2.bias = nnx.Param(b2)
-            f0_ln2  = nnx.LayerNorm(f0_lin2.bias.shape[0], rngs=nnx.Rngs(0));  f0_ln2.bias    = nnx.Param(ln2b); f0_ln2.scale = nnx.Param(ln2s)
-            f0_lin3 = nnx.Linear(W3.shape[0], W3.shape[1], rngs=nnx.Rngs(0)); f0_lin3.kernel = nnx.Param(W3);   f0_lin3.bias = nnx.Param(b3)
-            f0_ln3  = nnx.LayerNorm(f0_lin3.bias.shape[0], rngs=nnx.Rngs(0));  f0_ln3.bias    = nnx.Param(ln3b); f0_ln3.scale = nnx.Param(ln3s)
-            f0_out  = nnx.Linear(Wout.shape[0], Wout.shape[1], rngs=nnx.Rngs(0)); f0_out.kernel = nnx.Param(Wout); f0_out.bias = nnx.Param(bout)
-
-            # khat (no LN; 2 hidden; softplus in forward)
-            kh_lin1 = nnx.Linear(Wk1.shape[0], Wk1.shape[1], rngs=nnx.Rngs(0)); kh_lin1.kernel = nnx.Param(Wk1); kh_lin1.bias = nnx.Param(kb1)
-            kh_lin2 = nnx.Linear(Wk2.shape[0], Wk2.shape[1], rngs=nnx.Rngs(0)); kh_lin2.kernel = nnx.Param(Wk2); kh_lin2.bias = nnx.Param(kb2)
-            kh_out  = nnx.Linear(Wkout.shape[0], Wkout.shape[1], rngs=nnx.Rngs(0)); kh_out.kernel = nnx.Param(Wkout); kh_out.bias = nnx.Param(kbout)
-
-            # resid
-            rs_lin1 = nnx.Linear(Wr1.shape[0], Wr1.shape[1], rngs=nnx.Rngs(0)); rs_lin1.kernel = nnx.Param(Wr1); rs_lin1.bias = nnx.Param(rb1)
-            rs_out  = nnx.Linear(Wr2.shape[0], Wr2.shape[1], rngs=nnx.Rngs(0)); rs_out.kernel  = nnx.Param(Wr2); rs_out.bias  = nnx.Param(rb2)
-
-            self._f0_layers = (f0_lin1, f0_ln1, f0_lin2, f0_ln2, f0_lin3, f0_ln3, f0_out)
+            # store LN params (functional)
+            self._ln_params = ((ln1s, ln1b), (ln2s, ln2b), (ln3s, ln3b))
+            self._f0_layers = (f0_lin1, f0_lin2, f0_lin3, f0_out)
             self._kh_layers = (kh_lin1, kh_lin2, kh_out)
             self._rs_layers = (rs_lin1, rs_out)
 
             # ----- forward core (predict-time: no dropout) -----
+            def _layernorm_last(x, gamma, beta, eps=1e-5):
+                mu  = jnp.mean(x, axis=-1, keepdims=True)
+                var = jnp.mean((x - mu) * (x - mu), axis=-1, keepdims=True)  # unbiased=False
+                xhat = (x - mu) / jnp.sqrt(var + eps)
+                return xhat * gamma + beta
+
             def _forward_v2(x_file_norm):
-                import jax.numpy as jnp
                 if x_file_norm.ndim == 1:
                     x_file_norm = x_file_norm[None, :]
 
-                # select by indices we computed above
-                phys = x_file_norm[:, jnp.array(self._i_phys)]
-                Av   = x_file_norm[:, self._i_av:self._i_av+1]
-                Rv   = x_file_norm[:, self._i_rv:self._i_rv+1]
+                # slices (already in file input order)
+                phys = x_file_norm[:, jnp.array(self._i_phys)]            # (B,4)
+                Av   = x_file_norm[:, self._i_av:self._i_av+1]            # (B,1)
+                Rv   = x_file_norm[:, self._i_rv:self._i_rv+1]            # (B,1)
 
-                # f0(phys): Linear → SiLU → LayerNorm  (×3), then linout
-                f0_lin1, f0_ln1, f0_lin2, f0_ln2, f0_lin3, f0_ln3, f0_out = self._f0_layers
-                z = f0_lin1(phys); z = nnx.silu(z); z = f0_ln1(z)
-                z = f0_lin2(z);    z = nnx.silu(z); z = f0_ln2(z)
-                z = f0_lin3(z);    z = nnx.silu(z); z = f0_ln3(z)
-                bc0 = f0_out(z)
+                # f0: (Linear → SiLU → LN) × 3 → Linear
+                (f0_lin1, f0_lin2, f0_lin3, f0_out) = self._f0_layers
+                (g1,b1_), (g2,b2_), (g3,b3_) = self._ln_params
+                z = nnx.silu(f0_lin1(phys))
+                z = _layernorm_last(z, g1, b1_)
+                z = nnx.silu(f0_lin2(z))
+                z = _layernorm_last(z, g2, b2_)
+                z = nnx.silu(f0_lin3(z))
+                z = _layernorm_last(z, g3, b3_)
+                bc0 = f0_out(z)  # (B, D_out)
 
-                # khat([phys, Rv]): lin1 → SiLU → lin2 → SiLU → linout → Softplus
-                kh_lin1, kh_lin2, kh_out = self._kh_layers
-                xk = jnp.concatenate([phys, Rv], axis=-1)
-                zk = nnx.silu(kh_lin1(xk))
+                # khat([phys, Rv]) → softplus
+                (kh_lin1, kh_lin2, kh_out) = self._kh_layers
+                zk = nnx.silu(kh_lin1(jnp.concatenate([phys, Rv], axis=-1)))
                 zk = nnx.silu(kh_lin2(zk))
-                k_hat = jax.nn.softplus(kh_out(zk))  # beta=1.0
+                k_hat = jax.nn.softplus(kh_out(zk))                       # (B, D_out)
 
-                # resid(full x): Linear → SiLU → Linear  (no LN in your PyTorch)
-                rs_lin1, rs_out = self._rs_layers
-                r_hat = rs_out(nnx.silu(rs_lin1(x_file_norm)))
+                # resid(full x): Linear → SiLU → Linear
+                (rs_lin1, rs_out) = self._rs_layers
+                r_hat = rs_out(nnx.silu(rs_lin1(x_file_norm)))            # (B, D_out)
 
-                # compose: BC convention (M_bol − M_band) ⇒ extinction lowers BC
+                # compose (M_bol − M_band): extinction lowers BC
                 return bc0 + r_hat - Av * k_hat
 
             self._eval_core_v2 = _forward_v2
-            self.eval = self.evalMLP_v2
-    
-    
+            self.eval = self.evalMLP_v2    
         nnh5.close()
-
-    def evalMLP(self,x):
-
-        x_i = jnp.copy(jnp.asarray(x))        
-
-        if self.normed:
-            x_ii = jnp.zeros(x.shape,dtype=float)
-            if len(x.shape) == 1:
-                for ii,n_i in enumerate(self.norm_i):
-                    mid = n_i[0]
-                    std = n_i[1]
-                    x_n = (x_i[ii]-mid)/std
-                    x_ii = x_ii.at[ii].set(x_n)
-            else:
-                for ii,n_i in enumerate(self.norm_i):
-                    mid = n_i[0]
-                    std = n_i[1]
-                    x_n = (x_i[:,ii]-mid)/std
-                    x_ii = x_ii.at[:,ii].set(x_n)
-        else:
-            x_ii = x_i
-
-        y = self.mlp(x_ii)
-
-        if self.normed:
-            y_i = jnp.zeros(y.shape,dtype=float)
-            if len(x.shape) == 1:
-                for ii,n_i in enumerate(self.norm_o):
-                    mid = n_i[0]
-                    std = n_i[1]
-                    y_n = (y[ii]*std) + mid
-                    y_i = y_i.at[ii].set(y_n)
-            else:
-                for ii,n_i in enumerate(self.norm_o):
-                    mid = n_i[0]
-                    std = n_i[1]
-                    y_n = (y[:,ii]*std) + mid
-                    y_i = y_i.at[:,ii].set(y_n)
-        else:
-            y_i = y
-
-        return y_i        
-
-    def evalMLP_v2(self, x):
-        import jax.numpy as jnp
-        x_i = jnp.copy(jnp.asarray(x))
-
-        # track if caller gave a single example
+        
+        
+    def evalMLP(self, x):
+        x_i = jnp.asarray(x, dtype=jnp.float32)
         single = (x_i.ndim == 1)
 
-        # 1) remap caller order → file label_i order (handles Teff→logt if needed)
-        x_for_file = self._build_input_from_teff_order(x_i)
-
-        # 2) normalize using self.norm_i
         if self.normed:
-            x_ii = jnp.zeros(x_for_file.shape, dtype=float)
-            if single:
-                for ii, n_i in enumerate(self.norm_i):
-                    mid, std = n_i[0], n_i[1]
-                    x_ii = x_ii.at[ii].set((x_for_file[ii] - mid) / std)
-            else:
-                for ii, n_i in enumerate(self.norm_i):
-                    mid, std = n_i[0], n_i[1]
-                    x_ii = x_ii.at[:, ii].set((x_for_file[:, ii] - mid) / std)
+            mi = jnp.array([self.norm_i[l][0] for l in self.label_i], dtype=jnp.float32)
+            si = jnp.array([self.norm_i[l][1] for l in self.label_i], dtype=jnp.float32)
+            si = jnp.where(si == 0.0, 1.0, si)
+            x_norm = (x_i - mi) / si if single else (x_i - mi[None, :]) / si[None, :]
         else:
-            x_ii = x_for_file
+            x_norm = x_i
 
-        # 3) forward (returns shape (B, D_out) if we batched)
-        y = self._eval_core_v2(x_ii)
+        y = self.mlp(x_norm)
 
-        # ---- squeeze here for single-example path ----
-        if single and y.ndim == 2 and y.shape[0] == 1:
-            y = y[0]
-
-        # 4) denormalize using self.norm_o
         if self.normed:
-            y_i = jnp.zeros(y.shape, dtype=float)
-            if single:
-                for ii, n_i in enumerate(self.norm_o):
-                    mid, std = n_i[0], n_i[1]
-                    y_i = y_i.at[ii].set(y[ii] * std + mid)
-            else:
-                for ii, n_i in enumerate(self.norm_o):
-                    mid, std = n_i[0], n_i[1]
-                    y_i = y_i.at[:, ii].set(y[:, ii] * std + mid)
-        else:
-            y_i = y
-        return y_i
+            mo = jnp.array([self.norm_o[l][0] for l in self.label_o], dtype=jnp.float32)
+            so = jnp.array([self.norm_o[l][1] for l in self.label_o], dtype=jnp.float32)
+            y = y * so + mo if y.ndim == 1 else (y * so[None, :] + mo[None, :])
 
+        return y
+ 
+
+    def evalMLP_v2(self, x):
+        """
+        x: [Teff, logg, FeH, aFe, Av, Rv] or (B,6)
+        Returns denormalized BCs in label_o order, matching PyTorch MLP_v2.
+        """
+        x_i = jnp.asarray(x, dtype=jnp.float32)
+        single = (x_i.ndim == 1)
+
+        # 1) caller → file input order (Teff→log10 if needed)
+        x_for_file = self._build_input_from_teff_order(x_i)  # (6,) or (B,6) in label_i order
+
+        # 2) normalize inputs with dict norms (label_i order)
+        if self.normed:
+            mi = jnp.array([self.norm_i[l][0] for l in self.label_i], dtype=jnp.float32)
+            si = jnp.array([self.norm_i[l][1] for l in self.label_i], dtype=jnp.float32)
+            si = jnp.where(si == 0.0, 1.0, si)
+            x_norm = (x_for_file - mi) / si if single else (x_for_file - mi[None, :]) / si[None, :]
+        else:
+            x_norm = x_for_file
+ 
+        # 3) forward core (already in model order)
+        y = self._eval_core_v2(x_norm)
+
+        # 4) denormalize outputs with dict norms (label_o order)
+        if self.normed:
+            mo = jnp.array([self.norm_o[l][0] for l in self.label_o], dtype=jnp.float32)
+            so = jnp.array([self.norm_o[l][1] for l in self.label_o], dtype=jnp.float32)
+            y_den = y * so + mo if y.ndim == 1 else y * so[None, :] + mo[None, :]
+        else:
+            y_den = y
+
+        # squeeze if single
+        return y_den if not (single and y_den.ndim == 2 and y_den.shape[0] == 1) else y_den[0]
+    
 class modpred(object):
     """docstring for modpred"""
     def __init__(self, nnpath=None, nntype='MLP_v0', norm=True):
@@ -531,7 +490,7 @@ class modpred(object):
         pars = jnp.copy(pars)
         
         modpred = self.pred(pars)
-    
+        
         out = {}
         
         # make output dictionary        
