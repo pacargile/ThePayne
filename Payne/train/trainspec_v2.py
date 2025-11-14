@@ -527,8 +527,8 @@ class TrainSpec:
                     scaler.step(opt)
                     scaler.update()
                     opt.zero_grad(set_to_none=True)
-                losses.append(float(loss))
-
+                losses.append(loss.detach().item())
+                
             train_mean = float(np.mean(losses))
             train_std  = float(np.std(losses)) if len(losses) else 0.0
             train_med  = float(np.median(losses)) if len(losses) else train_mean
@@ -591,8 +591,9 @@ class TrainSpec:
                         z_hat  = (yhat_log - mu) @ Bt
                         coeff_loss_val = F.mse_loss(z_hat, z_true, reduction='mean')
                         v = v + coeff_w * coeff_loss_val
-    
-                    v_losses.append(float(v))
+
+                    v_losses.append(v.detach().item())
+
             val_mean = float(np.mean(v_losses)) if v_losses else float('inf')
             val_std  = float(np.std(v_losses)) if v_losses else 0.0
             val_med  = float(np.median(v_losses)) if v_losses else val_mean
