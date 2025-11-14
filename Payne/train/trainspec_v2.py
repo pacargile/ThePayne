@@ -286,6 +286,9 @@ class TrainSpec:
         train_ds = XYFromFlat(ds_train_flat)
         valid_ds = XYFromFlat(ds_valid_flat)
 
+        n_train, n_valid = len(train_ds), len(valid_ds)
+        print(f"[dbg] n_train={n_train}, n_valid={n_valid}, bs_train={bs_train}, bs_valid={bs_valid}")
+
         # define some dimensions
         L = len(self.label_o)
         d_phys = (len(self.label_i) - 2) if self.inputs_have_avrv else len(self.label_i)
