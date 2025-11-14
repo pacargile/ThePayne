@@ -45,8 +45,8 @@ import random
 import math
 import os, sys
 
-from ..utils import readKorg
-from ..utils.readKorg import XYFromFlat
+from ..utils import readKorg_old
+from ..utils.readKorg_old import XYFromFlat
 from ..utils.io_h5 import save_state_dict_to_h5, load_state_dict_from_h5, save_labels_norms_to_h5, save_meta_to_h5
 
 from .NNmodels_new import MLP_v0
@@ -345,7 +345,7 @@ class TrainMod(object):
 
         # ---- datasets & loaders ----
         # Build ONE anchor dataset to define the split & training normalization
-        anchor_train_ds = readKorg.ReadPhot(
+        anchor_train_ds = readKorg_old.ReadPhot(
             modpath=self.modpath,
             filters=self.label_o,
             filter_wavelength_method="pivot",
@@ -368,7 +368,7 @@ class TrainMod(object):
         train_ds_flat = anchor_train_ds
 
         # Build VALID with identical rows and identical normalization
-        valid_ds_flat = readKorg.ReadPhot(
+        valid_ds_flat = readKorg_old.ReadPhot(
             modpath=self.modpath,
             filters=self.label_o,
             filter_wavelength_method="pivot",
@@ -463,7 +463,7 @@ class TrainMod(object):
             if _stress_loader is not None:
                 return _stress_loader
 
-            stress_ds_flat = readKorg.ReadPhot(
+            stress_ds_flat = readKorg_old.ReadPhot(
                 modpath=self.modpath,
                 filters=self.label_o,
                 filter_wavelength_method="pivot",
@@ -760,11 +760,12 @@ class TrainMod(object):
             else:
                 val_tag = "(No ES)"
             val_display = np.log10(val_m) if np.isfinite(val_m) else float('nan')
-            print(f"... Epoch {epoch+1}/{self.numepochs} {val_tag} "
-                f"train_logMSE={np.log10(train_m):.5f}  "
-                f"valid_logMSE={val_display:.5f}  "
-                f"lr={optimizer.param_groups[0]['lr']:.2e}  "
-                f"time={time.time()-t0:.1f}s")
+            if epoch % 25 == 0 or epoch == self.numepochs - 1:
+                print(f"... Epoch {epoch+1}/{self.numepochs} {val_tag} "
+                    f"train_logMSE={np.log10(train_m):.5f}  "
+                    f"valid_logMSE={val_display:.5f}  "
+                    f"lr={optimizer.param_groups[0]['lr']:.2e}  "
+                    f"time={time.time()-t0:.1f}s")
             if stop:
                 print("... Early Stopping Triggered")
                 break
