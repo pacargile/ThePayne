@@ -66,8 +66,6 @@ class GenMod(object):
 
         if self.filterarray is None:
             self.filterarray = self.fppsed.filternames
-
-        print(self.fppsed.filternames)
             
     def genspec(self,pars,outwave=None,verbose=False,modpoly=False):
         # define parameters from pars array
