@@ -338,10 +338,23 @@ class Net(object):
             d_phys = 4
             D_in   = self.D_in
             D_out  = self.D_out
-            assert W1.shape[0] == d_phys
-            assert Wout.shape[1] == D_out
-            assert Wr1.shape[0] == D_in
-            assert Wk1.shape[0] == (d_phys + 1)
+            if W1.shape[0] != d_phys:
+                raise ValueError(f"MLP_v2 f0.lin1 expects {W1.shape[0]} inputs; expected {d_phys} stellar labels.")
+            if Wout.shape[1] != D_out:
+                raise ValueError(f"MLP_v2 f0.linout outputs {Wout.shape[1]} labels; expected {D_out}.")
+            if Wk1.shape[0] not in (d_phys + 1, d_phys + 2):
+                raise ValueError(
+                    f"MLP_v2 khat.lin1 expects {Wk1.shape[0]} inputs; expected either "
+                    f"{d_phys + 1} ([stellar,Rv]) or {d_phys + 2} ([stellar,Av,Rv])."
+                )
+            if Wr1.shape[0] not in (d_phys, D_in):
+                raise ValueError(
+                    f"MLP_v2 resid.lin1 expects {Wr1.shape[0]} inputs; expected either "
+                    f"{d_phys} (stellar-only residual) or {D_in} (full-input residual)."
+                )
+
+            self._khat_uses_av = (Wk1.shape[0] == d_phys + 2)
+            self._resid_uses_full_input = (Wr1.shape[0] == D_in)
 
             # ----- build layers (nnx.Linear expects (in,out)) -----
             f0_lin1 = nnx.Linear(W1.shape[0],   W1.shape[1],   rngs=nnx.Rngs(0)); f0_lin1.kernel = nnx.Param(W1);   f0_lin1.bias = nnx.Param(b1)
@@ -389,15 +402,24 @@ class Net(object):
                 z = _layernorm_last(z, g3, b3_)
                 bc0 = f0_out(z)  # (B, D_out)
 
-                # khat([phys, Rv]) → softplus
+                # khat input supports both historical MLP_v2 layouts:
+                #   old: [stellar, Rv]
+                #   new: [stellar, Av, Rv]  (needed for hybrid laws with Av-dependent branch)
                 (kh_lin1, kh_lin2, kh_out) = self._kh_layers
-                zk = nnx.silu(kh_lin1(jnp.concatenate([phys, Rv], axis=-1)))
+                if self._khat_uses_av:
+                    kh_in = jnp.concatenate([phys, Av, Rv], axis=-1)
+                else:
+                    kh_in = jnp.concatenate([phys, Rv], axis=-1)
+                zk = nnx.silu(kh_lin1(kh_in))
                 zk = nnx.silu(kh_lin2(zk))
                 k_hat = jax.nn.softplus(kh_out(zk))                       # (B, D_out)
 
-                # resid(full x): Linear → SiLU → Linear
+                # resid input supports both historical MLP_v2 layouts:
+                #   old: full normalized input
+                #   new: stellar-only residual, to prevent extinction leakage into resid
                 (rs_lin1, rs_out) = self._rs_layers
-                r_hat = rs_out(nnx.silu(rs_lin1(x_file_norm)))            # (B, D_out)
+                rs_in = x_file_norm if self._resid_uses_full_input else phys
+                r_hat = rs_out(nnx.silu(rs_lin1(rs_in)))                  # (B, D_out)
 
                 # compose (M_bol − M_band): extinction lowers BC
                 return bc0 + r_hat - Av * k_hat

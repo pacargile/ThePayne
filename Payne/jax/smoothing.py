@@ -364,7 +364,7 @@ def smooth_wave_fft(wavelength, spectrum, outwave, sigma_out=1.0,
     # The kernel width for the convolution.
     sigma = np.sqrt(sigma_out**2 - inres**2)
     if sigma < 0:
-        return np.interp(wave, outwave, flux)
+        return np.interp(wave, outwave, spectrum)
 
     # get grid resolution (*not* the resolution of the input spectrum) and make
     # sure it's nearly constant.  Should be by design (see resample_wave)
@@ -535,7 +535,7 @@ def smooth_lsf_fft(wave, spec, outwave, sigma=None, lsf=None, pix_per_sigma=2,
 
     return outspec
 
-def smooth_fft(dx, spec, sigma):
+def smooth_fft(dx, spec, sigma, pad_frac=0.25):
     """Basic math for FFT convolution with a gaussian kernel.
     :param dx:
         The wavelength or velocity spacing, same units as sigma
@@ -543,44 +543,72 @@ def smooth_fft(dx, spec, sigma):
         The width of the gaussian kernel, same units as dx
     :param spec:
         The spectrum flux vector
+    :param pad_frac:
+        Fraction of the spectrum length to use as padding on each side.
+        Must be between 0 and 1.
     """
-    # The Fourier coordinate
-    ss = jrfftfreq(spec.shape[0], d=dx)
-    # Make the fourier space taper; just the analytical fft of a gaussian
+    n = spec.shape[0]             # static in JAX traces
+    # choose padding based only on n (static, so JAX is happy)
+    npad = int(pad_frac * n)
+    npad = max(1, min(npad, n - 1))
+
+    # pad by extending edge values
+    left_pad  = np.full((npad,), spec[0])
+    right_pad = np.full((npad,), spec[-1])
+    spec_pad  = np.concatenate([left_pad, spec, right_pad])
+
+    # Fourier coordinate
+    ss = jrfftfreq(spec_pad.shape[0], d=dx)
+    # Gaussian taper in Fourier space
     taper = np.exp(-2 * (np.pi ** 2) * (sigma ** 2) * (ss ** 2))
-    # ss[0] = 0.01  # hack
-    # ss = index_update(ss, index[0], 0.01)
     ss = ss.at[0].set(0.01)
-    # Fourier transform the spectrum
-    spec_ff = jrfft(spec)
-    # Multiply in fourier space
+
+    # FFT, multiply by taper, inverse FFT
+    spec_ff = jrfft(spec_pad)
     ff_tapered = spec_ff * taper
-    # Fourier transform back
-    spec_conv = jirfft(ff_tapered)
+    spec_conv_pad = jirfft(ff_tapered)
+
+    # Strip padding
+    spec_conv = spec_conv_pad[npad:-npad]
     return spec_conv
 
-def smooth_fft_vsini(dv,spec,sigma):
-    # The Fourier coordinate
-    ss = jrfftfreq(spec.shape[0], d=dv)
+def smooth_fft_vsini(dv, spec, sigma, pad_frac=0.25):
+    """
+    FFT-based rotational (vsini) broadening with edge padding.
+    :param dv:
+        Velocity spacing per pixel (km/s)
+    :param spec:
+        Input spectrum
+    :param sigma:
+        Effective rotational broadening parameter (km/s)
+    :param pad_frac:
+        Fraction of spectrum length used as padding per side
+    """
+    n = spec.shape[0]
+    npad = int(pad_frac * n)
+    npad = max(1, min(npad, n - 1))
 
-    # Make the fourier space taper
-    # ss[0] = 0.01 #junk so we don't get a divide by zero error
-    # ss = index_update(ss, index[0], 0.01)
+    # Edge padding
+    left_pad  = np.full((npad,), spec[0])
+    right_pad = np.full((npad,), spec[-1])
+    spec_pad  = np.concatenate([left_pad, spec, right_pad])
+
+    # Fourier coordinate
+    ss = jrfftfreq(spec_pad.shape[0], d=dv)
     ss = ss.at[0].set(0.01)
-    ub = 2. * np.pi * sigma * ss
-    sb = jj1(ub) / ub - 3 * np.cos(ub) / (2 * ub ** 2) + 3. * np.sin(ub) / (2 * ub ** 3)
-    #set zeroth frequency to 1 separately (DC term)
-    # sb = index_update(sb, index[0], 1.0)
-    sb = sb.at[0].set(1.0)
 
-    # Fourier transform the spectrum
-    FF = jrfft(spec)
+    # Rotational kernel in Fourier space
+    ub = 2.0 * np.pi * sigma * ss
+    sb = jj1(ub) / ub - 3.0 * np.cos(ub) / (2.0 * ub ** 2) + 3.0 * np.sin(ub) / (2.0 * ub ** 3)
+    sb = sb.at[0].set(1.0)  # DC term
 
-    # Multiply in fourier space
+    # FFT, apply kernel, inverse FFT
+    FF = jrfft(spec_pad)
     FF_tap = FF * sb
+    spec_conv_pad = jirfft(FF_tap)
 
-    # Fourier transform back
-    spec_conv = jirfft(FF_tap)
+    # Strip padding
+    spec_conv = spec_conv_pad[npad:-npad]
     return spec_conv
 
 def mask_wave(wavelength, width=1, wlo=0, whi=np.inf, outwave=None,
