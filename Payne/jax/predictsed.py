@@ -18,6 +18,8 @@ class PayneSEDPredict(object):
         self.cwcversion = cwcversion
         self.nnversion = nnversion
         
+        print(f"Initializing PayneSEDPredict with nnpath={nnpath}, nntype={nntype}, norm={norm}, cwcversion={cwcversion}, nnversion={nnversion}")
+        
         if self.nnversion == None:
             nnversion_i = 'v?'
         else:

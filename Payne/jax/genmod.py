@@ -21,7 +21,7 @@ class GenMod(object):
         if self.sNNtype is None:
             self.sNNtype = 'LinNet'
 
-        if self.sNNtype is 'YST1' or self.sNNtype == 'LinNet':
+        if self.sNNtype == 'YST1' or self.sNNtype == 'LinNet':
             # if NNtype == 'PC':
             #     from Payne.predict.predictspec_multi import PayneSpecPredict
             # else:
@@ -44,7 +44,7 @@ class GenMod(object):
 
     def _initphotnn(self, filterarray, nnpath=None, **kwargs):
         self.filterarray = filterarray
-        self.pNNtype = kwargs.get('NNtype',"LinNet")
+        self.pNNtype = kwargs.get('nntype', kwargs.get('NNtype', "LinNet"))
 
         if (self.pNNtype is None) or (self.pNNtype == 'LinNet'):
             from .predictsed import FastPayneSEDPredict
@@ -58,12 +58,16 @@ class GenMod(object):
             self.fppsed = PayneSEDPredict(
                 usesys=self.filterarray, nnpath=nnpath, nntype=self.pNNtype,
                 cwcversion=self.cwcversion, nnversion=self.nnversion,
+                norm=kwargs.get('norm', True),
+                singlefile=kwargs.get('singlefile', None),
             )
         else:
             raise IOError('NNtype not recognized')
 
         if self.filterarray is None:
             self.filterarray = self.fppsed.filternames
+
+        print(self.fppsed.filternames)
             
     def genspec(self,pars,outwave=None,verbose=False,modpoly=False):
         # define parameters from pars array
