@@ -29,13 +29,13 @@ class PayneSEDPredict(object):
             # user doesn't know which filters, so read in all that
             # are contained in photNN path
             if self.singlefile is not None:
-                flist = glob.glob(self.singlefile)
+                self.flist = glob.glob(self.singlefile)
             else:
-                flist = glob.glob(nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_*_{nnversion_i}.h5')
-                if len(flist) == 0:
+                self.flist = glob.glob(nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_*_{nnversion_i}.h5')
+                if len(self.flist) == 0:
                     raise FileNotFoundError(f"No files found for {nnpath}/cwc_{self.cwcversion}_{self.nntype}_*_{nnversion_i}.h5")
             allfilters = []
-            for x in flist:
+            for x in self.flist:
                 rootfilename = x.split('/')[-1]
                 f = rootfilename.split('_')[-2]
                 allfilters.append(f)
@@ -43,15 +43,15 @@ class PayneSEDPredict(object):
 
         elif isinstance(usesys, str):
             # user just gives a single string
-            flist = [nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_{usesys}_{nnversion_i}.h5']
+            self.flist = [nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_{usesys}_{nnversion_i}.h5']
             usesys = [usesys]
         else:
             # user gives a list of filter stings
-            flist_l = [glob.glob(nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_{uu}_{nnversion_i}.h5') for uu in usesys]
-            flist = [item for sublist in flist_l for item in sublist]
+            self.flist = [glob.glob(nnpath + f'/cwc_{self.cwcversion}_{self.nntype}_{uu}_{nnversion_i}.h5') for uu in usesys]
+            self.flist = [item for sublist in self.flist for item in sublist]
             usesys = usesys
 
-        self.anns = {fn:modpred(fp, nntype=self.nntype, norm=self.norm) for fn, fp in zip(usesys, flist)}
+        self.anns = {fn:modpred(fp, nntype=self.nntype, norm=self.norm) for fn, fp in zip(usesys, self.flist)}
         self.filternames = usesys
 
 

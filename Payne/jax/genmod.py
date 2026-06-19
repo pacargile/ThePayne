@@ -64,6 +64,11 @@ class GenMod(object):
         else:
             raise IOError('NNtype not recognized')
 
+        print(f"[ThePayne] Initialized photometric NN with:")
+        print(f"[ThePayne] type: {self.pNNtype}")
+        print(f"[ThePayne] filters {self.filterarray}")
+        print(f"[ThePayne] files: {self.fppsed.flist}")
+
         if self.filterarray is None:
             self.filterarray = self.fppsed.filternames
             
