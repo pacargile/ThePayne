@@ -88,9 +88,11 @@ class FastPayneSEDPredict(object):
         if usebands == None:
             # user doesn't know which filters, so read in all that
             # are contained in photNN path
-            flist = glob.glob(nnpath+'/nnMIST_*.h5')
-            allfilters = [x.split('/')[-1].replace('nnMIST_','').replace('.h5','') for x in flist]
+            self.flist = glob.glob(nnpath+'/nnMIST_*.h5')
+            allfilters = [x.split('/')[-1].replace('nnMIST_','').replace('.h5','') for x in self.flist]
             usebands = allfilters
+        else:
+            self.flist = [nnpath+'/nnMIST_'+uu+'.h5' for uu in usebands]
         self.filternames = usebands    
 
         nnlist = []
