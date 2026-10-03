@@ -154,7 +154,7 @@ class TrainMod(object):
         self.logplot   = kwargs.get('logplot', True)
 
         # ---- training config
-        self.trainper  = kwargs.get('trainper', 0.9)
+        self.trainper  = kwargs.get('trainpercentage', kwargs.get('trainper', 0.9))
         self.numepochs = kwargs.get('numepochs', 10000)
         self.batchsize = kwargs.get('batchsize', 2048)
         self.lr        = kwargs.get('lr', 1e-3)
@@ -180,6 +180,27 @@ class TrainMod(object):
         self.extinction_law = kwargs.get('extinction_law', 'g23') # 'g23' or 'boogert', or 'hybrid'
         self.extinction_av_break = kwargs.get('extinction_av_break', 2.0) # for 'hybrid', where to switch from g23 to boogert
         self.hybrid_grid_collapse_rv = kwargs.get('hybrid_grid_collapse_rv', True) # if True, then in the hybrid grid, only include one representative Rv value for Av > extinction_av_break
+
+        self.train_extinction_mode = kwargs.get("train_extinction_mode", "sample")
+        self.train_fixed_av = kwargs.get("train_fixed_av", 0.0)
+        self.train_fixed_rv = kwargs.get("train_fixed_rv", 3.1)
+
+        # Validation defaults to the same extinction setup as training for
+        # controlled diagnostic runs.  Use "fixed" and Av=0 for intrinsic tests,
+        # or override these explicitly for sampled/grid extinction validation.
+        self.valid_extinction_mode = kwargs.get("valid_extinction_mode", self.train_extinction_mode)
+        self.valid_fixed_av = kwargs.get("valid_fixed_av", self.train_fixed_av)
+        self.valid_fixed_rv = kwargs.get("valid_fixed_rv", self.train_fixed_rv)
+
+        # MLP_v2 has an explicit physics-informed extinction lane:
+        #     y_norm = f0_norm - A_V * k_hat_norm + residual
+        # Therefore A_V must be the physical A_V, not a z-scored coordinate.
+        # Likewise, feeding physical R_V to khat avoids learning on an arbitrary
+        # normalized R_V scale.  This is intentionally enabled by default for
+        # MLP_v2-like models.
+        self.raw_extinction_inputs = kwargs.get('raw_extinction_inputs', None)
+        if self.raw_extinction_inputs is None:
+            self.raw_extinction_inputs = (self.NNtype == 'MLP_v2')
 
         print(f'... Early Stopping: {self.early_stopping}, {self.early_stopping_patience}, {self.early_stopping_min_delta}')
 
@@ -361,7 +382,9 @@ class TrainMod(object):
             type='train',
             trainpercentage=self.trainper,
             parrange=self.parrange,
-            extinction_mode="sample",
+            extinction_mode=self.train_extinction_mode,
+            fixed_av=self.train_fixed_av,
+            fixed_rv=self.train_fixed_rv,
             split_seed=self.split_seed,     # deterministic split
             extinction_law=self.extinction_law,
             extinction_av_break=self.extinction_av_break,
@@ -371,6 +394,18 @@ class TrainMod(object):
         # Extract split indices and the training normalization
         split = anchor_train_ds.split_indices            # {'train','valid','test'} of model_index values
         train_norms = dict(anchor_train_ds.normfactor)   # {label: (mean, std)}
+
+        # Important for MLP_v2: keep Av/Rv as physical inputs even when the
+        # stellar labels and output BCs are z-scored.  Otherwise Av=0 becomes
+        # a negative normalized number, so the explicit -Av*k_hat term is
+        # non-zero at zero extinction and produces a coherent offset.
+        if self.raw_extinction_inputs:
+            for _lab in ('av', 'rv'):
+                if _lab in self.label_i:
+                    train_norms[_lab] = (0.0, 1.0)
+                    anchor_train_ds.normfactor[_lab] = (0.0, 1.0)
+            if self.verbose:
+                print('... Using raw physical Av/Rv inputs for extinction-aware model.')
 
         # Reuse the anchor as the training dataset
         train_ds_flat = anchor_train_ds
@@ -388,9 +423,9 @@ class TrainMod(object):
             type='valid',
             trainpercentage=self.trainper,   # ignored once split=... is given; kept for clarity
             parrange=self.parrange,
-            extinction_mode="fixed",
-            fixed_av=0.0,
-            fixed_rv=3.1,
+            extinction_mode=self.valid_extinction_mode,
+            fixed_av=self.valid_fixed_av,
+            fixed_rv=self.valid_fixed_rv,
             split_seed=self.split_seed,      
             split=split,                     # force same rows as anchor
             extinction_law=self.extinction_law,
@@ -642,44 +677,56 @@ class TrainMod(object):
 
             #     batch_losses.append(tloss.item())
 
-            AV_IDX = 4   # x[:,4] is Av
+            # Some models (e.g. MLP_v2) have an extinction lane and support
+            # return_khat=True, but intrinsic-only baselines (e.g. MLP_v1 with
+            # label_i=[logt,logg,feh,afe]) do not have Av/Rv inputs.  Only use
+            # the Av derivative/decomposition bookkeeping when an Av column is
+            # actually present and the model exposes khat.
+            AV_IDX = self.label_i.index('av') if 'av' in self.label_i else None
+            use_extinction_lane = (AV_IDX is not None) and hasattr(_unwrap(model), 'khat')
 
             for x, y in train_loader:
                 x = x.to(device, non_blocking=True)
                 y = y.to(device, non_blocking=True)
 
-                # we need autograd w.r.t. Av for the derivative lock
-                Av = x[:, AV_IDX].clone().detach().to(device)
-                Av.requires_grad_(True)
-                x_mod = x.clone()
-                x_mod[:, AV_IDX] = Av  # ensure this tensor is the one used in forward
-
                 optimizer.zero_grad(set_to_none=True)
 
-                with autocast_ctx():
-                    # return k_hat so we don't re-run the model
-                    yhat, k_hat = model(x_mod, return_khat=True)
+                if use_extinction_lane:
+                    # we need autograd w.r.t. Av for the optional derivative lock
+                    Av = x[:, AV_IDX].clone().detach().to(device)
+                    Av.requires_grad_(True)
+                    x_mod = x.clone()
+                    x_mod[:, AV_IDX] = Av  # ensure this tensor is the one used in forward
 
-                    # base photometry loss (Huber or MSE)
-                    loss_data = loss_fn(yhat, y)
+                    with autocast_ctx():
+                        # return k_hat so we don't re-run the model
+                        yhat, k_hat = model(x_mod, return_khat=True)
 
-                    # -------- (1) Batchwise slope penalty: residual vs true magnitude --------
-                    res = yhat - y                      # (B, D_out)
-                    yt  = y - y.mean(dim=0, keepdim=True)
-                    rt  = res - res.mean(dim=0, keepdim=True)
-                    slope = (yt * rt).mean(dim=0) / (yt.pow(2).mean(dim=0) + 1e-8)
-                    loss_slope = (slope.pow(2)).mean()  # scalar
+                        # base photometry loss (Huber or MSE)
+                        loss_data = loss_fn(yhat, y)
 
-                    # -------- (2) Av-linearity lock: ∂(m̂ − Av·k̂)/∂Av → 0 --------
-                    # NOTE: This does not need y. It enforces that only k_hat carries Av.
-                    m_minus_Avk = yhat - Av[:, None] * k_hat         # (B, D_out)
-                    dAv = torch.autograd.grad(
-                        m_minus_Avk.sum(), Av, create_graph=True, allow_unused=False
-                    )[0]                                            # (B,)
-                    loss_dAv = (dAv.pow(2)).mean()
+                        # -------- (1) Batchwise slope penalty: residual vs true magnitude --------
+                        res = yhat - y                      # (B, D_out)
+                        yt  = y - y.mean(dim=0, keepdim=True)
+                        rt  = res - res.mean(dim=0, keepdim=True)
+                        slope = (yt * rt).mean(dim=0) / (yt.pow(2).mean(dim=0) + 1e-8)
+                        loss_slope = (slope.pow(2)).mean()  # scalar
 
-                    # total loss (start with 1e-2; tune 3e-3–3e-2 if needed)
-                    tloss = loss_data #+ 1e-2*loss_slope + 1e-2*loss_dAv
+                        # -------- (2) Av-linearity lock: ∂(m̂ − Av·k̂)/∂Av → 0 --------
+                        # NOTE: This does not need y. It enforces that only k_hat carries Av.
+                        m_minus_Avk = yhat - Av[:, None] * k_hat         # (B, D_out)
+                        dAv = torch.autograd.grad(
+                            m_minus_Avk.sum(), Av, create_graph=True, allow_unused=False
+                        )[0]                                            # (B,)
+                        loss_dAv = (dAv.pow(2)).mean()
+
+                        # total loss (start with 1e-2; tune 3e-3–3e-2 if needed)
+                        tloss = loss_data #+ 1e-2*loss_slope + 1e-2*loss_dAv
+                else:
+                    # Plain intrinsic-only model: no Av column and no khat output.
+                    with autocast_ctx():
+                        yhat = model(x)
+                        tloss = loss_fn(yhat, y)
 
                 scaler.scale(tloss).backward()
                 scaler.unscale_(optimizer)

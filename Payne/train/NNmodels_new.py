@@ -81,26 +81,38 @@ class MLP_v2(nn.Module):
 
         # # extinction lane khat: (phys + Rv) → per-band k_hat
         W = 128
+        # self.khat = nn.Sequential(OrderedDict([
+        #     ('lin1',   nn.Linear(d_phys + 2, W)),  # same input as before: [phys, Rv]
+        #     ('af1',    nn.SiLU()),
+        #     ('lin2',   nn.Linear(W, W)),
+        #     ('af2',    nn.SiLU()),
+        #     ('linout', nn.Linear(W, D_out)),
+        #     ('sp',     nn.Softplus(beta=1.0)),     # no params; JAX can ignore
+        # ]))
+        # extinction lane khat: [logt, logg, feh, afe, Av, Rv] -> per-band k_hat
         self.khat = nn.Sequential(OrderedDict([
-            ('lin1',   nn.Linear(d_phys + 1, W)),  # same input as before: [phys, Rv]
+            ('lin1',   nn.Linear(d_phys + 2, W)),
             ('af1',    nn.SiLU()),
             ('lin2',   nn.Linear(W, W)),
             ('af2',    nn.SiLU()),
             ('linout', nn.Linear(W, D_out)),
-            ('sp',     nn.Softplus(beta=1.0)),     # no params; JAX can ignore
-        ]))
-        # init linout small
+            ('sp',     nn.Softplus(beta=1.0)),
+        ]))        # init linout small
         nn.init.zeros_(self.khat.linout.weight)
         nn.init.zeros_(self.khat.linout.bias)
 
         # small residual on the full 6-dim input
         W_resid = 64
+        # self.resid = nn.Sequential(OrderedDict([
+        #     ('lin1', nn.Linear(d_full, W_resid)),      # 6
+        #     ('af1', nn.SiLU()),
+        #     ('lin2', nn.Linear(W_resid, D_out)),
+        # ]))
         self.resid = nn.Sequential(OrderedDict([
-            ('lin1', nn.Linear(d_full, W_resid)),      # 6
+            ('lin1', nn.Linear(d_phys, W_resid)),
             ('af1', nn.SiLU()),
             ('lin2', nn.Linear(W_resid, D_out)),
         ]))
-
     def forward(self, x, return_khat: bool = False):
         # parse inputs
         x_phys = x[:, :4]      # [logt, logg, feh, afe]
@@ -110,12 +122,12 @@ class MLP_v2(nn.Module):
         # compute 3 heads
         bc0    = self.f0(x_phys)
 
-        k_hat  = self.khat(torch.cat([x_phys, rv[:,None]], dim=1))
+        k_hat = self.khat(torch.cat([x_phys, av[:, None], rv[:, None]], dim=1))
 
-        r_hat  = self.resid(x)
+        r_hat  = self.resid(x_phys)
 
         # sum heads
-        yhat = bc0 + (-av[:,None]) * k_hat + r_hat
+        yhat = bc0 - av[:, None] * k_hat + r_hat
 
         if return_khat:
             return yhat, k_hat

@@ -40,7 +40,7 @@ import h5py
 import time,sys,os,glob,shutil
 from datetime import datetime
 
-from ..utils import readKorg
+from ..utils import readKorg_old
 
 from .NNmodels_new import MLP_v0
 from .NNmodels_new import MLP_v1
@@ -159,7 +159,7 @@ class TrainMod(object):
         print('... Pulling a first set of models for test set')
         print('... Reading {0:.2f} of grid for test models from {1}'.format(1.0-self.trainper,self.modpath))
         sys.stdout.flush()
-        test_mods = readKorg.ReadPhot(
+        test_mods = readKorg_old.ReadPhot(
             modpath=self.modpath,
             label_i=self.label_i,
             label_o=self.label_o,
@@ -300,7 +300,7 @@ class TrainMod(object):
         # set up model to start training
         model.to(device)
 
-        train_mods = readKorg.ReadPhot(
+        train_mods = readKorg_old.ReadPhot(
             modpath=self.modpath,
             label_i=self.label_i,
             label_o=self.label_o,
@@ -311,7 +311,7 @@ class TrainMod(object):
             parrange=self.parrange,
             )
         
-        valid_mods = readKorg.ReadPhot(
+        valid_mods = readKorg_old.ReadPhot(
             modpath=self.modpath,
             label_i=self.label_i,
             label_o=self.label_o,

@@ -45,8 +45,13 @@ import random
 import math
 import os, sys
 
+# IMPORTANT: use the same, index-fixed ReadKorg module everywhere.
+# Do not fall back to readKorg_hybrid_ext_indexfix here, because that can
+# silently make the trainer use a different module than the run script and
+# plotting diagnostics.
 from ..utils import readKorg_hybrid_ext as readKorg
 from ..utils.readKorg_hybrid_ext import XYFromFlat
+print(f"... trainphot_v2_anchor using readKorg module: {getattr(readKorg, '__file__', '<unknown>')}", flush=True)
 from ..utils.io_h5 import save_state_dict_to_h5, load_state_dict_from_h5, save_labels_norms_to_h5, save_meta_to_h5
 
 from .NNmodels_new import MLP_v0
@@ -154,7 +159,7 @@ class TrainMod(object):
         self.logplot   = kwargs.get('logplot', True)
 
         # ---- training config
-        self.trainper  = kwargs.get('trainper', 0.9)
+        self.trainper  = kwargs.get('trainpercentage', kwargs.get('trainper', 0.9))
         self.numepochs = kwargs.get('numepochs', 10000)
         self.batchsize = kwargs.get('batchsize', 2048)
         self.lr        = kwargs.get('lr', 1e-3)
@@ -180,6 +185,36 @@ class TrainMod(object):
         self.extinction_law = kwargs.get('extinction_law', 'g23') # 'g23' or 'boogert', or 'hybrid'
         self.extinction_av_break = kwargs.get('extinction_av_break', 2.0) # for 'hybrid', where to switch from g23 to boogert
         self.hybrid_grid_collapse_rv = kwargs.get('hybrid_grid_collapse_rv', True) # if True, then in the hybrid grid, only include one representative Rv value for Av > extinction_av_break
+
+        self.train_extinction_mode = kwargs.get("train_extinction_mode", "sample")
+        self.train_fixed_av = kwargs.get("train_fixed_av", 0.0)
+        self.train_fixed_rv = kwargs.get("train_fixed_rv", 3.1)
+
+        # Validation defaults to the same extinction setup as training for
+        # controlled diagnostic runs.  Use "fixed" and Av=0 for intrinsic tests,
+        # or override these explicitly for sampled/grid extinction validation.
+        self.valid_extinction_mode = kwargs.get("valid_extinction_mode", self.train_extinction_mode)
+        self.valid_fixed_av = kwargs.get("valid_fixed_av", self.train_fixed_av)
+        self.valid_fixed_rv = kwargs.get("valid_fixed_rv", self.train_fixed_rv)
+
+        # Optional zero-extinction anchor loss.  This is useful for MLP_v2
+        # trained on sampled Av/Rv: the sampled distribution can fit well while
+        # leaving a small bias in the Av=0 intercept.  The anchor dataset uses
+        # the same training rows and normalization as the sampled dataset, but
+        # fixed Av/Rv targets.
+        self.zero_ext_anchor_weight = float(kwargs.get("zero_ext_anchor_weight", 0.0))
+        self.zero_ext_anchor_av = float(kwargs.get("zero_ext_anchor_av", 0.0))
+        self.zero_ext_anchor_rv = float(kwargs.get("zero_ext_anchor_rv", self.valid_fixed_rv))
+
+        # MLP_v2 has an explicit physics-informed extinction lane:
+        #     y_norm = f0_norm - A_V * k_hat_norm + residual
+        # Therefore A_V must be the physical A_V, not a z-scored coordinate.
+        # Likewise, feeding physical R_V to khat avoids learning on an arbitrary
+        # normalized R_V scale.  This is intentionally enabled by default for
+        # MLP_v2-like models.
+        self.raw_extinction_inputs = kwargs.get('raw_extinction_inputs', None)
+        if self.raw_extinction_inputs is None:
+            self.raw_extinction_inputs = (self.NNtype == 'MLP_v2')
 
         print(f'... Early Stopping: {self.early_stopping}, {self.early_stopping_patience}, {self.early_stopping_min_delta}')
 
@@ -361,7 +396,9 @@ class TrainMod(object):
             type='train',
             trainpercentage=self.trainper,
             parrange=self.parrange,
-            extinction_mode="sample",
+            extinction_mode=self.train_extinction_mode,
+            fixed_av=self.train_fixed_av,
+            fixed_rv=self.train_fixed_rv,
             split_seed=self.split_seed,     # deterministic split
             extinction_law=self.extinction_law,
             extinction_av_break=self.extinction_av_break,
@@ -371,6 +408,18 @@ class TrainMod(object):
         # Extract split indices and the training normalization
         split = anchor_train_ds.split_indices            # {'train','valid','test'} of model_index values
         train_norms = dict(anchor_train_ds.normfactor)   # {label: (mean, std)}
+
+        # Important for MLP_v2: keep Av/Rv as physical inputs even when the
+        # stellar labels and output BCs are z-scored.  Otherwise Av=0 becomes
+        # a negative normalized number, so the explicit -Av*k_hat term is
+        # non-zero at zero extinction and produces a coherent offset.
+        if self.raw_extinction_inputs:
+            for _lab in ('av', 'rv'):
+                if _lab in self.label_i:
+                    train_norms[_lab] = (0.0, 1.0)
+                    anchor_train_ds.normfactor[_lab] = (0.0, 1.0)
+            if self.verbose:
+                print('... Using raw physical Av/Rv inputs for extinction-aware model.')
 
         # Reuse the anchor as the training dataset
         train_ds_flat = anchor_train_ds
@@ -388,9 +437,9 @@ class TrainMod(object):
             type='valid',
             trainpercentage=self.trainper,   # ignored once split=... is given; kept for clarity
             parrange=self.parrange,
-            extinction_mode="fixed",
-            fixed_av=0.0,
-            fixed_rv=3.1,
+            extinction_mode=self.valid_extinction_mode,
+            fixed_av=self.valid_fixed_av,
+            fixed_rv=self.valid_fixed_rv,
             split_seed=self.split_seed,      
             split=split,                     # force same rows as anchor
             extinction_law=self.extinction_law,
@@ -400,8 +449,107 @@ class TrainMod(object):
 
         print(f"... ReadPhot sizes: train={len(train_ds_flat)}  valid={len(valid_ds_flat)}")
 
-        # Wrap to (x,y)
-        train_ds = XYFromFlat(train_ds_flat)
+        # Optionally build a paired zero-extinction anchor dataset using the
+        # exact same training rows and normalization.  This lets each sampled
+        # extinction training example also constrain the Av=0 intrinsic surface
+        # for the same stellar labels.
+        train_anchor_ds_flat = None
+        if self.zero_ext_anchor_weight > 0.0:
+            if not (self.raw_extinction_inputs and ('av' in self.label_i)):
+                print("... Warning: zero_ext_anchor_weight > 0 but no physical Av input is present; anchor loss will be ignored.")
+            else:
+                train_anchor_ds_flat = readKorg.ReadPhot(
+                    modpath=self.modpath,
+                    filters=self.label_o,
+                    filter_wavelength_method="pivot",
+                    label_i=self.label_i,
+                    label_o=self.label_o,
+                    norm=self.norm,
+                    normfactor=train_norms,
+                    returntorch=True,
+                    type='train',
+                    trainpercentage=self.trainper,
+                    parrange=self.parrange,
+                    extinction_mode="fixed",
+                    fixed_av=self.zero_ext_anchor_av,
+                    fixed_rv=self.zero_ext_anchor_rv,
+                    split_seed=self.split_seed,
+                    split=split,
+                    extinction_law=self.extinction_law,
+                    extinction_av_break=self.extinction_av_break,
+                    hybrid_grid_collapse_rv=True,
+                )
+                if len(train_anchor_ds_flat) != len(train_ds_flat):
+                    raise RuntimeError(
+                        f"Zero-extinction anchor dataset length mismatch: "
+                        f"sampled={len(train_ds_flat)} anchor={len(train_anchor_ds_flat)}"
+                    )
+
+                # When ReadPhot is constructed with split=..., it currently
+                # selects rows via a boolean mask.  That preserves the order of
+                # the full parameter table, not the shuffled order of the
+                # original sampled training dataset.  For the paired anchor
+                # objective, item i in the sampled dataset must correspond to
+                # item i in the fixed-Av0 anchor dataset.  Reorder the anchor
+                # dataset to match the sampled training dataset explicitly.
+                if hasattr(train_ds_flat, "_selind") and hasattr(train_anchor_ds_flat, "_selind"):
+                    sample_sel = np.asarray(train_ds_flat._selind, dtype=np.intp)
+                    anchor_sel = np.asarray(train_anchor_ds_flat._selind, dtype=np.intp)
+                    if not np.array_equal(sample_sel, anchor_sel):
+                        pos = {int(mi): ii for ii, mi in enumerate(anchor_sel)}
+                        try:
+                            order = np.array([pos[int(mi)] for mi in sample_sel], dtype=np.intp)
+                        except KeyError as exc:
+                            raise RuntimeError(
+                                "Zero-extinction anchor dataset is missing a sampled model_index; "
+                                f"first missing index={exc.args[0]}"
+                            ) from exc
+
+                        train_anchor_ds_flat._selind = train_anchor_ds_flat._selind[order]
+                        if hasattr(train_anchor_ds_flat, "_param_rows"):
+                            train_anchor_ds_flat._param_rows = train_anchor_ds_flat._param_rows[order]
+                        print("... Reordered zero-extinction anchor dataset to match sampled training row order.", flush=True)
+
+                    if not np.array_equal(train_ds_flat._selind, train_anchor_ds_flat._selind):
+                        raise RuntimeError(
+                            "Zero-extinction anchor dataset row-order mismatch after attempted reorder."
+                        )
+
+                if (
+                    hasattr(train_ds_flat, "_param_rows") and
+                    hasattr(train_anchor_ds_flat, "_param_rows") and
+                    "model_index" in train_ds_flat._param_rows.dtype.names and
+                    "model_index" in train_anchor_ds_flat._param_rows.dtype.names
+                ):
+                    if not np.array_equal(
+                        train_ds_flat._param_rows["model_index"],
+                        train_anchor_ds_flat._param_rows["model_index"],
+                    ):
+                        raise RuntimeError(
+                            "Zero-extinction anchor dataset parameter-row mismatch after attempted reorder."
+                        )
+
+                print(f"... Using zero-extinction anchor loss: weight={self.zero_ext_anchor_weight:g}, "
+                      f"Av={self.zero_ext_anchor_av:g}, Rv={self.zero_ext_anchor_rv:g}")
+
+        class AnchoredXYFromFlat(torch.utils.data.Dataset):
+            def __init__(self, sample_ds, anchor_ds):
+                self.sample = XYFromFlat(sample_ds)
+                self.anchor = XYFromFlat(anchor_ds)
+                if len(self.sample) != len(self.anchor):
+                    raise RuntimeError("AnchoredXYFromFlat requires sample and anchor datasets with matching lengths.")
+            def __len__(self):
+                return len(self.sample)
+            def __getitem__(self, idx):
+                x, y = self.sample[idx]
+                _x0, y0 = self.anchor[idx]
+                return x, y, y0
+
+        # Wrap to (x,y), or (x,y,y_anchor) when the anchor loss is active.
+        if train_anchor_ds_flat is not None:
+            train_ds = AnchoredXYFromFlat(train_ds_flat, train_anchor_ds_flat)
+        else:
+            train_ds = XYFromFlat(train_ds_flat)
         valid_ds = XYFromFlat(valid_ds_flat)
         
         n_train = len(train_ds)
@@ -604,7 +752,10 @@ class TrainMod(object):
             model.eval()
             v_sum, v_sumsq, v_cnt = 0.0, 0.0, 0
             with torch.inference_mode():
-                for b, (x, y) in enumerate(loader):
+                for b, batch in enumerate(loader):
+                    # Some training datasets return (x, y, y_anchor).  Validation
+                    # and stress metrics should always compare model(x) to y.
+                    x, y = batch[0], batch[1]
                     x = x.to(device, non_blocking=True); y = y.to(device, non_blocking=True)
                     with autocast_ctx():
                         vloss = loss_fn(model(x), y)
@@ -642,44 +793,78 @@ class TrainMod(object):
 
             #     batch_losses.append(tloss.item())
 
-            AV_IDX = 4   # x[:,4] is Av
+            # Some models (e.g. MLP_v2) have an extinction lane and support
+            # return_khat=True, but intrinsic-only baselines (e.g. MLP_v1 with
+            # label_i=[logt,logg,feh,afe]) do not have Av/Rv inputs.  Only use
+            # the Av derivative/decomposition bookkeeping when an Av column is
+            # actually present and the model exposes khat.
+            AV_IDX = self.label_i.index('av') if 'av' in self.label_i else None
+            RV_IDX = self.label_i.index('rv') if 'rv' in self.label_i else None
+            use_extinction_lane = (AV_IDX is not None) and hasattr(_unwrap(model), 'khat')
 
-            for x, y in train_loader:
+            for batch in train_loader:
+                if len(batch) == 3:
+                    x, y, y_anchor = batch
+                    y_anchor = y_anchor.to(device, non_blocking=True)
+                else:
+                    x, y = batch
+                    y_anchor = None
                 x = x.to(device, non_blocking=True)
                 y = y.to(device, non_blocking=True)
 
-                # we need autograd w.r.t. Av for the derivative lock
-                Av = x[:, AV_IDX].clone().detach().to(device)
-                Av.requires_grad_(True)
-                x_mod = x.clone()
-                x_mod[:, AV_IDX] = Av  # ensure this tensor is the one used in forward
-
                 optimizer.zero_grad(set_to_none=True)
 
-                with autocast_ctx():
-                    # return k_hat so we don't re-run the model
-                    yhat, k_hat = model(x_mod, return_khat=True)
+                if use_extinction_lane:
+                    # we need autograd w.r.t. Av for the optional derivative lock
+                    Av = x[:, AV_IDX].clone().detach().to(device)
+                    Av.requires_grad_(True)
+                    x_mod = x.clone()
+                    x_mod[:, AV_IDX] = Av  # ensure this tensor is the one used in forward
 
-                    # base photometry loss (Huber or MSE)
-                    loss_data = loss_fn(yhat, y)
+                    with autocast_ctx():
+                        # return k_hat so we don't re-run the model
+                        yhat, k_hat = model(x_mod, return_khat=True)
 
-                    # -------- (1) Batchwise slope penalty: residual vs true magnitude --------
-                    res = yhat - y                      # (B, D_out)
-                    yt  = y - y.mean(dim=0, keepdim=True)
-                    rt  = res - res.mean(dim=0, keepdim=True)
-                    slope = (yt * rt).mean(dim=0) / (yt.pow(2).mean(dim=0) + 1e-8)
-                    loss_slope = (slope.pow(2)).mean()  # scalar
+                        # base photometry loss (Huber or MSE)
+                        loss_data = loss_fn(yhat, y)
 
-                    # -------- (2) Av-linearity lock: ∂(m̂ − Av·k̂)/∂Av → 0 --------
-                    # NOTE: This does not need y. It enforces that only k_hat carries Av.
-                    m_minus_Avk = yhat - Av[:, None] * k_hat         # (B, D_out)
-                    dAv = torch.autograd.grad(
-                        m_minus_Avk.sum(), Av, create_graph=True, allow_unused=False
-                    )[0]                                            # (B,)
-                    loss_dAv = (dAv.pow(2)).mean()
+                        # -------- (1) Batchwise slope penalty: residual vs true magnitude --------
+                        res = yhat - y                      # (B, D_out)
+                        yt  = y - y.mean(dim=0, keepdim=True)
+                        rt  = res - res.mean(dim=0, keepdim=True)
+                        slope = (yt * rt).mean(dim=0) / (yt.pow(2).mean(dim=0) + 1e-8)
+                        loss_slope = (slope.pow(2)).mean()  # scalar
 
-                    # total loss (start with 1e-2; tune 3e-3–3e-2 if needed)
-                    tloss = loss_data #+ 1e-2*loss_slope + 1e-2*loss_dAv
+                        # -------- (2) Av-linearity lock: ∂(m̂ − Av·k̂)/∂Av → 0 --------
+                        # NOTE: This does not need y. It enforces that only k_hat carries Av.
+                        m_minus_Avk = yhat - Av[:, None] * k_hat         # (B, D_out)
+                        dAv = torch.autograd.grad(
+                            m_minus_Avk.sum(), Av, create_graph=True, allow_unused=False
+                        )[0]                                            # (B,)
+                        loss_dAv = (dAv.pow(2)).mean()
+
+                        # Optional zero-extinction anchor loss.  The sampled
+                        # batch constrains the extincted model; this second pass
+                        # constrains the same stellar labels at Av=0 so f0+resid
+                        # cannot drift to a biased intercept.
+                        loss_anchor = torch.zeros((), dtype=loss_data.dtype, device=loss_data.device)
+                        if (y_anchor is not None) and (self.zero_ext_anchor_weight > 0.0):
+                            x_anchor = x_mod.clone()
+                            x_anchor[:, AV_IDX] = self.zero_ext_anchor_av
+                            if RV_IDX is not None:
+                                x_anchor[:, RV_IDX] = self.zero_ext_anchor_rv
+                            yhat_anchor = model(x_anchor)
+                            loss_anchor = loss_fn(yhat_anchor, y_anchor)
+
+                        # total loss (slope/dAv penalties are left available for
+                        # future experiments, but the active diagnostic is the
+                        # data loss plus the Av=0 anchor loss).
+                        tloss = loss_data + self.zero_ext_anchor_weight * loss_anchor #+ 1e-2*loss_slope + 1e-2*loss_dAv
+                else:
+                    # Plain intrinsic-only model: no Av column and no khat output.
+                    with autocast_ctx():
+                        yhat = model(x)
+                        tloss = loss_fn(yhat, y)
 
                 scaler.scale(tloss).backward()
                 scaler.unscale_(optimizer)

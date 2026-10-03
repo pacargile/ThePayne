@@ -181,6 +181,20 @@ class TrainMod(object):
         self.extinction_av_break = kwargs.get('extinction_av_break', 2.0) # for 'hybrid', where to switch from g23 to boogert
         self.hybrid_grid_collapse_rv = kwargs.get('hybrid_grid_collapse_rv', True) # if True, then in the hybrid grid, only include one representative Rv value for Av > extinction_av_break
 
+        self.train_extinction_mode = kwargs.get("train_extinction_mode", "sample")
+        self.train_fixed_av = kwargs.get("train_fixed_av", 0.0)
+        self.train_fixed_rv = kwargs.get("train_fixed_rv", 3.1)
+
+        # MLP_v2 has an explicit physics-informed extinction lane:
+        #     y_norm = f0_norm - A_V * k_hat_norm + residual
+        # Therefore A_V must be the physical A_V, not a z-scored coordinate.
+        # Likewise, feeding physical R_V to khat avoids learning on an arbitrary
+        # normalized R_V scale.  This is intentionally enabled by default for
+        # MLP_v2-like models.
+        self.raw_extinction_inputs = kwargs.get('raw_extinction_inputs', None)
+        if self.raw_extinction_inputs is None:
+            self.raw_extinction_inputs = (self.NNtype == 'MLP_v2')
+
         print(f'... Early Stopping: {self.early_stopping}, {self.early_stopping_patience}, {self.early_stopping_min_delta}')
 
         # if verbose
@@ -361,7 +375,9 @@ class TrainMod(object):
             type='train',
             trainpercentage=self.trainper,
             parrange=self.parrange,
-            extinction_mode="sample",
+            extinction_mode=self.train_extinction_mode,
+            fixed_av=self.train_fixed_av,
+            fixed_rv=self.train_fixed_rv,
             split_seed=self.split_seed,     # deterministic split
             extinction_law=self.extinction_law,
             extinction_av_break=self.extinction_av_break,
@@ -371,6 +387,18 @@ class TrainMod(object):
         # Extract split indices and the training normalization
         split = anchor_train_ds.split_indices            # {'train','valid','test'} of model_index values
         train_norms = dict(anchor_train_ds.normfactor)   # {label: (mean, std)}
+
+        # Important for MLP_v2: keep Av/Rv as physical inputs even when the
+        # stellar labels and output BCs are z-scored.  Otherwise Av=0 becomes
+        # a negative normalized number, so the explicit -Av*k_hat term is
+        # non-zero at zero extinction and produces a coherent offset.
+        if self.raw_extinction_inputs:
+            for _lab in ('av', 'rv'):
+                if _lab in self.label_i:
+                    train_norms[_lab] = (0.0, 1.0)
+                    anchor_train_ds.normfactor[_lab] = (0.0, 1.0)
+            if self.verbose:
+                print('... Using raw physical Av/Rv inputs for extinction-aware model.')
 
         # Reuse the anchor as the training dataset
         train_ds_flat = anchor_train_ds

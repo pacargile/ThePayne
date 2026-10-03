@@ -70,7 +70,7 @@ class TrainSpec:
 
         # scheduler / warmup / cosine
         self.warmup_epochs = cfg.get('warmup_epochs', max(1, int(0.05 * cfg.get('numepochs', 10000))))
-        self.eta_min       = cfg.get('eta_min', 1e-5)   # cosine floor
+        self.eta_min       = cfg.get('eta_min', 1e-7)   # cosine floor
 
         # gradient accumulation (stability with smaller step noise)
         self.grad_accum_steps = int(cfg.get('grad_accum_steps', 1))  # e.g., 8 to emulate large batch
@@ -78,7 +78,7 @@ class TrainSpec:
         # per-pixel weighting in log space to balance bright/faint regions
         # when True we compute σ_log(λ) on the train subset and weight by 1/(σ^2 + eps)
         self.weight_by_logvar = bool(cfg.get('weight_by_logvar', True))
-        self.weight_eps = float(cfg.get('weight_eps', 1e-6))
+        self.weight_eps = float(cfg.get('weight_eps', 1e-7))
 
         # fractional-error term in linear flux
         self.use_frac_loss = bool(cfg.get("use_frac_loss", True))  # turn on/off
@@ -611,9 +611,11 @@ class TrainSpec:
                 best_val = val_mean
                 save_state_dict_to_h5(_unwrap(model).state_dict(), self.outfilename, group="model", compression="gzip")
                 save_meta_to_h5(self.outfilename,
-                                n_inputs=d_full, n_outputs=L, nn_type="SpectralMLP_v1",
+                                n_inputs=d_full, n_outputs=L, nn_type="MLP_v1",
                                 best_valid=float(best_val), epochs_trained=int(epoch+1),
-                                date=str(datetime.now()))
+                                date=str(datetime.now()), resolution=float(self.R),
+                                pixels_per_resel=float(self.px_per_resel),
+                                )
                 # convenience duplicate for non-PyTorch consumers (optional)
                 try:
                     with h5py.File(self.outfilename, "a") as h5:
