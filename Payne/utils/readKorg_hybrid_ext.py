@@ -1,7 +1,7 @@
 """readKorg
 
 Production-ready dataloader for synthetic spectral grids produced from Korg,
-with on-the-fly G23 dust extinction, flexible wavelength selection / resampling,
+with on-the-fly dust extinction, flexible wavelength selection / resampling,
 and deterministic train/valid/test splitting.
 
 Also contains ReadPhot for bolometric-correction (BC) tables from Korg/GenPhot
@@ -12,8 +12,8 @@ Key features
 - Supports a single HDF5, a directory of HDF5s, or a list of paths.
 - Robust mapping from SEDpy filter names to HDF5 (system, band) fields via
   prefix rules and optional user aliases (ReadPhot).
-- On-the-fly G23 extinction with safe R_V clamping and a thread-safe
-  per-worker RNG for 'sample' mode.
+- On-the-fly G23, Boogert+2011, or hybrid extinction with safe R_V
+  clamping and a thread-safe per-worker RNG for 'sample' mode.
 - Deterministic train/valid/test splitting or externally supplied splits.
 - Optional z-score normalisation for inputs and outputs.
 - Auto-detection of fixed-vmic grids: if all rows share the same vmic value,
@@ -52,6 +52,88 @@ from torch.utils.data import Dataset
 
 from dust_extinction.parameter_averages import G23
 from astropy import units as u
+
+
+# -----------------------------------------------------------------------
+# Extinction-law helpers
+# -----------------------------------------------------------------------
+_BOOGERT_COEFFS = np.array(
+    [0.5924, -1.8235, -1.3020, 5.9936, -5.3429,
+     1.2619, 0.2738, 0.0069, -0.0554],
+    dtype=np.float64,
+)
+
+
+def _normalise_extinction_law(name: str) -> str:
+    """Return canonical extinction-law name."""
+    law = str(name).strip().lower().replace("-", "_")
+    aliases = {
+        "g23": "g23",
+        "gordon23": "g23",
+        "gordon2023": "g23",
+        "gordon_2023": "g23",
+        "boogert": "boogert",
+        "boogert11": "boogert",
+        "boogert2011": "boogert",
+        "boogert_2011": "boogert",
+        "hybrid": "hybrid",
+        "g23_boogert": "hybrid",
+        "gordon23_boogert": "hybrid",
+        "gordon2023_boogert2011": "hybrid",
+    }
+    if law not in aliases:
+        raise ValueError(
+            "extinction_law must be one of 'g23', 'boogert', or 'hybrid' "
+            f"(got {name!r})."
+        )
+    return aliases[law]
+
+
+def _active_extinction_law(extinction_law: str, av: float, av_break: float) -> str:
+    """Resolve the actual law used for one A_V value."""
+    law = _normalise_extinction_law(extinction_law)
+    if law == "hybrid":
+        return "g23" if float(av) < float(av_break) else "boogert"
+    return law
+
+
+def _boogert_k_av(wavelength_micron: np.ndarray | float, av_to_ak: float) -> np.ndarray:
+    """Boogert+2011 A(lambda)/A(V) at wavelength in micron.
+
+    The polynomial is normalised as A(lambda)/A(K). This helper keeps the
+    dataloader extinction amplitude as A_V by multiplying by A_K/A_V.
+    The default used below is 1/7.045, matching the supplied
+    boogert_extinction.py example.
+    """
+    lam = np.asarray(wavelength_micron, dtype=np.float64)
+    if np.any(lam <= 0):
+        raise ValueError("Boogert extinction requires positive wavelengths in micron.")
+    log_lam = np.log10(lam)
+    log_a_over_ak = np.polynomial.polynomial.polyval(log_lam, _BOOGERT_COEFFS)
+    return float(av_to_ak) * np.power(10.0, log_a_over_ak)
+
+
+def _build_extinction_grid_pairs(
+    avgrid: np.ndarray,
+    rvgrid: np.ndarray,
+    extinction_law: str,
+    av_break: float,
+    fixed_rv: float,
+    collapse_hybrid_rv: bool,
+) -> List[Tuple[float, float]]:
+    """Return (A_V, R_V) grid pairs, optionally collapsing inactive R_V."""
+    if extinction_law == "hybrid" and collapse_hybrid_rv:
+        pairs: List[Tuple[float, float]] = []
+        for avv in avgrid:
+            if float(avv) < av_break:
+                pairs.extend((float(avv), float(rvv)) for rvv in rvgrid)
+            else:
+                # Boogert+2011 has no R_V dependence.  Use one canonical
+                # R_V input instead of duplicating identical outputs for every
+                # R_V grid point.
+                pairs.append((float(avv), float(fixed_rv)))
+        return pairs
+    return [(float(avv), float(rvv)) for avv in avgrid for rvv in rvgrid]
 
 
 __all__ = ["ReadPhot", "ReadSpec", "XYFromFlat"]
@@ -482,23 +564,35 @@ class ReadPhot(Dataset):
 
         self.fixed_av = float(kwargs.get("fixed_av", 0.0))
         self.fixed_rv = float(kwargs.get("fixed_rv", 3.1))
+        self.extinction_law = _normalise_extinction_law(
+            kwargs.get("extinction_law", kwargs.get("dust_law", "g23"))
+        )
+        self.extinction_av_break = float(kwargs.get("extinction_av_break", 2.0))
+        self.boogert_av_to_ak = float(kwargs.get("boogert_av_to_ak", 1.0 / 7.045))
+        self.hybrid_grid_collapse_rv = bool(kwargs.get("hybrid_grid_collapse_rv", True))
 
-        # Build a map from model_index → positional row in self.spectra
-        # so that __getitem__ can index self.spectra directly.
-        _idx_to_pos = {int(mi): pos
-                    for pos, mi in enumerate(self.parameters["model_index"])}
-
-        base_idx = base_block["model_index"]
+        # model_index was appended BEFORE any parrange/split filtering, so it is
+        # the original row number in the HDF5 BC arrays.  Use it directly for
+        # HDF5 indexing.  Do NOT remap it to the positional row in the filtered
+        # self.parameters array; doing so silently pairs each filtered input row
+        # with the wrong BC output after parrange cuts.
+        base_idx = base_block["model_index"].astype(np.intp)
         if self.extinction_mode == "grid":
-            grid_mult          = len(self.avgrid) * len(self.rvgrid)
-            self._selind       = np.array([_idx_to_pos[int(mi)]
-                                        for mi in np.repeat(base_idx, grid_mult)],
-                                        dtype=np.intp)
+            grid_pairs = _build_extinction_grid_pairs(
+                self.avgrid, self.rvgrid, self.extinction_law,
+                self.extinction_av_break, self.fixed_rv,
+                self.hybrid_grid_collapse_rv,
+            )
+            self._grid_av      = np.array([p[0] for p in grid_pairs], dtype=np.float32)
+            self._grid_rv      = np.array([p[1] for p in grid_pairs], dtype=np.float32)
+            grid_mult          = len(grid_pairs)
+            self._selind       = np.repeat(base_idx, grid_mult).astype(np.intp)
             self._param_rows   = np.repeat(base_block, grid_mult)
             self._per_row_grid = grid_mult
         else:
-            self._selind       = np.array([_idx_to_pos[int(mi)] for mi in base_idx],
-                                        dtype=np.intp)
+            self._grid_av      = None
+            self._grid_rv      = None
+            self._selind       = base_idx.astype(np.intp)
             self._param_rows   = base_block
             self._per_row_grid = 1
 
@@ -527,7 +621,7 @@ class ReadPhot(Dataset):
                 self.normfactor[lab] = (mu, sdv if sdv > 0 else 1.0)
 
         # ---- k(λ) cache (per-filter scalar; key rounded to avoid float-equality misses) ----
-        self._k_cache: Dict[Tuple[float, str, str], float] = {}
+        self._k_cache: Dict[Tuple[str, float, str, str], float] = {}
 
         self.datalen = len(self._selind)
         if self.verbose:
@@ -556,17 +650,27 @@ class ReadPhot(Dataset):
         mu, sd = self.normfactor[label]
         return x * sd + mu
 
-    def _k_for(self, rv: float, system: str, band: str) -> float:
-        # Round R_V key to 4 d.p. to prevent float-equality cache misses
-        rv_key = round(float(rv), 4)
-        key    = (rv_key, system, band)
+    def _k_for(self, av: float, rv: float, system: str, band: str) -> float:
+        """A(lambda)/A(V) for one filter and the active extinction law."""
+        law = _active_extinction_law(
+            self.extinction_law, av=av, av_break=self.extinction_av_break
+        )
+        rv_key = round(float(rv), 4) if law == "g23" else 0.0
+        key    = (law, rv_key, system, band)
         if key in self._k_cache:
             return self._k_cache[key]
-        lo, hi = 2.3, 5.6
-        rvf    = float(np.clip(rv_key, np.nextafter(lo, 10.0), np.nextafter(hi, 0.0)))
-        lamA   = self.filter_wavelengths[system][band]
-        x_inv  = (1.0 / (lamA * 1e-4)) * u.micron ** -1
-        k      = float(G23(Rv=rvf)(x_inv))
+
+        lamA = self.filter_wavelengths[system][band]
+        if law == "g23":
+            lo, hi = 2.3, 5.6
+            rvf    = float(np.clip(rv_key, np.nextafter(lo, 10.0), np.nextafter(hi, 0.0)))
+            x_inv  = (1.0 / (lamA * 1e-4)) * u.micron ** -1
+            k      = float(G23(Rv=rvf)(x_inv))
+        elif law == "boogert":
+            k      = float(_boogert_k_av(lamA * 1e-4, self.boogert_av_to_ak))
+        else:  # pragma: no cover; guarded by _normalise_extinction_law
+            raise RuntimeError(f"Unsupported active extinction law: {law}")
+
         self._k_cache[key] = k
         return k
 
@@ -580,9 +684,8 @@ class ReadPhot(Dataset):
 
         if self.extinction_mode == "grid":
             gpos = idx % self._per_row_grid
-            n_rv = len(self.rvgrid)
-            av   = float(self.avgrid[gpos // n_rv])
-            rv   = float(self.rvgrid[gpos % n_rv])
+            av   = float(self._grid_av[gpos])
+            rv   = float(self._grid_rv[gpos])
         elif self.extinction_mode == "fixed":
             av, rv = self.fixed_av, self.fixed_rv
         elif self.extinction_mode == "sample":
@@ -595,7 +698,7 @@ class ReadPhot(Dataset):
         for lab, (system, band, _) in zip(self.label_o, self._filter_map):
             bc = float(self.h5dict[system][band][selind])
             if self.extinction_mode != "none":
-                bc = bc - av * self._k_for(rv, system, band)
+                bc = bc - av * self._k_for(av, rv, system, band)
             bcout.append(self.normf(bc, lab) if self.norm else bc)
 
         inputs: List[float] = []
@@ -876,23 +979,35 @@ class ReadSpec(Dataset):
 
         self.fixed_av = float(kwargs.get("fixed_av", 0.0))
         self.fixed_rv = float(kwargs.get("fixed_rv", 3.1))
+        self.extinction_law = _normalise_extinction_law(
+            kwargs.get("extinction_law", kwargs.get("dust_law", "g23"))
+        )
+        self.extinction_av_break = float(kwargs.get("extinction_av_break", 2.0))
+        self.boogert_av_to_ak = float(kwargs.get("boogert_av_to_ak", 1.0 / 7.045))
+        self.hybrid_grid_collapse_rv = bool(kwargs.get("hybrid_grid_collapse_rv", True))
 
-        # Build a map from model_index → positional row in self.spectra
-        # so that __getitem__ can index self.spectra directly.
-        _idx_to_pos = {int(mi): pos
-                    for pos, mi in enumerate(self.parameters["model_index"])}
-
-        base_idx = base_block["model_index"]
+        # model_index was appended BEFORE any parrange/split filtering, so it is
+        # the original row number in the HDF5 BC arrays.  Use it directly for
+        # HDF5 indexing.  Do NOT remap it to the positional row in the filtered
+        # self.parameters array; doing so silently pairs each filtered input row
+        # with the wrong BC output after parrange cuts.
+        base_idx = base_block["model_index"].astype(np.intp)
         if self.extinction_mode == "grid":
-            grid_mult          = len(self.avgrid) * len(self.rvgrid)
-            self._selind       = np.array([_idx_to_pos[int(mi)]
-                                        for mi in np.repeat(base_idx, grid_mult)],
-                                        dtype=np.intp)
+            grid_pairs = _build_extinction_grid_pairs(
+                self.avgrid, self.rvgrid, self.extinction_law,
+                self.extinction_av_break, self.fixed_rv,
+                self.hybrid_grid_collapse_rv,
+            )
+            self._grid_av      = np.array([p[0] for p in grid_pairs], dtype=np.float32)
+            self._grid_rv      = np.array([p[1] for p in grid_pairs], dtype=np.float32)
+            grid_mult          = len(grid_pairs)
+            self._selind       = np.repeat(base_idx, grid_mult).astype(np.intp)
             self._param_rows   = np.repeat(base_block, grid_mult)
             self._per_row_grid = grid_mult
         else:
-            self._selind       = np.array([_idx_to_pos[int(mi)] for mi in base_idx],
-                                        dtype=np.intp)
+            self._grid_av      = None
+            self._grid_rv      = None
+            self._selind       = base_idx.astype(np.intp)
             self._param_rows   = base_block
             self._per_row_grid = 1
 
@@ -942,8 +1057,9 @@ class ReadSpec(Dataset):
                 self.normfactor[lab] = (float(mu_vec[j]), float(sd_vec[j]))
 
         # ---- k(λ) cache for vector extinction (key rounded to avoid float-equality misses) ----
-        self._k_lambda_cache: Dict[float, np.ndarray] = {}
+        self._k_lambda_cache: Dict[Tuple[str, float], np.ndarray] = {}
         self._x_inv_micron   = (1.0 / (self.wavelengths_A * 1e-4)) * u.micron ** -1
+        self._wavelengths_micron = self.wavelengths_A * 1e-4
 
         self.datalen = len(self._selind)
         if self.verbose:
@@ -1020,16 +1136,30 @@ class ReadSpec(Dataset):
         return sp, ct
 
     # ---- extinction vector cache ----
-    def _k_lambda(self, rv: float) -> np.ndarray:
-        """A(λ)/A(V) vector for this R_V, cached and rounded to 4 d.p."""
-        rv_key = round(float(rv), 4)
-        if rv_key in self._k_lambda_cache:
-            return self._k_lambda_cache[rv_key]
-        lo, hi = 2.3, 5.6
-        rvf    = float(np.clip(rv_key, np.nextafter(lo, 10.0),
-                                np.nextafter(hi, 0.0)))
-        kvec   = np.array(G23(Rv=rvf)(self._x_inv_micron), dtype=np.float64)
-        self._k_lambda_cache[rv_key] = kvec
+    def _k_lambda(self, av: float, rv: float) -> np.ndarray:
+        """A(lambda)/A(V) vector for the active extinction law."""
+        law = _active_extinction_law(
+            self.extinction_law, av=av, av_break=self.extinction_av_break
+        )
+        rv_key = round(float(rv), 4) if law == "g23" else 0.0
+        key = (law, rv_key)
+        if key in self._k_lambda_cache:
+            return self._k_lambda_cache[key]
+
+        if law == "g23":
+            lo, hi = 2.3, 5.6
+            rvf    = float(np.clip(rv_key, np.nextafter(lo, 10.0),
+                                    np.nextafter(hi, 0.0)))
+            kvec   = np.array(G23(Rv=rvf)(self._x_inv_micron), dtype=np.float64)
+        elif law == "boogert":
+            kvec   = np.array(
+                _boogert_k_av(self._wavelengths_micron, self.boogert_av_to_ak),
+                dtype=np.float64,
+            )
+        else:  # pragma: no cover; guarded by _normalise_extinction_law
+            raise RuntimeError(f"Unsupported active extinction law: {law}")
+
+        self._k_lambda_cache[key] = kvec
         return kvec
 
     # ---- normalisation helpers ----
@@ -1051,9 +1181,8 @@ class ReadSpec(Dataset):
 
         if self.extinction_mode == "grid":
             gpos = idx % self._per_row_grid
-            n_rv = len(self.rvgrid)
-            av   = float(self.avgrid[gpos // n_rv])
-            rv   = float(self.rvgrid[gpos % n_rv])
+            av   = float(self._grid_av[gpos])
+            rv   = float(self._grid_rv[gpos])
         elif self.extinction_mode == "fixed":
             av, rv = self.fixed_av, self.fixed_rv
         elif self.extinction_mode == "sample":
@@ -1066,7 +1195,7 @@ class ReadSpec(Dataset):
         if self.continuum_mode == "divide" and self.has_continuum:
             y = y / np.maximum(self.continuua[selind, :].astype(np.float64), 1e-30)
         if self.extinction_mode != "none":
-            y = y * np.power(10.0, -0.4 * av * self._k_lambda(rv))
+            y = y * np.power(10.0, -0.4 * av * self._k_lambda(av, rv))
 
         y_out = self.normf(y, self.label_o) if self.norm else y
 
