@@ -500,16 +500,28 @@ class TrainMod(object):
                       f"Av={self.zero_ext_anchor_av:g}, Rv={self.zero_ext_anchor_rv:g}")
 
         class AnchoredXYFromFlat(torch.utils.data.Dataset):
+            # Pair rows by stellar model, not by position: the sampled dataset keeps
+            # the shuffled split order, while a ReadPhot built with split=... returns
+            # rows in file order, so row i of each is generally a different star.
             def __init__(self, sample_ds, anchor_ds):
                 self.sample = XYFromFlat(sample_ds)
                 self.anchor = XYFromFlat(anchor_ds)
                 if len(self.sample) != len(self.anchor):
                     raise RuntimeError("AnchoredXYFromFlat requires sample and anchor datasets with matching lengths.")
+                s_idx = np.asarray(sample_ds._selind)
+                a_idx = np.asarray(anchor_ds._selind)
+                a_pos = {int(m): i for i, m in enumerate(a_idx)}
+                if len(a_pos) != len(a_idx):
+                    raise RuntimeError("Anchor dataset has more than one row per stellar model.")
+                missing = [int(m) for m in s_idx if int(m) not in a_pos]
+                if missing:
+                    raise RuntimeError(f"{len(missing)} sampled stars have no Av=0 anchor row (e.g. {missing[:5]}).")
+                self._anchor_row = np.array([a_pos[int(m)] for m in s_idx], dtype=np.intp)
             def __len__(self):
                 return len(self.sample)
             def __getitem__(self, idx):
                 x, y = self.sample[idx]
-                _x0, y0 = self.anchor[idx]
+                _x0, y0 = self.anchor[self._anchor_row[idx]]
                 return x, y, y0
 
         # Wrap to (x,y), or (x,y,y_anchor) when the anchor loss is active.
