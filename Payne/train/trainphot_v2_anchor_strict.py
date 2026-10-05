@@ -228,6 +228,18 @@ class TrainMod(object):
         if self.raw_extinction_inputs is None:
             self.raw_extinction_inputs = (self.NNtype == 'MLP_v2')
 
+        # Checkpoint selection.  'valid' (default): best fixed-extinction validation
+        # MSE only.  'valid+ext': valid MSE + checkpoint_ext_weight * MSE on a fixed,
+        # precomputed Av×Rv grid of validation stars, so a checkpoint must also be
+        # good at high extinction (the fixed-Av validation cannot see k_hat at Av=0).
+        self.checkpoint_metric = kwargs.get('checkpoint_metric', 'valid')
+        if self.checkpoint_metric not in ('valid', 'valid+ext'):
+            raise ValueError(f"checkpoint_metric must be 'valid' or 'valid+ext' (got {self.checkpoint_metric!r})")
+        self.checkpoint_ext_weight = float(kwargs.get('checkpoint_ext_weight', 1.0))
+        self.ext_val_limit = kwargs.get('ext_val_limit', 8000)
+        # also write the final-epoch weights to <output>_last.h5
+        self.save_last = bool(kwargs.get('save_last', False))
+
         print(f'... Early Stopping: {self.early_stopping}, {self.early_stopping_patience}, {self.early_stopping_min_delta}')
 
         # if verbose
@@ -646,8 +658,57 @@ class TrainMod(object):
             if self.verbose:
                 print(f"... Built stress loader: base={total}, "
                     f"kept={len(stress_ds)} | Av×Rv = {len(self.stress_avgrid)}×{len(self.stress_rvgrid)}")
-            return _stress_loader        
+            return _stress_loader
 
+        # --- extinction validation set for checkpoint_metric='valid+ext' ---
+        # Same validation stars and Av×Rv grid as the stress test, but a fixed
+        # deterministic subset materialised once on the device, so scoring it at
+        # every validation costs one forward pass instead of a Python data loop.
+        ext_val_X = ext_val_Y = None
+        if self.checkpoint_metric == 'valid+ext':
+            ext_ds_flat = readKorg.ReadPhot(
+                modpath=self.modpath,
+                filters=self.label_o,
+                filter_wavelength_method="pivot",
+                label_i=self.label_i,
+                label_o=self.label_o,
+                norm=self.norm,
+                normfactor=train_norms,
+                returntorch=True,
+                type='valid',
+                trainpercentage=self.trainper,
+                parrange=self.parrange,
+                extinction_mode="grid",
+                avgrid=self.stress_avgrid,
+                rvgrid=self.stress_rvgrid,
+                split_seed=self.split_seed,
+                split=split,
+                extinction_law=self.extinction_law,
+                extinction_av_break=self.extinction_av_break,
+                hybrid_grid_collapse_rv=True,
+            )
+            ext_xy = XYFromFlat(ext_ds_flat)
+            total = len(ext_xy)
+            idx = np.arange(total)
+            if (self.ext_val_limit is not None) and (total > self.ext_val_limit):
+                idx = np.sort(np.random.default_rng(self.stress_seed + 1).choice(total, size=self.ext_val_limit, replace=False))
+            pairs = [ext_xy[int(i)] for i in idx]
+            ext_val_X = torch.stack([p[0] for p in pairs]).to(device)
+            ext_val_Y = torch.stack([p[1] for p in pairs]).to(device)
+            print(f"... Checkpoint metric: valid + {self.checkpoint_ext_weight:g} x ext "
+                  f"(ext set: {len(idx)} of {total} valid-star Av×Rv samples, "
+                  f"Av in [{min(ext_ds_flat.avgrid):g}, {max(ext_ds_flat.avgrid):g}])")
+
+        def run_ext_validation():
+            model.eval()
+            with torch.inference_mode():
+                se, n = 0.0, 0
+                for i in range(0, ext_val_X.shape[0], 4096):
+                    with autocast_ctx():
+                        yhat = model(ext_val_X[i:i+4096])
+                    se += float(((yhat.float() - ext_val_Y[i:i+4096]) ** 2).sum())
+                    n += ext_val_Y[i:i+4096].numel()
+            return se / max(1, n)
 
         # ---- loss & optimizer ----
         loss_fn = torch.nn.MSELoss(reduction='mean')
@@ -704,7 +765,9 @@ class TrainMod(object):
         batchloss_arr, batchloss_std, batchloss_med = [], [], []
         validloss_arr, validloss_std, validloss_med = [], [], []
 
-        best_val = float("inf")
+        best_val = float("inf")   # best checkpoint-selection score
+        best_epoch = 0
+        last_ext_m = None
 
         # GradScaler (no device_type kwarg)
         if hasattr(torch, "amp") and hasattr(torch.amp, "GradScaler"):
@@ -871,9 +934,17 @@ class TrainMod(object):
                 validloss_med.append(val_m)
                 last_val_m = val_m
 
-                # checkpoint & patience **based only on fixed validation**
-                if val_m < best_val:
-                    best_val = val_m
+                # checkpoint & patience on the selection score
+                if self.checkpoint_metric == 'valid+ext':
+                    ext_m = run_ext_validation()
+                    last_ext_m = ext_m
+                    score = val_m + self.checkpoint_ext_weight * ext_m
+                else:
+                    ext_m = None
+                    score = val_m
+                if score < best_val:
+                    best_val = score
+                    best_epoch = epoch + 1
                     val_checks_without_improve = 0
                     base = _unwrap(model)
                     save_state_dict_to_h5(base.state_dict(), self.outfilename, group="model", compression="gzip")
@@ -884,6 +955,8 @@ class TrainMod(object):
                                     n_outputs=len(self.label_o),
                                     nn_type=self.NNtype,
                                     best_valid_mse=float(val_m),
+                                    best_ext_mse=(float(ext_m) if ext_m is not None else float('nan')),
+                                    checkpoint_metric=self.checkpoint_metric,
                                     epochs_trained=int(epoch + 1),
                                     date=str(datetime.now()))
                 else:
@@ -939,9 +1012,12 @@ class TrainMod(object):
                 val_tag = "(No ES)"
             val_display = np.log10(val_m) if np.isfinite(val_m) else float('nan')
             if epoch % 25 == 0 or epoch == self.numepochs - 1:
+                ext_display = (f"ext_logMSE={np.log10(last_ext_m):.5f}  "
+                               if last_ext_m is not None and last_ext_m > 0 else "")
                 print(f"... Epoch {epoch+1}/{self.numepochs} {val_tag} "
                     f"train_logMSE={np.log10(train_m):.5f}  "
                     f"valid_logMSE={val_display:.5f}  "
+                    f"{ext_display}"
                     f"lr={optimizer.param_groups[0]['lr']:.2e}  "
                     f"time={time.time()-t0:.1f}s")
             if stop:
@@ -953,5 +1029,23 @@ class TrainMod(object):
             ax.set_xlim(0, epoch + 1)
         plt.close(fig_loss)
         torch.cuda.empty_cache()
+        print(f'... Saved checkpoint is from epoch {best_epoch} '
+              f'(selection score {best_val:.6e}, metric={self.checkpoint_metric})')
+
+        if self.save_last:
+            # copy the best file (labels, norms, split, meta) and swap in the
+            # final-epoch weights, so the result loads exactly like the main model
+            root, ext = os.path.splitext(self.outfilename)
+            lastfile = f"{root}_last{ext}"
+            shutil.copyfile(self.outfilename, lastfile)
+            save_state_dict_to_h5(_unwrap(model).state_dict(), lastfile, group="model", compression="gzip")
+            save_meta_to_h5(lastfile,
+                            epochs_trained=int(epoch + 1),
+                            final_valid_mse=float(last_val_m),
+                            final_ext_mse=(float(last_ext_m) if last_ext_m is not None else float('nan')),
+                            checkpoint="last",
+                            date=str(datetime.now()))
+            print(f'... Wrote final-epoch weights to {lastfile}')
+
         print('Finished training model.')
         return model
