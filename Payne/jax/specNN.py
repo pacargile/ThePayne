@@ -80,6 +80,21 @@ def _layernorm_last(x, gamma, beta, eps=1e-5):
     return xhat * gamma + beta
 
     
+# FlxEm ("flux emulator", cwcflux) spectral networks.  nntype 'FlxEm_v<N>'
+# requires file version N; 'FlxEm' (or the alias 'FluxEmulator') accepts
+# whichever version the file declares in meta/nn_version.
+FLXEM_VERSIONS = (1,)
+
+
+def flxem_requested_version(nntype):
+    """None for the unversioned names, N for 'FlxEm_vN', False if not FlxEm."""
+    if nntype in ('FlxEm', 'FluxEmulator'):
+        return None
+    if isinstance(nntype, str) and nntype.startswith('FlxEm_v'):
+        return int(nntype[len('FlxEm_v'):])
+    return False
+
+
 class Net(object):
     def __init__(self, nnpath=None,nntype='MLP_v1',normed=False):
         self.normed = normed
@@ -165,6 +180,15 @@ class Net(object):
                                                 dtype=jnp.float64)
         else:
             self.wavelengths_A = None
+
+        # ===== FlxEm loader (fluxed CWC emulators, cwcflux) =====
+        # Its inputs are only the stellar labels; vmic is fixed in the grid
+        # and dust is applied analytically, so skip the vmic/Av/Rv lookups.
+        flxem_req = flxem_requested_version(nntype)
+        if flxem_req is not False:
+            self._read_flux_emulator(nnh5, flxem_req)
+            nnh5.close()
+            return
 
         # --- index map by name (lowercased contains) ---
         li_low = [s.lower() for s in self.label_i]
@@ -369,6 +393,88 @@ class Net(object):
             self._eval_core_spec = _forward_spec
             self.eval = self.evalSpec
 
+    def _read_flux_emulator(self, nnh5, requested_version=None):
+        """
+        FlxEm v1 (cwcflux) networks:
+
+            log10 H_nu = s_bol(Teff) + z(theta) @ B + mu          (mode 'bol')
+            z = toK( [Linear -> SiLU -> LayerNorm -> FiLM(theta)] x N  (x) )
+
+        with x = (theta - x_mu) / x_sd, theta in label_i order
+        (logt, logg, feh, afe), FiLM: h <- (1 + gamma(x)) * h + beta(x),
+        B a fixed PCA basis, and s_bol = 4 log Teff + log10(sigma/4pi).
+        Dust is applied exactly per pixel with the G23 coefficients stored in
+        /extinction (A(lam)/A(V) = a + b (1/Rv - 1/3.1)).
+        """
+        import json
+        meta = nnh5['meta'].attrs
+        version = int(meta.get('nn_version', 1))
+        if requested_version is not None and requested_version != version:
+            raise ValueError(
+                f"nntype 'FlxEm_v{requested_version}' requested but the file is "
+                f"FlxEm v{version}; use nntype='FlxEm_v{version}' or 'FlxEm'")
+        if version not in FLXEM_VERSIONS:
+            raise NotImplementedError(
+                f"FlxEm v{version} not supported by this Payne (have {FLXEM_VERSIONS})")
+        self.flxem_version = version
+        mode = str(meta['mode'])
+        film = str(meta['film'])
+        n_layers = len(json.loads(meta['hidden']))
+        if mode not in ('direct', 'bol') or film not in ('theta', 'None'):
+            raise NotImplementedError(
+                f"FlxEm v1 mode={mode!r}, film={film!r} not supported in JAX")
+
+        f32 = lambda a: jnp.asarray(a, dtype=jnp.float32)
+        P = {k: f32(nnh5['model'][k][()]) for k in nnh5['model'].keys()}
+        ext_a = f32(nnh5['extinction/a'][()])
+        ext_b = f32(nnh5['extinction/b'][()])
+        x_mu, x_sd = P['x_mu'], P['x_sd']
+
+        self.D_in = len(self.label_i)
+        self.D_out = len(self.label_o)
+        self.flux_meta = {k: meta[k] for k in meta.keys()}
+
+        def lin(name, h):
+            return h @ P[name + '.weight'].T + P[name + '.bias']
+
+        def intrinsic(x_file):
+            """x_file: (B, D_in) raw labels in label_i order -> (B, L) log10 H_nu."""
+            x = (x_file - x_mu) / x_sd
+            h = x
+            for i in range(n_layers):
+                h = jax.nn.silu(lin(f'lins.{i}', h))
+                h = _layernorm_last(h, P[f'norms.{i}.weight'], P[f'norms.{i}.bias'])
+                if film == 'theta':
+                    gb = lin(f'films.{i}.net.2', jax.nn.silu(lin(f'films.{i}.net.0', x)))
+                    gamma, beta = jnp.split(gb, 2, axis=-1)
+                    h = (1.0 + gamma) * h + beta
+            y = lin('toK', h)
+            y = (y @ P['B'] if 'B' in P else y) + P['mu']
+            if mode == 'bol':
+                y = y + (P['bol_a'] * x[:, 0] + P['bol_b'])[:, None]
+            return y
+
+        self._flux_intrinsic = intrinsic
+        self._ext_a, self._ext_b = ext_a, ext_b
+        self.eval = self.evalFlux
+
+    def evalFlux(self, x):
+        """
+        Evaluate a FlxEm model.
+
+        x : [Teff, logg, FeH, aFe, vmic, Av, Rv] or a (B, 7) batch.
+            vmic is ignored (fixed at 2 km/s in the CWC v2.0 grid).
+        Returns log10 H_nu (reddened by Av, Rv), shape (L,) or (B, L).
+        """
+        x_i = jnp.asarray(x, dtype=jnp.float32)
+        single = (x_i.ndim == 1)
+        xb = x_i[None, :] if single else x_i
+        X = self._build_input_spec_from_teff_order(xb)      # (B, D_in), label_i order
+        y = self._flux_intrinsic(X)
+        av, rv = xb[:, 5:6], xb[:, 6:7]
+        y = y - 0.4 * av * (self._ext_a + self._ext_b * (1.0 / rv - 1.0 / 3.1))
+        return y[0] if single else y
+
     def evalSpec(self, x):
         """
         Evaluate SpectralMLP_v1 model.
@@ -447,7 +553,7 @@ class modpred(object):
     def pred(self,inpars):
         # model is in F_nu, convert to F_lambda
         C_A_PER_S = 2.99792458e18
-        f_nu = 10.0**self.anns.evalSpec(inpars)
+        f_nu = 10.0**self.anns.eval(inpars)
         f_lambda = f_nu * (C_A_PER_S / (self.wavelength ** 2)) * (4.0 * jnp.pi)
         return f_lambda
     

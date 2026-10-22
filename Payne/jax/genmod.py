@@ -8,6 +8,16 @@ from datetime import datetime
 
 from .fitutils import polycalc
 
+# log10 (R_sun / pc)^2, converts a surface flux F_lambda into the observed
+# flux f_lambda = F_lambda * (R/dist)^2 for R in R_sun and dist in pc
+LOG_RSUN_PC_SQ = 2.0 * np.log10(6.957E+10 / 3.0856775814913673E+18)
+
+def _avrv_spec_layout(nntype):
+    """True for spectral NNs whose genspec pars carry [..., Av, Rv, ...]
+    (MLP_v* and the FlxEm family: 'FlxEm', 'FlxEm_v<N>', alias 'FluxEmulator')."""
+    return (nntype in ('MLP_v0', 'MLP_v1', 'MLP_v2', 'FluxEmulator')
+            or (isinstance(nntype, str) and nntype.startswith('FlxEm')))
+
 class GenMod(object):
     """docstring for GenMod"""
     def __init__(self, *arg, **kwargs):
@@ -36,7 +46,7 @@ class GenMod(object):
                 self.PP = PayneSpecPredict(nnpath=nnpath,NNtype=self.sNNtype)
             else:
                 self.PP = PayneSpecPredict(nnpath=nnpath,Cnnpath=Cnnpath,NNtype=self.sNNtype)
-        elif self.sNNtype in ('MLP_v0', 'MLP_v1', 'MLP_v2'):
+        elif _avrv_spec_layout(self.sNNtype):
             from .predictspec import PayneSpecPredictNew
             self.PP = PayneSpecPredictNew(nnpath=nnpath,nntype=self.sNNtype)
         else:
@@ -72,7 +82,23 @@ class GenMod(object):
         if self.filterarray is None:
             self.filterarray = self.fppsed.filternames
             
-    def genspec(self,pars,outwave=None,verbose=False,modpoly=False):
+    def genspec(self,pars,outwave=None,verbose=False,modpoly=False,
+                normalize=False,logR=None,dist=None):
+        """
+        Predict a spectrum on outwave.
+
+        pars : [Teff, logg, FeH, aFe, vrad, vrot, vmic, inst_R, pc0, pc1, ...]
+            or, for NNs with Av/Rv inputs (MLP_v*, FlxEm*),
+            [Teff, logg, FeH, aFe, vrad, vrot, vmic, inst_R, Av, Rv, pc0, pc1, ...]
+
+        For FlxEm NNs the model is F_lambda in erg/s/cm^2/A, reddened by Av, Rv.
+        By default this is the surface flux of the star.
+
+        modpoly   : multiply the model by the Chebyshev polynomial pc0, pc1, ...
+        normalize : divide the model by its mean before applying the polynomial
+        logR, dist: if given (log10 R in R_sun, dist in pc), scale the model to
+                    the observed flux, F_lambda * (R/dist)^2
+        """
         # define parameters from pars array
         Teff = pars[0]
         logg = pars[1]
@@ -85,13 +111,13 @@ class GenMod(object):
         indict['feh']    = FeH
         indict['afe']    = aFe
         
-        if self.sNNtype in ('MLP_v0', 'MLP_v1', 'MLP_v2'):
-            av = pars[4]
-            rv = pars[5]
-            radvel = pars[6]
-            rotvel = pars[7]
-            vmic = pars[8]
-            inst_R = pars[9]
+        if _avrv_spec_layout(self.sNNtype):
+            radvel = pars[4]
+            rotvel = pars[5]
+            vmic = pars[6]
+            inst_R = pars[7]
+            av = pars[8]
+            rv = pars[9]
             pcindstart = 10
 
             indict['av']     = av
@@ -109,7 +135,7 @@ class GenMod(object):
         indict['vmic']   = vmic
         indict['inst_R'] = inst_R
         indict['outwave'] = outwave
-        indict['verbose'] = True
+        indict['verbose'] = False
 
         # if verbose:
         #     jax.debug.print('Teff   = {}'.format(Teff))
@@ -140,8 +166,19 @@ class GenMod(object):
         def modpolydefault(wave):
             return np.ones(len(wave))
 
+        # divide the model by its mean, before the polynomial so pc0 sets the scale
+        modflux_i = modflux_i / np.where(normalize, np.mean(modflux_i), 1.0)
+
+        # scale the surface flux to the observed flux using the radius and distance
+        if (logR is None) != (dist is None):
+            raise ValueError('genspec needs both logR and dist to scale the flux')
+        if logR is not None:
+            if not _avrv_spec_layout(self.sNNtype):
+                raise ValueError(f'logR and dist need a NN that predicts F_lambda, not {self.sNNtype}')
+            modflux_i = modflux_i * 10.0**(LOG_RSUN_PC_SQ + 2.0*logR - 2.0*np.log10(dist))
+
         # if polynomial normalization is turned on then multiply model by it
-        epoly = lax.cond(modpoly,modpolyfn,modpolydefault,modwave_i)            
+        epoly = lax.cond(modpoly,modpolyfn,modpolydefault,modwave_i)
         
         # now multiply the model by the polynomial normalization poly
         modflux_i = modflux_i*epoly

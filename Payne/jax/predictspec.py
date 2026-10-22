@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import jax.numpy as np
 import jax.scipy as jsp
+import jax
 from jax import jit,vmap,lax
 from jax import dtypes
 
@@ -468,7 +469,13 @@ class PayneSpecPredictNew(object):
           """
           Convert x (Python/NumPy/JAX scalar or array) into a Python bool
           indicating whether any element is non-zero.
+
+          Under jit/grad the value is a tracer and unknown at trace time:
+          return True so the step is compiled in (rotation and RV are
+          guarded inside the core by lax.cond on their values).
           """
+          if isinstance(x, jax.core.Tracer):
+               return True
           x_np = onp.asarray(x)   # moves JAX value to host
           return bool(onp.any(x_np != 0.0))
 
@@ -519,19 +526,19 @@ class PayneSpecPredictNew(object):
                          # here you decide scalar vs array inst_R via shapes, not np.iterable
                          def branch_lsf(args2):
                               mw, ms, inst_R, ow = args2
-                              # choose wave grid on which inst_R is defined
-                              base_wave = ow if ow is not None else mw
+                              # smooth_lsf_fft needs sigma on the *input* (model)
+                              # wavelength grid, so build the kernel on mw
+                              base_wave = mw
 
-                              # make sure inst_R is defined on base_wave
                               inst_R_arr = np.asarray(inst_R)
 
                               if inst_R_arr.ndim == 0:
                                    # scalar R → treat as constant resolution over wavelength
                                    inst_R_arr = np.full_like(base_wave, inst_R_arr)
                               elif inst_R_arr.shape != base_wave.shape:
-                                   # assume inst_R is defined on mw; interpolate to base_wave
-                                   # (now both xp and fp are 1-D with equal length)
-                                   inst_R_arr = np.interp(base_wave, mw, inst_R_arr)
+                                   # inst_R given on the output grid; interpolate onto mw
+                                   src_wave = ow if ow is not None else mw
+                                   inst_R_arr = np.interp(base_wave, src_wave, inst_R_arr)
 
                               # intrinsic resolution of the NN: anns_resolution is Rsigma_in (lambda/sigma)
                               # convert to sigma_lambda for input and output
@@ -581,6 +588,13 @@ class PayneSpecPredictNew(object):
                          return outspec
 
                     modspec = _do_inst((modwave, modspec, inst_R, outwave))
+
+               # return the spectrum on outwave when one is given: the LSF
+               # smoothing already resampled it; otherwise interpolate
+               if outwave is not None:
+                    if not apply_inst:
+                         modspec = np.interp(outwave, modwave, modspec)
+                    modwave = outwave
 
                return modwave, modspec
 
