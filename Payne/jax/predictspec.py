@@ -576,16 +576,30 @@ class PayneSpecPredictNew(object):
                                    inres=anns_resolution,
                               )
 
-                         # you can use lax.cond on (jnp.ndim(inst_R) > 0), etc.
-                         outspec = lax.cond(
-                              np.ndim(inst_R) > 0,
-                              branch_lsf,
-                              branch_R,
+                         def branch_smooth(args2):
+                              # you can use lax.cond on (jnp.ndim(inst_R) > 0), etc.
+                              outspec = lax.cond(
+                                   np.ndim(inst_R) > 0,
+                                   branch_lsf,
+                                   branch_R,
+                                   args2,
+                              )
+                              outspec = outspec.at[0].set(outspec[1])
+                              outspec = outspec.at[-1].set(outspec[-2])
+                              return outspec
+
+                         def branch_none(args2):
+                              # inst_R = 0 (traced under jit): no broadening, only
+                              # resample onto outwave, as in the non-jitted path
+                              mw, ms, inst_R, ow = args2
+                              return np.interp(ow, mw, ms)
+
+                         return lax.cond(
+                              np.any(np.asarray(inst_R) != 0.0),
+                              branch_smooth,
+                              branch_none,
                               (modwave, modspec, inst_R, outwave),
                          )
-                         outspec = outspec.at[0].set(outspec[1])
-                         outspec = outspec.at[-1].set(outspec[-2])
-                         return outspec
 
                     modspec = _do_inst((modwave, modspec, inst_R, outwave))
 
