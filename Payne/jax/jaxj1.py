@@ -92,9 +92,21 @@ THPIO4 = 2.35619449019234492885
 SQ2OPI = 0.79788456080286535587989
 
 def j1(x):
+    """
+    Bessel function of the first kind, order 1 (cephes j1), elementwise.
 
-    w = lax.map(lambda y: lax.cond(y <= 5.0,_j1a,_j1b,y),x)
-    return w
+    Both branches are evaluated on every element and merged with ``where``.
+    The previous ``lax.map`` + ``lax.cond`` form ran as a sequential loop
+    over elements, which made its gradient (used by vsini smoothing) very
+    slow. Each branch's input is clamped to 5.0 where that branch is not
+    selected, so neither branch sees x outside its valid domain and the
+    gradients stay finite.
+    """
+    x = np.asarray(x)
+    small = x <= 5.0
+    xs = np.where(small, x, 5.0)
+    xl = np.where(small, 5.0, x)
+    return np.where(small, _j1a(xs), _j1b(xl))
 
 # def _j1(x):
 
